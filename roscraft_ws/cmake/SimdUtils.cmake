@@ -1,15 +1,15 @@
 # Provides centralized SIMD flag selection and safe application to targets
 
-if(DEFINED ROSCRAFT_SIMD_UTILS_LOADED)
+if(DEFINED ROSCRAFT_${MODULE_NAME}_SIMD_UTILS_LOADED)
     return()
 endif()
-set(ROSCRAFT_SIMD_UTILS_LOADED TRUE)
+set(ROSCRAFT_${MODULE_NAME}_SIMD_UTILS_LOADED TRUE)
 
 include(CheckCXXCompilerFlag)
 
 # Cache variable for SIMD level selection
-set(ROSCRAFT_SIMD_LEVEL "native" CACHE STRING "SIMD level: none native sse2 sse3 ssse3 sse4.1 sse4.2 avx avx2 avx512")
-set_property(CACHE ROSCRAFT_SIMD_LEVEL PROPERTY STRINGS
+set(ROSCRAFT_${MODULE_NAME}_SIMD_LEVEL "native" CACHE STRING "SIMD level: none native sse2 sse3 ssse3 sse4.1 sse4.2 avx avx2 avx512")
+set_property(CACHE ROSCRAFT_${MODULE_NAME}_SIMD_LEVEL PROPERTY STRINGS
     "none" "native" "sse2" "sse3" "ssse3" "sse4.1" "sse4.2" "avx" "avx2" "avx512"
 )
 
@@ -63,7 +63,7 @@ function(roscraft_simd_filter_supported_flags FLAGS_LIST_VAR OUT_VAR)
     set(_accepted "")
 
     foreach(_f IN LISTS _in)
-        string(MAKE_C_IDENTIFIER "ROSCRAFT_SIMD_${_f}" _var_name)
+        string(MAKE_C_IDENTIFIER "ROSCRAFT_${MODULE_NAME}_SIMD_${_f}" _var_name)
         check_cxx_compiler_flag("${_f}" ${_var_name})
         if(${_var_name})
             list(APPEND _accepted "${_f}")
@@ -78,7 +78,7 @@ endfunction()
 # Apply SIMD flags to a target
 # Usage:
 #   roscraft_simd_apply_to_target(TARGET mylib LEVEL avx2)
-#   roscraft_simd_apply_to_target(TARGET mylib) # uses ROSCRAFT_SIMD_LEVEL
+#   roscraft_simd_apply_to_target(TARGET mylib) # uses ROSCRAFT_${MODULE_NAME}_SIMD_LEVEL
 function(roscraft_simd_apply_to_target)
     cmake_parse_arguments(SIMD "" "TARGET;LEVEL" "" ${ARGN})
 
@@ -88,7 +88,7 @@ function(roscraft_simd_apply_to_target)
 
     set(_level "${SIMD_LEVEL}")
     if(NOT SIMD_LEVEL)
-        set(_level "${ROSCRAFT_SIMD_LEVEL}")
+        set(_level "${ROSCRAFT_${MODULE_NAME}_SIMD_LEVEL}")
     endif()
 
     if(NOT _level OR _level STREQUAL "none")

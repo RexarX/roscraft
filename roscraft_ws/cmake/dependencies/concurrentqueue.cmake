@@ -21,12 +21,13 @@ roscraft_dep_header(NAME "concurrentqueue")
 roscraft_dep_begin(
     NAME concurrentqueue
     VERSION 1.0.4
+    DEBIAN_NAMES concurrentqueue-dev
+    BREW_NAMES concurrentqueue
     PKG_CONFIG_NAMES concurrentqueue
     CPM_NAME concurrentqueue
     CPM_VERSION 1.0.4
     CPM_GITHUB_REPOSITORY cameron314/concurrentqueue
 )
-
 roscraft_dep_end()
 
 # Create roscraft::concurrentqueue::concurrentqueue alias if concurrentqueue was found

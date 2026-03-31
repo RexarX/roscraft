@@ -53,7 +53,7 @@ function(roscraft_target_set_warnings TARGET)
         -Wuseless-cast
     )
 
-    if(ROSCRAFT_ENABLE_WARNINGS_AS_ERRORS)
+    if(ROSCRAFT_${MODULE_NAME}_ENABLE_WARNINGS_AS_ERRORS)
         list(APPEND MSVC_WARNINGS /WX)
         list(APPEND CLANG_WARNINGS -Werror)
         list(APPEND GCC_WARNINGS -Werror)
@@ -114,13 +114,6 @@ endfunction()
 
 # Enable Link-Time Optimization (LTO) for a target
 function(roscraft_target_enable_lto TARGET)
-    # If global IPO is already enabled via CMAKE_INTERPROCEDURAL_OPTIMIZATION_*,
-    # the target will inherit it automatically - no need to check again
-    if(${ROSCRAFT_ENABLE_LTO})
-        # Global LTO already enabled, target will inherit
-        return()
-    endif()
-
     # Check if IPO is supported for this specific target
     check_ipo_supported(RESULT _ipo_supported OUTPUT _ipo_error LANGUAGES CXX)
     if(_ipo_supported)
@@ -186,9 +179,9 @@ function(roscraft_target_set_output_dirs TARGET)
     endif()
 
     if(ARG_CUSTOM_FOLDER)
-        set(_output_dir "${ROSCRAFT_ROOT_DIR}/bin/${ARG_CUSTOM_FOLDER}/$<LOWER_CASE:$<CONFIG>>-$<LOWER_CASE:${CMAKE_SYSTEM_NAME}>-$<LOWER_CASE:${CMAKE_SYSTEM_PROCESSOR}>")
+        set(_output_dir "${ROSCRAFT_${MODULE_NAME}_DIR}/bin/${ARG_CUSTOM_FOLDER}/$<LOWER_CASE:$<CONFIG>>-$<LOWER_CASE:${CMAKE_SYSTEM_NAME}>-$<LOWER_CASE:${CMAKE_SYSTEM_PROCESSOR}>")
     else()
-        set(_output_dir "${ROSCRAFT_ROOT_DIR}/bin/$<LOWER_CASE:$<CONFIG>>-$<LOWER_CASE:${CMAKE_SYSTEM_NAME}>-$<LOWER_CASE:${CMAKE_SYSTEM_PROCESSOR}>")
+        set(_output_dir "${ROSCRAFT_${MODULE_NAME}_DIR}/bin/$<LOWER_CASE:$<CONFIG>>-$<LOWER_CASE:${CMAKE_SYSTEM_NAME}>-$<LOWER_CASE:${CMAKE_SYSTEM_PROCESSOR}>")
     endif()
 
     set_target_properties(${TARGET} PROPERTIES

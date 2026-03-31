@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>roscraft_bridge_network</name>
+  <version>0.1.0</version>
+  <description>Network ROS 2 bridge backend and UDP server for Roscraft.</description>
+
+  <maintainer email="who727cares@gmail.com">Denis Plishko</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>roscraft_bridge_common</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

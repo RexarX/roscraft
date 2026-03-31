@@ -34,7 +34,6 @@ roscraft_dep_begin(
         "DOCTEST_WITH_TESTS OFF"
         "DOCTEST_WITH_MAIN_IN_STATIC_LIB OFF"
 )
-
 roscraft_dep_end()
 
 # Create roscraft::doctest::doctest alias if doctest was found

@@ -5,7 +5,7 @@ include_guard(GLOBAL)
 
 # CPM configuration options
 set(CPM_DOWNLOAD_VERSION 0.40.2 CACHE STRING "CPM version to download")
-set(CPM_SOURCE_CACHE "${CMAKE_SOURCE_DIR}/.cpm_cache" CACHE PATH "CPM source cache directory")
+set(CPM_SOURCE_CACHE "${ROSCRAFT_WS_DIR}/.cpm_cache" CACHE PATH "CPM source cache directory")
 # DependencyFinder already resolves system packages explicitly before CPM.
 # Keep CPM local lookup disabled by default to avoid duplicate find_package() probes
 # that significantly slow repeated configure runs.

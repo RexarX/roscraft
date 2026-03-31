@@ -12,24 +12,24 @@ include_guard(GLOBAL)
 cmake_policy(SET CMP0054 NEW)
 
 # Initialize global variables for dependency tracking.
-# _ROSCRAFT_DEPENDENCIES_FOUND uses CACHE INTERNAL so "was this package located on
+# _ROSCRAFT_${MODULE_NAME}_DEPENDENCIES_FOUND uses CACHE INTERNAL so "was this package located on
 # the system?" survives incremental rebuilds and avoids re-running find_package.
 #
-# _ROSCRAFT_DEPENDENCIES_PROCESSED intentionally uses a GLOBAL PROPERTY (in-memory
+# _ROSCRAFT_${MODULE_NAME}_DEPENDENCIES_PROCESSED intentionally uses a GLOBAL PROPERTY (in-memory
 # only) so the "already processed this file" flag resets on every CMake invocation.
 # This is critical: dependency .cmake files create IMPORTED targets that only live
 # for one cmake run. If the processed flag were cached, a regeneration triggered by
 # Ninja would find the flag TRUE (from the previous run's cache), skip re-including
 # the dependency file, and then fail when target_link_libraries tries to reference
 # an IMPORTED target that was never re-created.
-if(NOT DEFINED _ROSCRAFT_DEPENDENCIES_FOUND)
-    set(_ROSCRAFT_DEPENDENCIES_FOUND "" CACHE INTERNAL "List of found dependencies")
+if(NOT DEFINED _ROSCRAFT_${MODULE_NAME}_DEPENDENCIES_FOUND)
+    set(_ROSCRAFT_${MODULE_NAME}_DEPENDENCIES_FOUND "" CACHE INTERNAL "List of found dependencies")
 endif()
 
 # Options for package management
-option(ROSCRAFT_DOWNLOAD_PACKAGES "Download missing packages using CPM" ON)
-option(ROSCRAFT_FORCE_DOWNLOAD_PACKAGES "Force download all packages even if system version exists" OFF)
-option(ROSCRAFT_CHECK_PACKAGE_VERSIONS "Check and enforce package version requirements" ON)
+option(ROSCRAFT_${MODULE_NAME}_DOWNLOAD_PACKAGES "Download missing packages using CPM" ON)
+option(ROSCRAFT_${MODULE_NAME}_FORCE_DOWNLOAD_PACKAGES "Force download all packages even if system version exists" OFF)
+option(ROSCRAFT_${MODULE_NAME}_CHECK_PACKAGE_VERSIONS "Check and enforce package version requirements" ON)
 
 # ============================================================================
 # Logging Helper Functions
@@ -153,13 +153,13 @@ function(roscraft_dep_mark_processed)
     # dependency .cmake files are always re-included on regeneration, allowing
     # IMPORTED targets to be re-created.  See roscraft_dep_is_processed for the
     # full rationale.
-    set_property(GLOBAL PROPERTY ROSCRAFT_DEP_${_upper_name}_PROCESSED TRUE)
+    set_property(GLOBAL PROPERTY ROSCRAFT_${MODULE_NAME}_DEP_${_upper_name}_PROCESSED TRUE)
 
     # Keep a global list for the summary printer (also in-memory only).
-    get_property(_processed_list GLOBAL PROPERTY ROSCRAFT_DEPENDENCIES_PROCESSED_LIST)
+    get_property(_processed_list GLOBAL PROPERTY ROSCRAFT_${MODULE_NAME}_DEPENDENCIES_PROCESSED_LIST)
     list(APPEND _processed_list "${ARG_NAME}")
     list(REMOVE_DUPLICATES _processed_list)
-    set_property(GLOBAL PROPERTY ROSCRAFT_DEPENDENCIES_PROCESSED_LIST "${_processed_list}")
+    set_property(GLOBAL PROPERTY ROSCRAFT_${MODULE_NAME}_DEPENDENCIES_PROCESSED_LIST "${_processed_list}")
 endfunction()
 
 # Function: roscraft_dep_is_found
@@ -185,7 +185,7 @@ function(roscraft_dep_is_found)
     string(TOUPPER "${ARG_NAME}" _upper_name)
     string(REPLACE "-" "_" _upper_name "${_upper_name}")
 
-    if(DEFINED ROSCRAFT_DEP_${_upper_name}_FOUND AND ROSCRAFT_DEP_${_upper_name}_FOUND)
+    if(DEFINED ROSCRAFT_${MODULE_NAME}_DEP_${_upper_name}_FOUND AND ROSCRAFT_${MODULE_NAME}_DEP_${_upper_name}_FOUND)
         set(${ARG_OUTPUT_VAR} TRUE PARENT_SCOPE)
     else()
         set(${ARG_OUTPUT_VAR} FALSE PARENT_SCOPE)
@@ -214,15 +214,15 @@ function(roscraft_dep_mark_found)
     # only gates informational/skip logic inside roscraft_dep_begin, not target creation.
     # Target creation always happens in the dependency file body, which is re-run on
     # every cmake invocation thanks to roscraft_dep_is_processed using GLOBAL PROPERTY.
-    set(ROSCRAFT_DEP_${_upper_name}_FOUND TRUE CACHE INTERNAL "Dependency ${ARG_NAME} was found")
+    set(ROSCRAFT_${MODULE_NAME}_DEP_${_upper_name}_FOUND TRUE CACHE INTERNAL "Dependency ${ARG_NAME} was found")
 
     if(ARG_VIA)
-        set(ROSCRAFT_DEP_${_upper_name}_FOUND_VIA "${ARG_VIA}" CACHE INTERNAL "How ${ARG_NAME} was found")
+        set(ROSCRAFT_${MODULE_NAME}_DEP_${_upper_name}_FOUND_VIA "${ARG_VIA}" CACHE INTERNAL "How ${ARG_NAME} was found")
     endif()
 
-    list(APPEND _ROSCRAFT_DEPENDENCIES_FOUND "${ARG_NAME}")
-    list(REMOVE_DUPLICATES _ROSCRAFT_DEPENDENCIES_FOUND)
-    set(_ROSCRAFT_DEPENDENCIES_FOUND "${_ROSCRAFT_DEPENDENCIES_FOUND}" CACHE INTERNAL "List of found dependencies")
+    list(APPEND _ROSCRAFT_${MODULE_NAME}_DEPENDENCIES_FOUND "${ARG_NAME}")
+    list(REMOVE_DUPLICATES _ROSCRAFT_${MODULE_NAME}_DEPENDENCIES_FOUND)
+    set(_ROSCRAFT_${MODULE_NAME}_DEPENDENCIES_FOUND "${_ROSCRAFT_${MODULE_NAME}_DEPENDENCIES_FOUND}" CACHE INTERNAL "List of found dependencies")
 endfunction()
 
 # ============================================================================
@@ -244,14 +244,14 @@ macro(roscraft_require_dependency _dep_name)
 
     if(NOT _already_processed)
         # Try to find the dependency file
-        set(_dep_file "${ROSCRAFT_ROOT_DIR}/cmake/dependencies/${_dep_name}.cmake")
+        set(_dep_file "${ROSCRAFT_WS_DIR}/cmake/dependencies/${_dep_name}.cmake")
 
         if(EXISTS "${_dep_file}")
             include("${_dep_file}")
         else()
             # Try lowercase
             string(TOLOWER "${_dep_name}" _dep_name_lower)
-            set(_dep_file_lower "${ROSCRAFT_ROOT_DIR}/cmake/dependencies/${_dep_name_lower}.cmake")
+            set(_dep_file_lower "${ROSCRAFT_WS_DIR}/cmake/dependencies/${_dep_name_lower}.cmake")
 
             if(EXISTS "${_dep_file_lower}")
                 include("${_dep_file_lower}")
@@ -292,9 +292,9 @@ macro(roscraft_dep_begin)
     set(oneValueArgs NAME VERSION CPM_NAME CPM_VERSION CPM_GITHUB_REPOSITORY CPM_URL CPM_GIT_TAG CPM_SOURCE_SUBDIR)
     set(multiValueArgs DEBIAN_NAMES RPM_NAMES PACMAN_NAMES BREW_NAMES PKG_CONFIG_NAMES CPM_OPTIONS)
 
-    cmake_parse_arguments(ROSCRAFT_PKG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+    cmake_parse_arguments(ROSCRAFT_${MODULE_NAME}_PKG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-    set(_PKG_NAME "${ROSCRAFT_PKG_NAME}")
+    set(_PKG_NAME "${ROSCRAFT_${MODULE_NAME}_PKG_NAME}")
 
     # Check if already processed - if so, skip everything
     roscraft_dep_is_processed(NAME "${_PKG_NAME}" OUTPUT_VAR _PKG_ALREADY_PROCESSED)
@@ -304,15 +304,15 @@ macro(roscraft_dep_begin)
         if(_pkg_was_found)
             set("${_PKG_NAME}_FOUND" TRUE)
         endif()
-        set("${_PKG_NAME}_SKIP_ROSCRAFT_FIND" TRUE)
+        set("${_PKG_NAME}_SKIP_ROSCRAFT_${MODULE_NAME}_FIND" TRUE)
         unset(_pkg_was_found)
     else()
         # Set up CPM name if not provided
-        if(NOT ROSCRAFT_PKG_CPM_NAME)
-            set(ROSCRAFT_PKG_CPM_NAME "${ROSCRAFT_PKG_NAME}")
+        if(NOT ROSCRAFT_${MODULE_NAME}_PKG_CPM_NAME)
+            set(ROSCRAFT_${MODULE_NAME}_PKG_CPM_NAME "${ROSCRAFT_${MODULE_NAME}_PKG_NAME}")
         endif()
 
-        string(TOUPPER "${ROSCRAFT_PKG_CPM_NAME}" _PKG_CPM_NAME_UPPER)
+        string(TOUPPER "${ROSCRAFT_${MODULE_NAME}_PKG_CPM_NAME}" _PKG_CPM_NAME_UPPER)
         string(REPLACE "-" "_" _PKG_CPM_NAME_UPPER "${_PKG_CPM_NAME_UPPER}")
 
         # If this package was previously resolved via CPM in this build tree,
@@ -320,32 +320,32 @@ macro(roscraft_dep_begin)
         string(TOUPPER "${_PKG_NAME}" _PKG_NAME_UPPER)
         string(REPLACE "-" "_" _PKG_NAME_UPPER "${_PKG_NAME_UPPER}")
         set(_PKG_FORCE_CPM FALSE)
-        if(DEFINED ROSCRAFT_DEP_${_PKG_NAME_UPPER}_FOUND_VIA AND
-           ROSCRAFT_DEP_${_PKG_NAME_UPPER}_FOUND_VIA STREQUAL "CPM")
+        if(DEFINED ROSCRAFT_${MODULE_NAME}_DEP_${_PKG_NAME_UPPER}_FOUND_VIA AND
+           ROSCRAFT_${MODULE_NAME}_DEP_${_PKG_NAME_UPPER}_FOUND_VIA STREQUAL "CPM")
             set(_PKG_FORCE_CPM TRUE)
         endif()
 
         # Create download options for this package
         option(
-            ROSCRAFT_DOWNLOAD_${_PKG_CPM_NAME_UPPER}
-            "Download and setup ${ROSCRAFT_PKG_CPM_NAME} if not found"
-            ${ROSCRAFT_DOWNLOAD_PACKAGES}
+            ROSCRAFT_${MODULE_NAME}_DOWNLOAD_${_PKG_CPM_NAME_UPPER}
+            "Download and setup ${ROSCRAFT_${MODULE_NAME}_PKG_CPM_NAME} if not found"
+            ${ROSCRAFT_${MODULE_NAME}_DOWNLOAD_PACKAGES}
         )
         option(
-            ROSCRAFT_FORCE_DOWNLOAD_${_PKG_CPM_NAME_UPPER}
-            "Force download ${ROSCRAFT_PKG_CPM_NAME} even if system package exists"
-            ${ROSCRAFT_FORCE_DOWNLOAD_PACKAGES}
+            ROSCRAFT_${MODULE_NAME}_FORCE_DOWNLOAD_${_PKG_CPM_NAME_UPPER}
+            "Force download ${ROSCRAFT_${MODULE_NAME}_PKG_CPM_NAME} even if system package exists"
+            ${ROSCRAFT_${MODULE_NAME}_FORCE_DOWNLOAD_PACKAGES}
         )
 
         # Set version requirement
-        if(ROSCRAFT_PKG_VERSION)
-            if(NOT ${_PKG_NAME}_FIND_VERSION OR "${${_PKG_NAME}_FIND_VERSION}" VERSION_LESS "${ROSCRAFT_PKG_VERSION}")
-                set("${_PKG_NAME}_FIND_VERSION" "${ROSCRAFT_PKG_VERSION}")
+        if(ROSCRAFT_${MODULE_NAME}_PKG_VERSION)
+            if(NOT ${_PKG_NAME}_FIND_VERSION OR "${${_PKG_NAME}_FIND_VERSION}" VERSION_LESS "${ROSCRAFT_${MODULE_NAME}_PKG_VERSION}")
+                set("${_PKG_NAME}_FIND_VERSION" "${ROSCRAFT_${MODULE_NAME}_PKG_VERSION}")
             endif()
         endif()
 
         # Skip version checks if disabled
-        if(NOT ROSCRAFT_CHECK_PACKAGE_VERSIONS)
+        if(NOT ROSCRAFT_${MODULE_NAME}_CHECK_PACKAGE_VERSIONS)
             unset("${_PKG_NAME}_FIND_VERSION")
         endif()
 
@@ -353,7 +353,7 @@ macro(roscraft_dep_begin)
         if(TARGET ${_PKG_NAME} OR TARGET roscraft::${_PKG_NAME})
             if(NOT ${_PKG_NAME}_FIND_VERSION)
                 set("${_PKG_NAME}_FOUND" ON)
-                set("${_PKG_NAME}_SKIP_ROSCRAFT_FIND" ON)
+                set("${_PKG_NAME}_SKIP_ROSCRAFT_${MODULE_NAME}_FIND" ON)
                 roscraft_dep_mark_processed(NAME "${_PKG_NAME}")
                 roscraft_dep_mark_found(NAME "${_PKG_NAME}" VIA "existing target")
                 return()
@@ -362,7 +362,7 @@ macro(roscraft_dep_begin)
             if(${_PKG_NAME}_VERSION)
                 if(${_PKG_NAME}_FIND_VERSION VERSION_LESS_EQUAL ${_PKG_NAME}_VERSION)
                     set("${_PKG_NAME}_FOUND" ON)
-                    set("${_PKG_NAME}_SKIP_ROSCRAFT_FIND" ON)
+                    set("${_PKG_NAME}_SKIP_ROSCRAFT_${MODULE_NAME}_FIND" ON)
                     roscraft_dep_mark_processed(NAME "${_PKG_NAME}")
                     roscraft_dep_mark_found(NAME "${_PKG_NAME}" VIA "existing target")
                     return()
@@ -377,20 +377,20 @@ macro(roscraft_dep_begin)
 
         # Build error message for missing packages
         set(_ERROR_MESSAGE "Could not find `${_PKG_NAME}` package.")
-        if(ROSCRAFT_PKG_DEBIAN_NAMES)
-            list(JOIN ROSCRAFT_PKG_DEBIAN_NAMES " " _pkg_names)
+        if(ROSCRAFT_${MODULE_NAME}_PKG_DEBIAN_NAMES)
+            list(JOIN ROSCRAFT_${MODULE_NAME}_PKG_DEBIAN_NAMES " " _pkg_names)
             string(APPEND _ERROR_MESSAGE "\n\tDebian/Ubuntu: sudo apt install ${_pkg_names}")
         endif()
-        if(ROSCRAFT_PKG_RPM_NAMES)
-            list(JOIN ROSCRAFT_PKG_RPM_NAMES " " _pkg_names)
+        if(ROSCRAFT_${MODULE_NAME}_PKG_RPM_NAMES)
+            list(JOIN ROSCRAFT_${MODULE_NAME}_PKG_RPM_NAMES " " _pkg_names)
             string(APPEND _ERROR_MESSAGE "\n\tFedora/RHEL: sudo dnf install ${_pkg_names}")
         endif()
-        if(ROSCRAFT_PKG_PACMAN_NAMES)
-            list(JOIN ROSCRAFT_PKG_PACMAN_NAMES " " _pkg_names)
+        if(ROSCRAFT_${MODULE_NAME}_PKG_PACMAN_NAMES)
+            list(JOIN ROSCRAFT_${MODULE_NAME}_PKG_PACMAN_NAMES " " _pkg_names)
             string(APPEND _ERROR_MESSAGE "\n\tArch Linux: sudo pacman -S ${_pkg_names}")
         endif()
-        if(ROSCRAFT_PKG_BREW_NAMES)
-            list(JOIN ROSCRAFT_PKG_BREW_NAMES " " _pkg_names)
+        if(ROSCRAFT_${MODULE_NAME}_PKG_BREW_NAMES)
+            list(JOIN ROSCRAFT_${MODULE_NAME}_PKG_BREW_NAMES " " _pkg_names)
             string(APPEND _ERROR_MESSAGE "\n\tmacOS: brew install ${_pkg_names}")
         endif()
         string(APPEND _ERROR_MESSAGE "\n")
@@ -411,7 +411,7 @@ macro(_roscraft_dep_find_part)
 
     cmake_parse_arguments(PART "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-    if(${_PKG_NAME}_SKIP_ROSCRAFT_FIND)
+    if(${_PKG_NAME}_SKIP_ROSCRAFT_${MODULE_NAME}_FIND)
         return()
     endif()
 
@@ -495,7 +495,7 @@ endmacro()
 
 # Finalize package search
 macro(roscraft_dep_end)
-    if(${_PKG_NAME}_SKIP_ROSCRAFT_FIND)
+    if(${_PKG_NAME}_SKIP_ROSCRAFT_${MODULE_NAME}_FIND)
         return()
     endif()
 
@@ -503,7 +503,7 @@ macro(roscraft_dep_end)
     set(_FOUND_VIA "")
 
     # 1. Try system packages first (unless force download is enabled)
-    if(NOT ${_PKG_NAME}_FOUND AND NOT ROSCRAFT_FORCE_DOWNLOAD_${_PKG_CPM_NAME_UPPER} AND NOT _PKG_FORCE_CPM)
+    if(NOT ${_PKG_NAME}_FOUND AND NOT ROSCRAFT_${MODULE_NAME}_FORCE_DOWNLOAD_${_PKG_CPM_NAME_UPPER} AND NOT _PKG_FORCE_CPM)
         # Try CONFIG mode first (for CMake-aware packages)
         find_package(${_PKG_NAME} ${${_PKG_NAME}_FIND_VERSION} CONFIG QUIET)
         if(${_PKG_NAME}_FOUND)
@@ -518,10 +518,10 @@ macro(roscraft_dep_end)
     endif()
 
     # 2. Try pkg-config
-    if(NOT ${_PKG_NAME}_FOUND AND ROSCRAFT_PKG_PKG_CONFIG_NAMES AND NOT ROSCRAFT_FORCE_DOWNLOAD_${_PKG_CPM_NAME_UPPER} AND NOT _PKG_FORCE_CPM)
+    if(NOT ${_PKG_NAME}_FOUND AND ROSCRAFT_${MODULE_NAME}_PKG_PKG_CONFIG_NAMES AND NOT ROSCRAFT_${MODULE_NAME}_FORCE_DOWNLOAD_${_PKG_CPM_NAME_UPPER} AND NOT _PKG_FORCE_CPM)
         find_package(PkgConfig QUIET)
         if(PKG_CONFIG_FOUND)
-            list(GET ROSCRAFT_PKG_PKG_CONFIG_NAMES 0 _pkg_config_name)
+            list(GET ROSCRAFT_${MODULE_NAME}_PKG_PKG_CONFIG_NAMES 0 _pkg_config_name)
             pkg_check_modules(${_PKG_NAME}_PC QUIET IMPORTED_TARGET ${_pkg_config_name})
             if(${_PKG_NAME}_PC_FOUND)
                 set(${_PKG_NAME}_FOUND TRUE)
@@ -560,8 +560,8 @@ macro(roscraft_dep_end)
     endif()
 
     # 4. Try CPM as last resort
-    if(NOT ${_PKG_NAME}_FOUND AND ROSCRAFT_DOWNLOAD_${_PKG_CPM_NAME_UPPER})
-        if(ROSCRAFT_PKG_CPM_GITHUB_REPOSITORY OR ROSCRAFT_PKG_CPM_URL)
+    if(NOT ${_PKG_NAME}_FOUND AND ROSCRAFT_${MODULE_NAME}_DOWNLOAD_${_PKG_CPM_NAME_UPPER})
+        if(ROSCRAFT_${MODULE_NAME}_PKG_CPM_GITHUB_REPOSITORY OR ROSCRAFT_${MODULE_NAME}_PKG_CPM_URL)
             include(DownloadUsingCPM)
             _roscraft_cpm_add_package()
             if(${_PKG_NAME}_ADDED OR TARGET ${_PKG_NAME})
@@ -660,33 +660,33 @@ endmacro()
 
 # Internal helper to add package via CPM
 macro(_roscraft_cpm_add_package)
-    set(_cpm_args NAME ${ROSCRAFT_PKG_CPM_NAME})
+    set(_cpm_args NAME ${ROSCRAFT_${MODULE_NAME}_PKG_CPM_NAME})
 
-    if(ROSCRAFT_PKG_CPM_VERSION)
-        list(APPEND _cpm_args VERSION ${ROSCRAFT_PKG_CPM_VERSION})
+    if(ROSCRAFT_${MODULE_NAME}_PKG_CPM_VERSION)
+        list(APPEND _cpm_args VERSION ${ROSCRAFT_${MODULE_NAME}_PKG_CPM_VERSION})
     endif()
 
-    if(ROSCRAFT_PKG_CPM_GITHUB_REPOSITORY)
-        list(APPEND _cpm_args GITHUB_REPOSITORY ${ROSCRAFT_PKG_CPM_GITHUB_REPOSITORY})
+    if(ROSCRAFT_${MODULE_NAME}_PKG_CPM_GITHUB_REPOSITORY)
+        list(APPEND _cpm_args GITHUB_REPOSITORY ${ROSCRAFT_${MODULE_NAME}_PKG_CPM_GITHUB_REPOSITORY})
     endif()
 
-    if(ROSCRAFT_PKG_CPM_URL)
-        list(APPEND _cpm_args URL ${ROSCRAFT_PKG_CPM_URL})
+    if(ROSCRAFT_${MODULE_NAME}_PKG_CPM_URL)
+        list(APPEND _cpm_args URL ${ROSCRAFT_${MODULE_NAME}_PKG_CPM_URL})
     endif()
 
-    if(ROSCRAFT_PKG_CPM_GIT_TAG)
-        list(APPEND _cpm_args GIT_TAG ${ROSCRAFT_PKG_CPM_GIT_TAG})
+    if(ROSCRAFT_${MODULE_NAME}_PKG_CPM_GIT_TAG)
+        list(APPEND _cpm_args GIT_TAG ${ROSCRAFT_${MODULE_NAME}_PKG_CPM_GIT_TAG})
     endif()
 
-    if(ROSCRAFT_PKG_CPM_SOURCE_SUBDIR)
-        list(APPEND _cpm_args SOURCE_SUBDIR ${ROSCRAFT_PKG_CPM_SOURCE_SUBDIR})
+    if(ROSCRAFT_${MODULE_NAME}_PKG_CPM_SOURCE_SUBDIR)
+        list(APPEND _cpm_args SOURCE_SUBDIR ${ROSCRAFT_${MODULE_NAME}_PKG_CPM_SOURCE_SUBDIR})
     endif()
 
-    if(ROSCRAFT_PKG_CPM_OPTIONS)
-        list(APPEND _cpm_args OPTIONS ${ROSCRAFT_PKG_CPM_OPTIONS})
+    if(ROSCRAFT_${MODULE_NAME}_PKG_CPM_OPTIONS)
+        list(APPEND _cpm_args OPTIONS ${ROSCRAFT_${MODULE_NAME}_PKG_CPM_OPTIONS})
     endif()
 
-    if(ROSCRAFT_PKG_CPM_DOWNLOAD_ONLY)
+    if(ROSCRAFT_${MODULE_NAME}_PKG_CPM_DOWNLOAD_ONLY)
         list(APPEND _cpm_args DOWNLOAD_ONLY YES)
     endif()
 
@@ -698,15 +698,15 @@ endmacro()
 # Function to print all found dependencies
 function(roscraft_print_dependencies)
     message(STATUS "========== Roscraft Engine Dependencies ==========")
-    if(_ROSCRAFT_DEPENDENCIES_FOUND)
-        set(_deps_list ${_ROSCRAFT_DEPENDENCIES_FOUND})
+    if(_ROSCRAFT_${MODULE_NAME}_DEPENDENCIES_FOUND)
+        set(_deps_list ${_ROSCRAFT_${MODULE_NAME}_DEPENDENCIES_FOUND})
         list(REMOVE_DUPLICATES _deps_list)
         list(SORT _deps_list)
         foreach(_dep ${_deps_list})
             string(TOUPPER "${_dep}" _upper_dep)
             string(REPLACE "-" "_" _upper_dep "${_upper_dep}")
-            if(DEFINED ROSCRAFT_DEP_${_upper_dep}_FOUND_VIA)
-                message(STATUS "  ✓ ${_dep} (${ROSCRAFT_DEP_${_upper_dep}_FOUND_VIA})")
+            if(DEFINED ROSCRAFT_${MODULE_NAME}_DEP_${_upper_dep}_FOUND_VIA)
+                message(STATUS "  ✓ ${_dep} (${ROSCRAFT_${MODULE_NAME}_DEP_${_upper_dep}_FOUND_VIA})")
             else()
                 message(STATUS "  ✓ ${_dep}")
             endif()
