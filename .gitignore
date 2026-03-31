@@ -39,3 +39,40 @@
 
 # debug information files
 *.dwo
+
+# Build files
+out/
+build/
+bin/
+
+# Editors
+*.sln
+*.vcxproj
+.vs/
+.vscode/
+.zed/
+.cache/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Testing/
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+_deps/
+CMakeSettings.json
+CMakeUserPresets.json
+
+
+# CPM
+.cpm_cache
+
+# Python
+*.pyc
+__pycache__/
+
+# Logs
+logs/
+*.log
