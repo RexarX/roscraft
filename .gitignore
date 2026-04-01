@@ -40,18 +40,14 @@
 # debug information files
 *.dwo
 
+# Logs
+logs/
+*.log
+
 # Build files
 out/
 build/
 bin/
-
-# Editors
-*.sln
-*.vcxproj
-.vs/
-.vscode/
-.zed/
-.cache/
 
 # CMake
 CMakeCache.txt
@@ -72,10 +68,20 @@ CMakeUserPresets.json
 *.pyc
 __pycache__/
 
-# Logs
-logs/
-*.log
-
 # Gradle
 .gradle/
 build/
+
+# Flat buffers
+generated/
+
+# Editors
+*.sln
+*.vcxproj
+.vs/
+.vscode/
+.zed/
+.cache/
+
+# Agents
+.opencode/

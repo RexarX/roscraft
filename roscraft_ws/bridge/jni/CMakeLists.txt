@@ -57,9 +57,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(DEVELOPER_MODE "Enable developer-focused build features" ${PROJECT_IS_TOP_LEVEL})
-if(NOT DEFINED BUILD_TESTING)
-    set(BUILD_TESTING ${PROJECT_IS_TOP_LEVEL} CACHE BOOL "Build tests")
-endif()
 option(ROSCRAFT_BRIDGE_JNI_ENABLE_UNITY_BUILD "Enable Unity/Jumbo builds" OFF)
 option(ROSCRAFT_BRIDGE_JNI_ENABLE_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 option(ROSCRAFT_BRIDGE_JNI_ENABLE_ROS2 "Enable ROS 2 support for bridge/jni" ON)
@@ -123,7 +120,6 @@ set(ROSCRAFT_BRIDGE_JNI_HEADERS
 )
 
 set(ROSCRAFT_BRIDGE_JNI_SOURCES
-    src/bridge_jni.cpp
 )
 
 set(ROSCRAFT_BRIDGE_JNI_ALL_FILES

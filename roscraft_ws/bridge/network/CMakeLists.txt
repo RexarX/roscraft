@@ -57,9 +57,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(DEVELOPER_MODE "Enable developer-focused build features" ${PROJECT_IS_TOP_LEVEL})
-if(NOT DEFINED BUILD_TESTING)
-    set(BUILD_TESTING ${PROJECT_IS_TOP_LEVEL} CACHE BOOL "Build tests")
-endif()
 option(ROSCRAFT_BRIDGE_NETWORK_ENABLE_UNITY_BUILD "Enable Unity/Jumbo builds" OFF)
 option(ROSCRAFT_BRIDGE_NETWORK_ENABLE_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 option(ROSCRAFT_BRIDGE_NETWORK_ENABLE_ROS2 "Enable ROS 2 support for bridge/network" ON)
@@ -121,7 +118,6 @@ set(ROSCRAFT_BRIDGE_NETWORK_HEADERS
 )
 
 set(ROSCRAFT_BRIDGE_NETWORK_SOURCES
-    src/bridge_network.cpp
 )
 
 set(ROSCRAFT_BRIDGE_NETWORK_ALL_FILES
@@ -145,6 +141,10 @@ roscraft_target_set_optimization(roscraft_bridge_network_lib)
 roscraft_target_enable_lto(roscraft_bridge_network_lib)
 roscraft_target_enable_sanitizers(roscraft_bridge_network_lib)
 
+target_compile_definitions(roscraft_bridge_network_lib PUBLIC
+    $<$<BOOL:${ROSCRAFT_BRIDGE_NETWORK_ENABLE_ROS2}>:ROSCRAFT_BRIDGE_ENABLE_ROS2>
+)
+
 target_include_directories(roscraft_bridge_network_lib
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -153,21 +153,21 @@ target_include_directories(roscraft_bridge_network_lib
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_compile_definitions(roscraft_bridge_network_lib PUBLIC
-    $<$<BOOL:${ROSCRAFT_BRIDGE_NETWORK_ENABLE_ROS2}>:ROSCRAFT_BRIDGE_ENABLE_ROS2>
-)
+
 
 roscraft_require_dependency(argparse)
 roscraft_require_dependency(FlatBuffers)
 roscraft_require_dependency(glaze)
+roscraft_require_dependency(Asio)
 
 target_link_libraries(roscraft_bridge_network_lib
+    PUBLIC
+        roscraft::bridge::common
     PRIVATE
         roscraft::argparse
         roscraft::flatbuffers
         roscraft::glaze
-    PUBLIC
-        roscraft::bridge::common
+        roscraft::asio
     )
 
 if(ROSCRAFT_BRIDGE_NETWORK_ENABLE_ROS2)

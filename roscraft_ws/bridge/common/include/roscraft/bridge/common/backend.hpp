@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <cstdint>
 
 namespace roscraft::bridge::common {
@@ -11,20 +10,40 @@ enum class BackendType : uint8_t {
   kNone,
 };
 
-/**
- * @brief Returns enabled bridge backends.
- * @details The returned array always has two slots. Disabled slots contain
- *     BackendType::kNone.
- * @return Backends enabled at compile time.
- */
-[[nodiscard]] auto AvailableBackends() noexcept
-    -> const std::array<BackendType, 2>&;
+/// @brief Backend status.
+enum class BackendStatus : uint8_t {
+  kUninitialized = 0,
+  kInitializing = 1,
+  kReady = 2,
+  kError = 3,
+  kShuttingDown = 4,
+};
 
-/**
- * @brief Checks whether backend is enabled.
- * @param backend Backend to check.
- * @return True when the backend is enabled.
- */
-[[nodiscard]] auto SupportsBackend(BackendType backend) noexcept -> bool;
+/// @brief Backend capabilities flags.
+struct BackendCapabilities {
+  bool supports_jni = false;
+  bool supports_network = false;
+  bool supports_many_clients = false;
+};
+
+/// @brief Get human-readable name for BackendStatus.
+/// @param status Status to convert
+/// @return Human-readable status name
+[[nodiscard]] constexpr std::string_view ToString(
+    BackendStatus status) noexcept {
+  switch (status) {
+    case BackendStatus::kUninitialized:
+      return "Uninitialized";
+    case BackendStatus::kInitializing:
+      return "Initializing";
+    case BackendStatus::kReady:
+      return "Ready";
+    case BackendStatus::kError:
+      return "Error";
+    case BackendStatus::kShuttingDown:
+      return "ShuttingDown";
+  }
+  return "Unknown";
+}
 
 }  // namespace roscraft::bridge::common

@@ -124,7 +124,7 @@ function(roscraft_dep_is_processed)
     # a Ninja-triggered regeneration would see the stale TRUE flag, skip
     # re-including the dependency file, and then fail when target_link_libraries
     # references the now-missing IMPORTED target.
-    get_property(_is_processed GLOBAL PROPERTY ROSCRAFT_DEP_${_upper_name}_PROCESSED)
+    get_property(_is_processed GLOBAL PROPERTY ROSCRAFT_${MODULE_NAME}_DEP_${_upper_name}_PROCESSED)
     if(_is_processed)
         set(${ARG_OUTPUT_VAR} TRUE PARENT_SCOPE)
     else()

@@ -10,7 +10,6 @@ project(roscraft_bridge_common
 # Set archiver tools for Clang to support LTO
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     if(MSVC OR CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-        # On Windows with clang-cl, use llvm-lib (MSVC-compatible) or MSVC's lib.exe
         find_program(LLVM_LIB_EXECUTABLE
             NAMES llvm-lib llvm-lib.exe
             HINTS
@@ -32,7 +31,6 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         endif()
         set(CMAKE_RANLIB "" CACHE FILEPATH "Ranlib" FORCE)
     else()
-        # On Unix-like systems with Clang, use llvm-ar and llvm-ranlib
         find_program(LLVM_AR_EXECUTABLE llvm-ar)
         find_program(LLVM_RANLIB_EXECUTABLE llvm-ranlib)
         if(LLVM_AR_EXECUTABLE)
@@ -44,7 +42,6 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     endif()
 endif()
 
-# Only generate specific configs for multi-config generators
 if(CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_CONFIGURATION_TYPES "Debug;RelWithDebInfo;Release" CACHE STRING "" FORCE)
 endif()
@@ -70,13 +67,11 @@ if(NOT ROSCRAFT_BRIDGE_COMMON_ENABLE_JNI_BACKEND AND NOT ROSCRAFT_BRIDGE_COMMON_
     message(FATAL_ERROR "At least one backend must be enabled (JNI and/or network)")
 endif()
 
-# Unity build configuration
 if(ROSCRAFT_BRIDGE_COMMON_ENABLE_UNITY_BUILD)
     set(CMAKE_UNITY_BUILD ON)
     set(CMAKE_UNITY_BUILD_BATCH_SIZE 16 CACHE STRING "Unity build batch size")
 endif()
 
-# Set up directories
 set(MODULE_NAME BRIDGE_COMMON)
 set(ROSCRAFT_BRIDGE_COMMON_DIR ${PROJECT_SOURCE_DIR})
 set(ROSCRAFT_WS_DIR ${PROJECT_SOURCE_DIR}/../..)
@@ -90,7 +85,6 @@ include(BuildDirHelper)
 
 roscraft_print_build_dir_info()
 
-# LTO configuration
 include(CheckIPOSupported)
 check_ipo_supported(RESULT ROSCRAFT_BRIDGE_COMMON_IPO_SUPPORTED OUTPUT error)
 if(ROSCRAFT_BRIDGE_COMMON_IPO_SUPPORTED)
@@ -99,10 +93,8 @@ if(ROSCRAFT_BRIDGE_COMMON_IPO_SUPPORTED)
     message(STATUS "Link-Time Optimization (LTO) enabled for Release and RelWithDebInfo builds")
 else()
     message(STATUS "IPO/LTO not supported: ${error}")
-    set(ROSCRAFT_BRIDGE_COMMON_ENABLE_LTO OFF)
 endif()
 
-# Position-Independent Code (PIC) configuration
 if(CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
     message(STATUS "Position-Independent Code (PIC) enabled for multi-config generators")
@@ -111,13 +103,10 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo" OR CMAKE_BUILD_TYPE STREQUAL "
     message(STATUS "Position-Independent Code (PIC) enabled for ${CMAKE_BUILD_TYPE} builds")
 endif()
 
-# Include sanitizer support
 include(${ROSCRAFT_WS_DIR}/cmake/Sanitizers.cmake)
 roscraft_print_sanitizer_status()
 
 include(${ROSCRAFT_WS_DIR}/cmake/Dependencies.cmake)
-
-
 
 if(ROSCRAFT_BRIDGE_COMMON_ENABLE_ROS2)
     find_package(ament_cmake REQUIRED)
@@ -130,20 +119,33 @@ if(ROSCRAFT_BRIDGE_COMMON_ENABLE_ROS2)
     find_package(std_msgs REQUIRED)
 endif()
 
+# Find roscraft_core — installed by core's package into the colcon workspace.
+# The roscraft::core imported target becomes available after this call.
+find_package(roscraft_core REQUIRED)
+
 set(ROSCRAFT_BRIDGE_COMMON_HEADERS
+    include/roscraft/bridge/common/assert.hpp
     include/roscraft/bridge/common/backend.hpp
+    include/roscraft/bridge/common/bridge.hpp
+
+    include/roscraft/bridge/common/command/command.hpp
+    include/roscraft/bridge/common/command/queue.hpp
+
+    include/roscraft/bridge/common/command/types/command_types.hpp
+    include/roscraft/bridge/common/command/types/kinds.hpp
+    include/roscraft/bridge/common/command/types/status.hpp
+    include/roscraft/bridge/common/command/types/header.hpp
+    include/roscraft/bridge/common/command/types/response.hpp
 )
 
 set(ROSCRAFT_BRIDGE_COMMON_SOURCES
-    src/backend.cpp
+    src/assert.cpp
 )
 
-set(ROSCRAFT_BRIDGE_COMMON_ALL_FILES
+add_library(roscraft_bridge_common STATIC
     ${ROSCRAFT_BRIDGE_COMMON_HEADERS}
     ${ROSCRAFT_BRIDGE_COMMON_SOURCES}
 )
-
-add_library(roscraft_bridge_common STATIC ${ROSCRAFT_BRIDGE_COMMON_ALL_FILES})
 add_library(roscraft::bridge::common ALIAS roscraft_bridge_common)
 
 include(${ROSCRAFT_WS_DIR}/cmake/TargetUtils.cmake)
@@ -174,6 +176,7 @@ target_compile_definitions(roscraft_bridge_common PUBLIC
 )
 
 roscraft_require_dependency(readerwriterqueue)
+roscraft_require_dependency(concurrentqueue)
 
 target_link_libraries(roscraft_bridge_common PUBLIC
     roscraft::core
@@ -191,20 +194,9 @@ if(ROSCRAFT_BRIDGE_COMMON_ENABLE_ROS2)
 endif()
 
 set(ROSCRAFT_BRIDGE_COMMON_INTERFACE_FILES)
-file(GLOB ROSCRAFT_BRIDGE_COMMON_MSG_FILES
-    RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-    msg/*.msg
-)
-
-file(GLOB ROSCRAFT_BRIDGE_COMMON_SRV_FILES
-    RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-    srv/*.srv
-)
-
-file(GLOB ROSCRAFT_BRIDGE_COMMON_ACTION_FILES
-    RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-    action/*.action
-)
+file(GLOB ROSCRAFT_BRIDGE_COMMON_MSG_FILES    RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} msg/*.msg)
+file(GLOB ROSCRAFT_BRIDGE_COMMON_SRV_FILES    RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} srv/*.srv)
+file(GLOB ROSCRAFT_BRIDGE_COMMON_ACTION_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} action/*.action)
 
 list(APPEND ROSCRAFT_BRIDGE_COMMON_INTERFACE_FILES
     ${ROSCRAFT_BRIDGE_COMMON_MSG_FILES}
@@ -243,7 +235,6 @@ install(DIRECTORY include/
     DESTINATION include
 )
 
-# Configure tests
 if(BUILD_TESTING)
     include(CTest)
     enable_testing()
@@ -254,6 +245,7 @@ if(ROSCRAFT_BRIDGE_COMMON_ENABLE_ROS2)
     ament_export_include_directories(include)
     ament_export_targets(export_roscraft_bridge_common HAS_LIBRARY_TARGET)
     ament_export_dependencies(
+        roscraft_core           # propagate so jni/network don't need to re-find it
         action_msgs
         builtin_interfaces
         geometry_msgs
@@ -269,5 +261,4 @@ if(ROSCRAFT_BRIDGE_COMMON_ENABLE_ROS2)
     ament_package()
 endif()
 
-# Print dependency summary after everything is configured
 roscraft_print_dependency_summary()
