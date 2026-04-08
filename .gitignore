@@ -42,12 +42,14 @@
 
 # Logs
 logs/
+log/
 *.log
 
 # Build files
 out/
 build/
 bin/
+install/
 
 # CMake
 CMakeCache.txt

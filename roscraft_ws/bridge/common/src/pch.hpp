@@ -1,9 +1,24 @@
 #pragma once
 
-#include <source_location>
+#include <rclcpp/executors/static_single_threaded_executor.hpp>
+#include <rclcpp/generic_subscription.hpp>
+#include <rclcpp/logging.hpp>
+#include <rclcpp/node.hpp>
+#include <rclcpp/qos.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp/serialized_message.hpp>
+#include <rclcpp/timer.hpp>
+
+#include <taskflow/taskflow.hpp>
+
+#include <algorithm>
+#include <atomic>
+#include <concepts>
+#include <cstdint>
+#include <functional>
+#include <future>
+#include <memory>
+#include <memory_resource>
 #include <string>
 #include <string_view>
-
-#ifdef ROSCRAFT_BRIDGE_ENABLE_ROS2
-#include <rclcpp/logging.hpp>
-#endif
+#include <vector>

@@ -36,7 +36,7 @@ namespace roscraft::container {
  * `merge(Storage&&)`, it is called during `Merge()` for overlapping type
  * entries.
  *
- * @tparam Storage  The value type stored per type key. Must be
+ * @tparam Storage The value type stored per type key. Must be
  * default-constructible.
  * @tparam Allocator The allocator type for the underlying flat_map (default:
  * `std::allocator<std::byte>`)
@@ -95,9 +95,7 @@ public:
    * `std::pmr::memory_resource*`.
    * @param resource Memory resource used to construct allocator
    */
-  explicit constexpr MultiTypeMap(std::pmr::memory_resource* resource) noexcept(
-      std::is_nothrow_constructible_v<allocator_type,
-                                      std::pmr::memory_resource*>)
+  explicit constexpr MultiTypeMap(std::pmr::memory_resource* resource)
     requires std::constructible_from<allocator_type, std::pmr::memory_resource*>
       : MultiTypeMap(allocator_type{resource}) {}
 
@@ -120,9 +118,9 @@ public:
 
   /**
    * @brief Clears the Storage for the given type index.
-   * @param id The type index to clear
+   * @param index The type index to clear
    */
-  constexpr void Clear(TypeIndex id) noexcept;
+  constexpr void Clear(TypeIndex index) noexcept;
 
   /// @brief Clears all per-type storages (calls `Clear()`/`clear()` on each
   /// entry if available).
@@ -139,9 +137,9 @@ public:
 
   /**
    * @brief Resets (removes) the Storage entry for the given type index.
-   * @param id The type index to reset
+   * @param index The type index to reset
    */
-  constexpr void Reset(TypeIndex id) noexcept { storage_.erase(id); }
+  constexpr void Reset(TypeIndex index) noexcept { storage_.erase(index); }
 
   /// @brief Removes all Storage entries from the map.
   constexpr void ResetAll() noexcept { storage_.clear(); }
@@ -192,11 +190,11 @@ public:
 
   /**
    * @brief Removes Storage for the given type index entirely.
-   * @param id The type index to remove
+   * @param index The type index to remove
    * @return true if storage was removed
    */
-  constexpr bool Remove(TypeIndex id) noexcept {
-    return storage_.erase(id) > 0;
+  constexpr bool Remove(TypeIndex index) noexcept {
+    return storage_.erase(index) > 0;
   }
 
   /**
@@ -215,10 +213,10 @@ public:
    * @brief Ensures a Storage entry exists for the given type index and returns
    * a reference to it.
    * @details If no entry exists, a new default-constructed Storage is inserted.
-   * @param id The type index to ensure storage for
+   * @param index The type index to ensure storage for
    * @return Reference to the Storage for the given type index
    */
-  constexpr Storage& Ensure(TypeIndex id);
+  constexpr Storage& Ensure(TypeIndex index);
 
   /**
    * @brief Gets Storage for type `T`.
@@ -242,19 +240,19 @@ public:
    * @brief Gets Storage for the given type index.
    * @warning Triggers assertion if storage for the given type index doesn't
    * exist.
-   * @param id The type index to get storage for
+   * @param index The type index to get storage for
    * @return Reference to the Storage for the given type index
    */
-  [[nodiscard]] constexpr Storage& Get(TypeIndex id) noexcept;
+  [[nodiscard]] constexpr Storage& Get(TypeIndex index) noexcept;
 
   /**
    * @brief Gets Storage for the given type index (const).
    * @warning Triggers assertion if storage for the given type index doesn't
    * exist.
-   * @param id The type index to get storage for
+   * @param index The type index to get storage for
    * @return Const reference to the Storage for the given type index
    */
-  [[nodiscard]] constexpr const Storage& Get(TypeIndex id) const noexcept;
+  [[nodiscard]] constexpr const Storage& Get(TypeIndex index) const noexcept;
 
   /**
    * @brief Tries to get Storage for type `T`.
@@ -278,17 +276,17 @@ public:
 
   /**
    * @brief Tries to get Storage for the given type index.
-   * @param id The type index to get storage for
+   * @param index The type index to get storage for
    * @return Pointer to Storage if exists, `nullptr` otherwise
    */
-  [[nodiscard]] constexpr Storage* TryGet(TypeIndex id) noexcept;
+  [[nodiscard]] constexpr Storage* TryGet(TypeIndex index) noexcept;
 
   /**
    * @brief Tries to get Storage for the given type index (const).
-   * @param id The type index to get storage for
+   * @param index The type index to get storage for
    * @return Const pointer to Storage if exists, `nullptr` otherwise
    */
-  [[nodiscard]] constexpr const Storage* TryGet(TypeIndex id) const noexcept;
+  [[nodiscard]] constexpr const Storage* TryGet(TypeIndex index) const noexcept;
 
   /**
    * @brief Merges all entries from another `MultiTypeMap` into this one.
@@ -338,11 +336,11 @@ public:
 
   /**
    * @brief Checks if a Storage entry exists for the given type index.
-   * @param id The type index to check
+   * @param index The type index to check
    * @return true if an entry exists
    */
-  [[nodiscard]] constexpr bool Contains(TypeIndex id) const noexcept {
-    return storage_.contains(id);
+  [[nodiscard]] constexpr bool Contains(TypeIndex index) const noexcept {
+    return storage_.contains(index);
   }
 
   /**
@@ -360,10 +358,10 @@ public:
 
   /**
    * @brief Checks if the Storage for the given type index is empty.
-   * @param id The type index to check
+   * @param index The type index to check
    * @return true if storage is empty or doesn't exist
    */
-  [[nodiscard]] constexpr bool Empty(TypeIndex id) const noexcept;
+  [[nodiscard]] constexpr bool Empty(TypeIndex index) const noexcept;
 
   /**
    * @brief Returns true if all per-type storages are empty or if the map has no
@@ -404,10 +402,10 @@ public:
 
   /**
    * @brief Returns the number of elements stored for the given type index.
-   * @param id The type index to query
+   * @param index The type index to query
    * @return Element count, 0 if storage doesn't exist
    */
-  [[nodiscard]] constexpr size_type Size(TypeIndex id) const noexcept;
+  [[nodiscard]] constexpr size_type Size(TypeIndex index) const noexcept;
 
   /**
    * @brief Returns the number of registered type entries.
@@ -492,8 +490,9 @@ private:
 };
 
 template <typename Storage, typename Allocator>
-constexpr void MultiTypeMap<Storage, Allocator>::Clear(TypeIndex id) noexcept {
-  if (auto* ptr = TryGet(id)) [[likely]] {
+constexpr void MultiTypeMap<Storage, Allocator>::Clear(
+    TypeIndex index) noexcept {
+  if (auto* ptr = TryGet(index)) [[likely]] {
     if constexpr (requires { ptr->Clear(); }) {
       ptr->Clear();
     } else if constexpr (requires { ptr->clear(); }) {
@@ -516,7 +515,7 @@ constexpr void MultiTypeMap<Storage, Allocator>::ClearAll() noexcept {
 template <typename Storage, typename Allocator>
 template <typename T>
 constexpr Storage& MultiTypeMap<Storage, Allocator>::Ensure() {
-  const auto type_index = TypeIndexOf<T>();
+  constexpr auto type_index = TypeIndexOf<T>();
   const auto it = storage_.find(type_index);
   if (it == storage_.end()) {
     const auto [inserted_iter, success] =
@@ -529,12 +528,13 @@ constexpr Storage& MultiTypeMap<Storage, Allocator>::Ensure() {
 }
 
 template <typename Storage, typename Allocator>
-constexpr Storage& MultiTypeMap<Storage, Allocator>::Ensure(TypeIndex id) {
-  const auto it = storage_.find(id);
+constexpr Storage& MultiTypeMap<Storage, Allocator>::Ensure(TypeIndex index) {
+  const auto it = storage_.find(index);
   if (it == storage_.end()) {
-    const auto [inserted_iter, success] = storage_.emplace(id, MakeStorage());
+    const auto [inserted_iter, success] =
+        storage_.emplace(index, MakeStorage());
     ROSCRAFT_ASSERT(success, "Failed to create storage for type index '{}'!",
-                    id.Hash());
+                    index.Hash());
     return inserted_iter->second;
   }
   return it->second;
@@ -543,7 +543,7 @@ constexpr Storage& MultiTypeMap<Storage, Allocator>::Ensure(TypeIndex id) {
 template <typename Storage, typename Allocator>
 template <typename T>
 constexpr Storage& MultiTypeMap<Storage, Allocator>::Get() noexcept {
-  const auto type_index = TypeIndexOf<T>();
+  constexpr auto type_index = TypeIndexOf<T>();
   const auto it = storage_.find(type_index);
   ROSCRAFT_ASSERT(it != storage_.end(), "Storage for type '{}' does not exist!",
                   utils::TypeNameOf<T>());
@@ -554,7 +554,7 @@ template <typename Storage, typename Allocator>
 template <typename T>
 constexpr const Storage& MultiTypeMap<Storage, Allocator>::Get()
     const noexcept {
-  const auto type_index = TypeIndexOf<T>();
+  constexpr auto type_index = TypeIndexOf<T>();
   const auto it = storage_.find(type_index);
   ROSCRAFT_ASSERT(it != storage_.end(), "Storage for type '{}' does not exist!",
                   utils::TypeNameOf<T>());
@@ -563,33 +563,33 @@ constexpr const Storage& MultiTypeMap<Storage, Allocator>::Get()
 
 template <typename Storage, typename Allocator>
 constexpr Storage& MultiTypeMap<Storage, Allocator>::Get(
-    TypeIndex id) noexcept {
-  const auto it = storage_.find(id);
+    TypeIndex index) noexcept {
+  const auto it = storage_.find(index);
   ROSCRAFT_ASSERT(it != storage_.end(),
-                  "Storage for type index '{}' does not exist!", id.Hash());
+                  "Storage for type index '{}' does not exist!", index.Hash());
   return it->second;
 }
 
 template <typename Storage, typename Allocator>
 constexpr const Storage& MultiTypeMap<Storage, Allocator>::Get(
-    TypeIndex id) const noexcept {
-  const auto it = storage_.find(id);
+    TypeIndex index) const noexcept {
+  const auto it = storage_.find(index);
   ROSCRAFT_ASSERT(it != storage_.end(),
-                  "Storage for type index '{}' does not exist!", id.Hash());
+                  "Storage for type index '{}' does not exist!", index.Hash());
   return it->second;
 }
 
 template <typename Storage, typename Allocator>
 constexpr Storage* MultiTypeMap<Storage, Allocator>::TryGet(
-    TypeIndex id) noexcept {
-  const auto it = storage_.find(id);
+    TypeIndex index) noexcept {
+  const auto it = storage_.find(index);
   return it != storage_.end() ? &it->second : nullptr;
 }
 
 template <typename Storage, typename Allocator>
 constexpr const Storage* MultiTypeMap<Storage, Allocator>::TryGet(
-    TypeIndex id) const noexcept {
-  const auto it = storage_.find(id);
+    TypeIndex index) const noexcept {
+  const auto it = storage_.find(index);
   return it != storage_.end() ? &it->second : nullptr;
 }
 
@@ -597,8 +597,8 @@ template <typename Storage, typename Allocator>
 template <typename OtherStorage, typename OtherAllocator>
 constexpr void MultiTypeMap<Storage, Allocator>::Merge(
     MultiTypeMap<OtherStorage, OtherAllocator>&& other) {
-  for (auto& [id, other_storage] : other.storage_) {
-    if (const auto it = storage_.find(id); it != storage_.end()) {
+  for (auto& [index, other_storage] : other.storage_) {
+    if (const auto it = storage_.find(index); it != storage_.end()) {
       // Existing key: call Merge or merge on Storage if available.
       if constexpr (requires { it->second.Merge(std::move(other_storage)); }) {
         it->second.Merge(std::move(other_storage));
@@ -612,7 +612,7 @@ constexpr void MultiTypeMap<Storage, Allocator>::Merge(
       // New key: insert storage.
       if constexpr (std::same_as<Storage, OtherStorage>) {
         // Same storage type — move directly.
-        storage_.emplace(id, std::move(other_storage));
+        storage_.emplace(index, std::move(other_storage));
       } else {
         // Different storage type — create a new default Storage and attempt to
         // merge into it.
@@ -628,7 +628,7 @@ constexpr void MultiTypeMap<Storage, Allocator>::Merge(
         } else if constexpr (std::constructible_from<Storage, OtherStorage&&>) {
           new_storage = Storage(std::move(other_storage));
         }
-        storage_.emplace(id, std::move(new_storage));
+        storage_.emplace(index, std::move(new_storage));
       }
     }
   }
@@ -637,8 +637,8 @@ constexpr void MultiTypeMap<Storage, Allocator>::Merge(
 
 template <typename Storage, typename Allocator>
 constexpr bool MultiTypeMap<Storage, Allocator>::Empty(
-    TypeIndex id) const noexcept {
-  const auto* ptr = TryGet(id);
+    TypeIndex index) const noexcept {
+  const auto* ptr = TryGet(index);
   if (ptr == nullptr) {
     return true;
   }
@@ -682,8 +682,8 @@ constexpr auto MultiTypeMap<Storage, Allocator>::Size() const noexcept
 
 template <typename Storage, typename Allocator>
 constexpr auto MultiTypeMap<Storage, Allocator>::Size(
-    TypeIndex id) const noexcept -> size_type {
-  const auto* ptr = TryGet(id);
+    TypeIndex index) const noexcept -> size_type {
+  const auto* ptr = TryGet(index);
   if (ptr == nullptr) {
     return 0;
   }

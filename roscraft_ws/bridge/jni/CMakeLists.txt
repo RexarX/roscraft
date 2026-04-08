@@ -9,9 +9,8 @@ project(roscraft_bridge_jni
 
 # Set archiver tools for Clang to support LTO
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    if(MSVC OR CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-        # On Windows with clang-cl, use llvm-lib (MSVC-compatible) or MSVC's lib.exe
-        find_program(LLVM_LIB_EXECUTABLE
+  if(MSVC OR CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    find_program(LLVM_LIB_EXECUTABLE
             NAMES llvm-lib llvm-lib.exe
             HINTS
                 "$ENV{VCINSTALLDIR}/Tools/Llvm/x64/bin"
@@ -19,34 +18,32 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
                 "C:/Program Files/LLVM/bin"
                 "C:/Program Files (x86)/LLVM/bin"
         )
-        find_program(MSVC_LIB_EXECUTABLE NAMES lib lib.exe)
+    find_program(MSVC_LIB_EXECUTABLE NAMES lib lib.exe)
 
-        if(LLVM_LIB_EXECUTABLE)
-            set(CMAKE_AR "${LLVM_LIB_EXECUTABLE}" CACHE FILEPATH "Archiver" FORCE)
-            message(STATUS "Using LLVM archiver for clang-cl: ${LLVM_LIB_EXECUTABLE}")
-        elseif(MSVC_LIB_EXECUTABLE)
-            set(CMAKE_AR "${MSVC_LIB_EXECUTABLE}" CACHE FILEPATH "Archiver" FORCE)
-            message(STATUS "Using MSVC archiver for clang-cl: ${MSVC_LIB_EXECUTABLE}")
-        else()
-            message(WARNING "No MSVC-compatible archiver found for clang-cl. Build may fail.")
-        endif()
-        set(CMAKE_RANLIB "" CACHE FILEPATH "Ranlib" FORCE)
+    if(LLVM_LIB_EXECUTABLE)
+      set(CMAKE_AR "${LLVM_LIB_EXECUTABLE}" CACHE FILEPATH "Archiver" FORCE)
+      message(STATUS "Using LLVM archiver for clang-cl: ${LLVM_LIB_EXECUTABLE}")
+    elseif(MSVC_LIB_EXECUTABLE)
+      set(CMAKE_AR "${MSVC_LIB_EXECUTABLE}" CACHE FILEPATH "Archiver" FORCE)
+      message(STATUS "Using MSVC archiver for clang-cl: ${MSVC_LIB_EXECUTABLE}")
     else()
-        # On Unix-like systems with Clang, use llvm-ar and llvm-ranlib
-        find_program(LLVM_AR_EXECUTABLE llvm-ar)
-        find_program(LLVM_RANLIB_EXECUTABLE llvm-ranlib)
-        if(LLVM_AR_EXECUTABLE)
-            set(CMAKE_AR "${LLVM_AR_EXECUTABLE}" CACHE FILEPATH "Archiver" FORCE)
-        endif()
-        if(LLVM_RANLIB_EXECUTABLE)
-            set(CMAKE_RANLIB "${LLVM_RANLIB_EXECUTABLE}" CACHE FILEPATH "Ranlib" FORCE)
-        endif()
+      message(WARNING "No MSVC-compatible archiver found for clang-cl. Build may fail.")
     endif()
+    set(CMAKE_RANLIB "" CACHE FILEPATH "Ranlib" FORCE)
+  else()
+    find_program(LLVM_AR_EXECUTABLE llvm-ar)
+    find_program(LLVM_RANLIB_EXECUTABLE llvm-ranlib)
+    if(LLVM_AR_EXECUTABLE)
+      set(CMAKE_AR "${LLVM_AR_EXECUTABLE}" CACHE FILEPATH "Archiver" FORCE)
+    endif()
+    if(LLVM_RANLIB_EXECUTABLE)
+      set(CMAKE_RANLIB "${LLVM_RANLIB_EXECUTABLE}" CACHE FILEPATH "Ranlib" FORCE)
+    endif()
+  endif()
 endif()
 
-# Only generate specific configs for multi-config generators
 if(CMAKE_CONFIGURATION_TYPES)
-    set(CMAKE_CONFIGURATION_TYPES "Debug;RelWithDebInfo;Release" CACHE STRING "" FORCE)
+  set(CMAKE_CONFIGURATION_TYPES "Debug;RelWithDebInfo;Release" CACHE STRING "" FORCE)
 endif()
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -57,19 +54,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(DEVELOPER_MODE "Enable developer-focused build features" ${PROJECT_IS_TOP_LEVEL})
+if(NOT DEFINED BUILD_TESTING)
+  set(BUILD_TESTING ${PROJECT_IS_TOP_LEVEL} CACHE BOOL "Build tests")
+endif()
 option(ROSCRAFT_BRIDGE_JNI_ENABLE_UNITY_BUILD "Enable Unity/Jumbo builds" OFF)
-option(ROSCRAFT_BRIDGE_JNI_ENABLE_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
-option(ROSCRAFT_BRIDGE_JNI_ENABLE_ROS2 "Enable ROS 2 support for bridge/jni" ON)
+option(ROSCRAFT_BRIDGE_ENABLE_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 
-# Unity build configuration
 if(ROSCRAFT_BRIDGE_JNI_ENABLE_UNITY_BUILD)
-    set(CMAKE_UNITY_BUILD ON)
-    set(CMAKE_UNITY_BUILD_BATCH_SIZE 16 CACHE STRING "Unity build batch size")
+  set(CMAKE_UNITY_BUILD ON)
+  set(CMAKE_UNITY_BUILD_BATCH_SIZE 16 CACHE STRING "Unity build batch size")
 endif()
 
-# Set up directories
 set(MODULE_NAME BRIDGE_JNI)
 set(ROSCRAFT_BRIDGE_JNI_DIR ${PROJECT_SOURCE_DIR})
+set(ROSCRAFT_BRIDGE_DIR ${PROJECT_SOURCE_DIR}/..)
 set(ROSCRAFT_WS_DIR ${PROJECT_SOURCE_DIR}/../..)
 set(ROSCRAFT_ROOT_DIR ${PROJECT_SOURCE_DIR}/../../..)
 
@@ -81,45 +79,54 @@ include(BuildDirHelper)
 
 roscraft_print_build_dir_info()
 
-# LTO configuration
 include(CheckIPOSupported)
-check_ipo_supported(RESULT ROSCRAFT_BRIDGE_JNI_IPO_SUPPORTED OUTPUT error)
-if(ROSCRAFT_BRIDGE_JNI_IPO_SUPPORTED)
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON)
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
-    message(STATUS "Link-Time Optimization (LTO) enabled for Release and RelWithDebInfo builds")
+check_ipo_supported(RESULT ROSCRAFT_BRIDGE_IPO_SUPPORTED OUTPUT error)
+if(ROSCRAFT_BRIDGE_IPO_SUPPORTED)
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON)
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+  message(STATUS "Link-Time Optimization (LTO) enabled for Release and RelWithDebInfo builds")
 else()
-    message(STATUS "IPO/LTO not supported: ${error}")
-    set(ROSCRAFT_BRIDGE_JNI_ENABLE_LTO OFF)
+  message(STATUS "IPO/LTO not supported: ${error}")
 endif()
 
-# Position-Independent Code (PIC) configuration
 if(CMAKE_CONFIGURATION_TYPES)
-    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-    message(STATUS "Position-Independent Code (PIC) enabled for multi-config generators")
-elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo" OR CMAKE_BUILD_TYPE STREQUAL "Release")
-    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-    message(STATUS "Position-Independent Code (PIC) enabled for ${CMAKE_BUILD_TYPE} builds")
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+  message(STATUS "Position-Independent Code (PIC) enabled for multi-config generators")
+elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo" OR CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+  message(STATUS "Position-Independent Code (PIC) enabled for ${CMAKE_BUILD_TYPE} builds")
 endif()
 
-# Include sanitizer support
 include(${ROSCRAFT_WS_DIR}/cmake/Sanitizers.cmake)
+include(${ROSCRAFT_WS_DIR}/cmake/Dependencies.cmake)
+include(${ROSCRAFT_WS_DIR}/cmake/TargetUtils.cmake)
+
 roscraft_print_sanitizer_status()
 
-include(${ROSCRAFT_WS_DIR}/cmake/Dependencies.cmake)
 
-if(ROSCRAFT_BRIDGE_JNI_ENABLE_ROS2)
-    find_package(ament_cmake REQUIRED)
-    find_package(rclcpp REQUIRED)
+
+# Find roscraft_core — installed by core's package into the colcon workspace.
+# The roscraft::core imported target becomes available after this call.
+find_package(roscraft_core REQUIRED)
+
+find_package(roscraft_bridge_common REQUIRED)
+
+if(TARGET roscraft_bridge_common::roscraft_bridge_common AND NOT TARGET roscraft::bridge::common)
+  add_library(roscraft::bridge::common ALIAS roscraft_bridge_common::roscraft_bridge_common)
 endif()
+
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
 
 find_package(JNI REQUIRED)
 
 set(ROSCRAFT_BRIDGE_JNI_HEADERS
-    include/roscraft/bridge/jni/bridge_jni.hpp
+    include/roscraft/bridge/jni/bridge.hpp
+    include/roscraft/bridge/jni/config.hpp
 )
 
 set(ROSCRAFT_BRIDGE_JNI_SOURCES
+    src/bridge.cpp
 )
 
 set(ROSCRAFT_BRIDGE_JNI_ALL_FILES
@@ -129,8 +136,6 @@ set(ROSCRAFT_BRIDGE_JNI_ALL_FILES
 
 add_library(roscraft_bridge_jni SHARED ${ROSCRAFT_BRIDGE_JNI_ALL_FILES})
 add_library(roscraft::bridge::jni ALIAS roscraft_bridge_jni)
-
-include(${ROSCRAFT_WS_DIR}/cmake/TargetUtils.cmake)
 
 roscraft_target_set_cxx_standard(roscraft_bridge_jni STANDARD 23)
 roscraft_target_set_platform(roscraft_bridge_jni)
@@ -158,25 +163,30 @@ target_include_directories(roscraft_bridge_jni SYSTEM PRIVATE
 
 target_compile_definitions(roscraft_bridge_jni PRIVATE
     ROSCRAFT_BRIDGE_JNI_BUILD_SHARED
-    $<$<BOOL:${ROSCRAFT_BRIDGE_JNI_ENABLE_ROS2}>:ROSCRAFT_BRIDGE_ENABLE_ROS2>
 )
 
 find_package(JNI)
 if(TARGET JNI::JNI)
-    target_link_libraries(roscraft_bridge_jni PRIVATE JNI::JNI)
+  target_link_libraries(roscraft_bridge_jni PRIVATE JNI::JNI)
 else()
-    target_link_libraries(roscraft_bridge_jni PRIVATE ${JNI_LIBRARIES})
+  target_link_libraries(roscraft_bridge_jni PRIVATE ${JNI_LIBRARIES})
 endif()
 
-target_link_libraries(roscraft_bridge_jni PUBLIC
-    roscraft::bridge::common
+roscraft_require_dependency(argparse)
+roscraft_require_dependency(Taskflow)
+roscraft_require_dependency(FlatMap)
+roscraft_require_dependency(concurrentqueue)
+
+target_link_libraries(roscraft_bridge_jni
+  PUBLIC
+      roscraft::bridge::common
+  PRIVATE
+      $<BUILD_INTERFACE:roscraft::flat_map>
+      $<BUILD_INTERFACE:roscraft::concurrentqueue>
+      $<BUILD_INTERFACE:roscraft::taskflow::taskflow>
+      roscraft::argparse
+      rclcpp::rclcpp
 )
-
-if(ROSCRAFT_BRIDGE_JNI_ENABLE_ROS2)
-    ament_target_dependencies(roscraft_bridge_jni
-        rclcpp
-    )
-endif()
 
 install(TARGETS roscraft_bridge_jni
     EXPORT export_roscraft_bridge_jni
@@ -185,23 +195,22 @@ install(TARGETS roscraft_bridge_jni
     RUNTIME DESTINATION bin
 )
 
+if(BUILD_TESTING)
+  include(CTest)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
+
 install(DIRECTORY include/
     DESTINATION include
 )
 
-# Configure tests
-if(BUILD_TESTING)
-    include(CTest)
-    enable_testing()
-    add_subdirectory(tests)
-endif()
+ament_export_dependencies(
+    roscraft_core           # propagate so jni/network don't need to re-find it
+    rclcpp
+)
+ament_export_include_directories(include)
+ament_export_targets(export_roscraft_bridge_jni HAS_LIBRARY_TARGET)
+ament_package()
 
-if(ROSCRAFT_BRIDGE_JNI_ENABLE_ROS2)
-    ament_export_include_directories(include)
-    ament_export_targets(export_roscraft_bridge_jni HAS_LIBRARY_TARGET)
-    ament_export_dependencies(rclcpp)
-    ament_package()
-endif()
-
-# Print dependency summary after everything is configured
 roscraft_print_dependency_summary()

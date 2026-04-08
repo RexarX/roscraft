@@ -1,7 +1,7 @@
 #pragma once
 
-#include <roscraft/bridge/common/assert.hpp>
-#include <roscraft/bridge/common/command/command.hpp>
+#include <roscraft/bridge/assert.hpp>
+#include <roscraft/bridge/command/command.hpp>
 
 #include <concurrentqueue.h>
 
@@ -20,7 +20,7 @@
 #include <ranges>
 #include <utility>
 
-namespace roscraft::bridge::common {
+namespace roscraft::bridge {
 
 namespace details {
 
@@ -613,4 +613,4 @@ inline auto CommandQueue::TypedStorage() const noexcept
       *messages_.at(CommandTypeIndex::From<T>()));
 }
 
-}  // namespace roscraft::bridge::common
+}  // namespace roscraft::bridge

@@ -25,7 +25,7 @@ struct FrameAllocatorOptions {
  * `Advance()` switches to the next frame and resets it, allowing memory reuse
  * with deterministic lifetime windows.
  *
- * @note Allocation is thread-safe as delegated to ArenaAllocator.
+ * @note Allocation is thread-safe as delegated to `ArenaAllocator`.
  * @warning `Advance()` and `Reset()` must not run concurrently with allocate.
  * @tparam N Number of frame buffers, must be >= 1
  */

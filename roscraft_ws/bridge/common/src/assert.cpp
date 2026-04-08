@@ -1,8 +1,7 @@
 #include <pch.hpp>
 
-#include <roscraft/bridge/common/assert.hpp>
+#include <roscraft/bridge/assert.hpp>
 
-#ifdef ROSCRAFT_BRIDGE_ENABLE_ROS2
 #include <rclcpp/logging.hpp>
 
 #include <source_location>
@@ -19,17 +18,16 @@ void LoggerAssertionHandler(std::string_view condition,
                             const std::source_location& loc,
                             std::string_view message) noexcept {
   if (message.empty()) {
-    RCLCPP_FATAL(rclcpp::get_logger("roscraft_assert"),
+    RCLCPP_FATAL(rclcpp::get_logger("roscraft_bridge"),
                  "Assertion failed: %s\n  File: %s:%u\n  Function: %s",
-                 condition.c_str(), loc.file_name(), loc.line(),
+                 condition.data(), loc.file_name(), loc.line(),
                  loc.function_name());
   } else {
-    RCLCPP_FATAL(rclcpp::get_logger("roscraft_assert"),
+    RCLCPP_FATAL(rclcpp::get_logger("roscraft_bridge"),
                  "Assertion failed: %s | %s\n  File: %s:%u\n  Function: %s",
-                 condition.c_str(), message.c_str(), loc.file_name(),
+                 condition.data(), message.data(), loc.file_name(),
                  loc.line(), loc.function_name());
   }
 }
 
 }  // namespace roscraft::details
-#endif

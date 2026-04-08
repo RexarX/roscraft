@@ -1,8 +1,9 @@
-<?xml version="1.0"?>
+<?xml version="1.0" ?>
 <package format="3">
   <name>roscraft_bridge_common</name>
   <version>0.1.0</version>
-  <description>Shared ROS 2 bridge APIs, interfaces, and backend abstractions for Roscraft.</description>
+  <description
+    >ROS 2 bridge APIs, interfaces, and backends for Roscraft.</description>
 
   <maintainer email="who727cares@gmail.com">Denis Plishko</maintainer>
   <license>MIT</license>

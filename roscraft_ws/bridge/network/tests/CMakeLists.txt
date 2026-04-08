@@ -1,5 +1,3 @@
-roscraft_require_dependency(doctest)
-
 set(ROSCRAFT_BRIDGE_NETWORK_TEST_SOURCES
     main.cpp
 )
@@ -17,7 +15,6 @@ roscraft_target_enable_lto(roscraft_bridge_network_tests)
 roscraft_target_enable_sanitizers(roscraft_bridge_network_tests)
 
 target_link_libraries(roscraft_bridge_network_tests PRIVATE
-    roscraft::bridge::network
     roscraft::doctest::doctest
 )
 

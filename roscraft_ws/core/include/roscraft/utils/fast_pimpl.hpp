@@ -32,9 +32,11 @@ public:
   FastPimpl(const FastPimpl& other) noexcept(
       noexcept(FastPimpl(std::declval<const T&>())))
       : FastPimpl(*other) {}
+
   FastPimpl(FastPimpl&& other) noexcept(
       noexcept(FastPimpl(std::declval<T&&>())))
       : FastPimpl(std::move(*other)) {}
+
   ~FastPimpl() noexcept(noexcept(std::destroy_at(std::declval<T*>())));
 
   FastPimpl& operator=(const FastPimpl& rhs) noexcept(

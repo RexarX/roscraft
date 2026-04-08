@@ -32,14 +32,14 @@ include_guard(GLOBAL)
 
 # Sanitizers are a developer-only feature.
 if(NOT DEVELOPER_MODE)
-    function(roscraft_target_enable_sanitizers TARGET)
-    endfunction()
+  function(roscraft_target_enable_sanitizers TARGET)
+  endfunction()
 
-    function(roscraft_print_sanitizer_status)
-        message(STATUS "Sanitizers: DISABLED (DEVELOPER_MODE=OFF)")
-    endfunction()
+  function(roscraft_print_sanitizer_status)
+    message(STATUS "Sanitizers: DISABLED (DEVELOPER_MODE=OFF)")
+  endfunction()
 
-    return()
+  return()
 endif()
 
 # Detect compiler capabilities
@@ -49,15 +49,15 @@ set(ROSCRAFT_${MODULE_NAME}_COMPILER_IS_MSVC OFF)
 set(ROSCRAFT_${MODULE_NAME}_COMPILER_IS_CLANG_CL OFF)
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    set(ROSCRAFT_${MODULE_NAME}_COMPILER_IS_GNU ON)
+  set(ROSCRAFT_${MODULE_NAME}_COMPILER_IS_GNU ON)
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    if(MSVC OR CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-        set(ROSCRAFT_${MODULE_NAME}_COMPILER_IS_CLANG_CL ON)
-    else()
-        set(ROSCRAFT_${MODULE_NAME}_COMPILER_IS_CLANG ON)
-    endif()
+  if(MSVC OR CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    set(ROSCRAFT_${MODULE_NAME}_COMPILER_IS_CLANG_CL ON)
+  else()
+    set(ROSCRAFT_${MODULE_NAME}_COMPILER_IS_CLANG ON)
+  endif()
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    set(ROSCRAFT_${MODULE_NAME}_COMPILER_IS_MSVC ON)
+  set(ROSCRAFT_${MODULE_NAME}_COMPILER_IS_MSVC ON)
 endif()
 
 # ============================================================================
@@ -79,40 +79,40 @@ option(ROSCRAFT_${MODULE_NAME}_SANITIZER_MEMORY "Enable MemorySanitizer (Clang o
 
 # Check for mutually exclusive sanitizers
 if(ROSCRAFT_${MODULE_NAME}_SANITIZER_ADDRESS AND ROSCRAFT_${MODULE_NAME}_SANITIZER_THREAD)
-    message(WARNING "AddressSanitizer and ThreadSanitizer cannot be used together. Disabling ThreadSanitizer.")
-    set(ROSCRAFT_${MODULE_NAME}_SANITIZER_THREAD OFF CACHE BOOL "Enable ThreadSanitizer" FORCE)
+  message(WARNING "AddressSanitizer and ThreadSanitizer cannot be used together. Disabling ThreadSanitizer.")
+  set(ROSCRAFT_${MODULE_NAME}_SANITIZER_THREAD OFF CACHE BOOL "Enable ThreadSanitizer" FORCE)
 endif()
 
 if(ROSCRAFT_${MODULE_NAME}_SANITIZER_ADDRESS AND ROSCRAFT_${MODULE_NAME}_SANITIZER_MEMORY)
-    message(WARNING "AddressSanitizer and MemorySanitizer cannot be used together. Disabling MemorySanitizer.")
-    set(ROSCRAFT_${MODULE_NAME}_SANITIZER_MEMORY OFF CACHE BOOL "Enable MemorySanitizer" FORCE)
+  message(WARNING "AddressSanitizer and MemorySanitizer cannot be used together. Disabling MemorySanitizer.")
+  set(ROSCRAFT_${MODULE_NAME}_SANITIZER_MEMORY OFF CACHE BOOL "Enable MemorySanitizer" FORCE)
 endif()
 
 if(ROSCRAFT_${MODULE_NAME}_SANITIZER_THREAD AND ROSCRAFT_${MODULE_NAME}_SANITIZER_MEMORY)
-    message(WARNING "ThreadSanitizer and MemorySanitizer cannot be used together. Disabling MemorySanitizer.")
-    set(ROSCRAFT_SANITIZER_MEMORY OFF CACHE BOOL "Enable MemorySanitizer" FORCE)
+  message(WARNING "ThreadSanitizer and MemorySanitizer cannot be used together. Disabling MemorySanitizer.")
+  set(ROSCRAFT_SANITIZER_MEMORY OFF CACHE BOOL "Enable MemorySanitizer" FORCE)
 endif()
 
 # MSan is only available on Clang
 if(ROSCRAFT_${MODULE_NAME}_SANITIZER_MEMORY AND NOT ROSCRAFT_${MODULE_NAME}_COMPILER_IS_CLANG)
-    message(WARNING "MemorySanitizer is only available with Clang. Disabling MemorySanitizer.")
-    set(ROSCRAFT_${MODULE_NAME}_SANITIZER_MEMORY OFF CACHE BOOL "Enable MemorySanitizer" FORCE)
+  message(WARNING "MemorySanitizer is only available with Clang. Disabling MemorySanitizer.")
+  set(ROSCRAFT_${MODULE_NAME}_SANITIZER_MEMORY OFF CACHE BOOL "Enable MemorySanitizer" FORCE)
 endif()
 
 # MSVC only supports ASan
 if(ROSCRAFT_${MODULE_NAME}_COMPILER_IS_MSVC OR ROSCRAFT_${MODULE_NAME}_COMPILER_IS_CLANG_CL)
-    if(ROSCRAFT_${MODULE_NAME}_SANITIZER_UNDEFINED)
-        message(STATUS "UndefinedBehaviorSanitizer is not supported on MSVC. Disabling.")
-        set(ROSCRAFT_${MODULE_NAME}_SANITIZER_UNDEFINED OFF CACHE BOOL "Enable UndefinedBehaviorSanitizer" FORCE)
-    endif()
-    if(ROSCRAFT_${MODULE_NAME}_SANITIZER_THREAD)
-        message(STATUS "ThreadSanitizer is not supported on MSVC. Disabling.")
-        set(ROSCRAFT_${MODULE_NAME}_SANITIZER_THREAD OFF CACHE BOOL "Enable ThreadSanitizer" FORCE)
-    endif()
-    if(ROSCRAFT_${MODULE_NAME}_SANITIZER_MEMORY)
-        message(STATUS "MemorySanitizer is not supported on MSVC. Disabling.")
-        set(ROSCRAFT_${MODULE_NAME}_SANITIZER_MEMORY OFF CACHE BOOL "Enable MemorySanitizer" FORCE)
-    endif()
+  if(ROSCRAFT_${MODULE_NAME}_SANITIZER_UNDEFINED)
+    message(STATUS "UndefinedBehaviorSanitizer is not supported on MSVC. Disabling.")
+    set(ROSCRAFT_${MODULE_NAME}_SANITIZER_UNDEFINED OFF CACHE BOOL "Enable UndefinedBehaviorSanitizer" FORCE)
+  endif()
+  if(ROSCRAFT_${MODULE_NAME}_SANITIZER_THREAD)
+    message(STATUS "ThreadSanitizer is not supported on MSVC. Disabling.")
+    set(ROSCRAFT_${MODULE_NAME}_SANITIZER_THREAD OFF CACHE BOOL "Enable ThreadSanitizer" FORCE)
+  endif()
+  if(ROSCRAFT_${MODULE_NAME}_SANITIZER_MEMORY)
+    message(STATUS "MemorySanitizer is not supported on MSVC. Disabling.")
+    set(ROSCRAFT_${MODULE_NAME}_SANITIZER_MEMORY OFF CACHE BOOL "Enable MemorySanitizer" FORCE)
+  endif()
 endif()
 
 # ============================================================================
@@ -121,63 +121,63 @@ endif()
 
 # Build the sanitizer flags string for GCC/Clang
 function(_roscraft_get_sanitizer_flags OUT_COMPILE_FLAGS OUT_LINK_FLAGS)
-    set(_compile_flags "")
-    set(_link_flags "")
+  set(_compile_flags "")
+  set(_link_flags "")
 
-    if(ROSCRAFT_${MODULE_NAME}_COMPILER_IS_GNU OR ROSCRAFT_${MODULE_NAME}_COMPILER_IS_CLANG)
-        set(_sanitizers "")
+  if(ROSCRAFT_${MODULE_NAME}_COMPILER_IS_GNU OR ROSCRAFT_${MODULE_NAME}_COMPILER_IS_CLANG)
+    set(_sanitizers "")
 
-        if(ROSCRAFT_${MODULE_NAME}_SANITIZER_ADDRESS)
-            list(APPEND _sanitizers "address")
-        endif()
-
-        if(ROSCRAFT_${MODULE_NAME}_SANITIZER_UNDEFINED)
-            list(APPEND _sanitizers "undefined")
-        endif()
-
-        if(ROSCRAFT_${MODULE_NAME}_SANITIZER_THREAD)
-            list(APPEND _sanitizers "thread")
-        endif()
-
-        if(ROSCRAFT_${MODULE_NAME}_SANITIZER_MEMORY)
-            list(APPEND _sanitizers "memory")
-        endif()
-
-        if(_sanitizers)
-            list(JOIN _sanitizers "," _sanitizer_list)
-            set(_compile_flags "-fsanitize=${_sanitizer_list} -fno-omit-frame-pointer -fno-optimize-sibling-calls")
-            set(_link_flags "-fsanitize=${_sanitizer_list}")
-
-            # Add extra flags for better error reporting
-            if(ROSCRAFT_${MODULE_NAME}_SANITIZER_ADDRESS)
-                string(APPEND _compile_flags " -fsanitize-address-use-after-scope")
-            endif()
-
-            if(ROSCRAFT_${MODULE_NAME}_SANITIZER_UNDEFINED)
-                # Print stack trace on UBSan error
-                string(APPEND _compile_flags " -fno-sanitize-recover=undefined")
-            endif()
-        endif()
+    if(ROSCRAFT_${MODULE_NAME}_SANITIZER_ADDRESS)
+      list(APPEND _sanitizers "address")
     endif()
 
-    set(${OUT_COMPILE_FLAGS} "${_compile_flags}" PARENT_SCOPE)
-    set(${OUT_LINK_FLAGS} "${_link_flags}" PARENT_SCOPE)
+    if(ROSCRAFT_${MODULE_NAME}_SANITIZER_UNDEFINED)
+      list(APPEND _sanitizers "undefined")
+    endif()
+
+    if(ROSCRAFT_${MODULE_NAME}_SANITIZER_THREAD)
+      list(APPEND _sanitizers "thread")
+    endif()
+
+    if(ROSCRAFT_${MODULE_NAME}_SANITIZER_MEMORY)
+      list(APPEND _sanitizers "memory")
+    endif()
+
+    if(_sanitizers)
+      list(JOIN _sanitizers "," _sanitizer_list)
+      set(_compile_flags "-fsanitize=${_sanitizer_list} -fno-omit-frame-pointer -fno-optimize-sibling-calls")
+      set(_link_flags "-fsanitize=${_sanitizer_list}")
+
+      # Add extra flags for better error reporting
+      if(ROSCRAFT_${MODULE_NAME}_SANITIZER_ADDRESS)
+        string(APPEND _compile_flags " -fsanitize-address-use-after-scope")
+      endif()
+
+      if(ROSCRAFT_${MODULE_NAME}_SANITIZER_UNDEFINED)
+        # Print stack trace on UBSan error
+        string(APPEND _compile_flags " -fno-sanitize-recover=undefined")
+      endif()
+    endif()
+  endif()
+
+  set(${OUT_COMPILE_FLAGS} "${_compile_flags}" PARENT_SCOPE)
+  set(${OUT_LINK_FLAGS} "${_link_flags}" PARENT_SCOPE)
 endfunction()
 
 # Build the sanitizer flags for MSVC
 function(_roscraft_get_msvc_sanitizer_flags OUT_COMPILE_FLAGS OUT_LINK_FLAGS)
-    set(_compile_flags "")
-    set(_link_flags "")
+  set(_compile_flags "")
+  set(_link_flags "")
 
-    if(ROSCRAFT_${MODULE_NAME}_COMPILER_IS_MSVC OR ROSCRAFT_${MODULE_NAME}_COMPILER_IS_CLANG_CL)
-        if(ROSCRAFT_${MODULE_NAME}_SANITIZER_ADDRESS)
-            set(_compile_flags "/fsanitize=address")
-            # MSVC ASan doesn't require special linker flags
-        endif()
+  if(ROSCRAFT_${MODULE_NAME}_COMPILER_IS_MSVC OR ROSCRAFT_${MODULE_NAME}_COMPILER_IS_CLANG_CL)
+    if(ROSCRAFT_${MODULE_NAME}_SANITIZER_ADDRESS)
+      set(_compile_flags "/fsanitize=address")
+      # MSVC ASan doesn't require special linker flags
     endif()
+  endif()
 
-    set(${OUT_COMPILE_FLAGS} "${_compile_flags}" PARENT_SCOPE)
-    set(${OUT_LINK_FLAGS} "${_link_flags}" PARENT_SCOPE)
+  set(${OUT_COMPILE_FLAGS} "${_compile_flags}" PARENT_SCOPE)
+  set(${OUT_LINK_FLAGS} "${_link_flags}" PARENT_SCOPE)
 endfunction()
 
 # ============================================================================
@@ -187,78 +187,78 @@ endfunction()
 # Enable sanitizers for a specific target
 # Usage: roscraft_target_enable_sanitizers(my_target)
 function(roscraft_target_enable_sanitizers TARGET)
-    if(NOT ROSCRAFT_${MODULE_NAME}_ENABLE_SANITIZERS)
-        return()
-    endif()
+  if(NOT ROSCRAFT_${MODULE_NAME}_ENABLE_SANITIZERS)
+    return()
+  endif()
 
-    # Only apply sanitizers for Debug builds
-    set(_is_debug "$<CONFIG:Debug>")
+  # Only apply sanitizers for Debug builds
+  set(_is_debug "$<CONFIG:Debug>")
 
-    if(ROSCRAFT_COMPILER_IS_MSVC OR ROSCRAFT_${MODULE_NAME}_COMPILER_IS_CLANG_CL)
-        _roscraft_get_msvc_sanitizer_flags(_compile_flags _link_flags)
+  if(ROSCRAFT_COMPILER_IS_MSVC OR ROSCRAFT_${MODULE_NAME}_COMPILER_IS_CLANG_CL)
+    _roscraft_get_msvc_sanitizer_flags(_compile_flags _link_flags)
 
-        if(_compile_flags)
-            target_compile_options(${TARGET} PRIVATE
+    if(_compile_flags)
+      target_compile_options(${TARGET} PRIVATE
                 $<${_is_debug}:${_compile_flags}>
             )
-        endif()
+    endif()
 
-        if(_link_flags)
-            target_link_options(${TARGET} PRIVATE
+    if(_link_flags)
+      target_link_options(${TARGET} PRIVATE
                 $<${_is_debug}:${_link_flags}>
             )
-        endif()
-    else()
-        _roscraft_get_sanitizer_flags(_compile_flags _link_flags)
+    endif()
+  else()
+    _roscraft_get_sanitizer_flags(_compile_flags _link_flags)
 
-        if(_compile_flags)
-            separate_arguments(_compile_flags_list UNIX_COMMAND "${_compile_flags}")
-            target_compile_options(${TARGET} PRIVATE
+    if(_compile_flags)
+      separate_arguments(_compile_flags_list UNIX_COMMAND "${_compile_flags}")
+      target_compile_options(${TARGET} PRIVATE
                 $<${_is_debug}:${_compile_flags_list}>
             )
-        endif()
+    endif()
 
-        if(_link_flags)
-            separate_arguments(_link_flags_list UNIX_COMMAND "${_link_flags}")
-            target_link_options(${TARGET} PRIVATE
+    if(_link_flags)
+      separate_arguments(_link_flags_list UNIX_COMMAND "${_link_flags}")
+      target_link_options(${TARGET} PRIVATE
                 $<${_is_debug}:${_link_flags_list}>
             )
-        endif()
     endif()
+  endif()
 endfunction()
 
 # Print sanitizer configuration status
 function(roscraft_print_sanitizer_status)
-    if(NOT ROSCRAFT_${MODULE_NAME}_ENABLE_SANITIZERS)
-        message(STATUS "Sanitizers: DISABLED")
-        return()
+  if(NOT ROSCRAFT_${MODULE_NAME}_ENABLE_SANITIZERS)
+    message(STATUS "Sanitizers: DISABLED")
+    return()
+  endif()
+
+  message(STATUS "")
+  message(STATUS "========== Sanitizer Configuration ==========")
+  message(STATUS "Sanitizers enabled for Debug builds")
+
+  if(ROSCRAFT_${MODULE_NAME}_COMPILER_IS_MSVC OR ROSCRAFT_${MODULE_NAME}_COMPILER_IS_CLANG_CL)
+    message(STATUS "  Compiler: MSVC/clang-cl (limited sanitizer support)")
+    if(ROSCRAFT_${MODULE_NAME}_SANITIZER_ADDRESS)
+      message(STATUS "  ✓ AddressSanitizer")
     endif()
-
-    message(STATUS "")
-    message(STATUS "========== Sanitizer Configuration ==========")
-    message(STATUS "Sanitizers enabled for Debug builds")
-
-    if(ROSCRAFT_${MODULE_NAME}_COMPILER_IS_MSVC OR ROSCRAFT_${MODULE_NAME}_COMPILER_IS_CLANG_CL)
-        message(STATUS "  Compiler: MSVC/clang-cl (limited sanitizer support)")
-        if(ROSCRAFT_${MODULE_NAME}_SANITIZER_ADDRESS)
-            message(STATUS "  ✓ AddressSanitizer")
-        endif()
-    else()
-        message(STATUS "  Compiler: ${CMAKE_CXX_COMPILER_ID}")
-        if(ROSCRAFT_${MODULE_NAME}_SANITIZER_ADDRESS)
-            message(STATUS "  ✓ AddressSanitizer")
-        endif()
-        if(ROSCRAFT_${MODULE_NAME}_SANITIZER_UNDEFINED)
-            message(STATUS "  ✓ UndefinedBehaviorSanitizer")
-        endif()
-        if(ROSCRAFT_${MODULE_NAME}_SANITIZER_THREAD)
-            message(STATUS "  ✓ ThreadSanitizer")
-        endif()
-        if(ROSCRAFT_${MODULE_NAME}_SANITIZER_MEMORY)
-            message(STATUS "  ✓ MemorySanitizer")
-        endif()
+  else()
+    message(STATUS "  Compiler: ${CMAKE_CXX_COMPILER_ID}")
+    if(ROSCRAFT_${MODULE_NAME}_SANITIZER_ADDRESS)
+      message(STATUS "  ✓ AddressSanitizer")
     endif()
+    if(ROSCRAFT_${MODULE_NAME}_SANITIZER_UNDEFINED)
+      message(STATUS "  ✓ UndefinedBehaviorSanitizer")
+    endif()
+    if(ROSCRAFT_${MODULE_NAME}_SANITIZER_THREAD)
+      message(STATUS "  ✓ ThreadSanitizer")
+    endif()
+    if(ROSCRAFT_${MODULE_NAME}_SANITIZER_MEMORY)
+      message(STATUS "  ✓ MemorySanitizer")
+    endif()
+  endif()
 
-    message(STATUS "==============================================")
-    message(STATUS "")
+  message(STATUS "==============================================")
+  message(STATUS "")
 endfunction()

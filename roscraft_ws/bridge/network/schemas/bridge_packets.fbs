@@ -1,0 +1,105 @@
+namespace roscraft.bridge.fbs;
+
+// ---------------------------------------------------------------------------
+// Shared sub-tables
+// ---------------------------------------------------------------------------
+
+table StringList {
+  items:[string];
+}
+
+table BytePayload {
+  data:[ubyte];
+}
+
+// ---------------------------------------------------------------------------
+// Incoming packets (mod → ROS)
+// ---------------------------------------------------------------------------
+
+table QueryGraphPacket {
+  request_id:uint64;
+}
+
+table SubscribeTopicPacket {
+  request_id:uint64;
+  topic_name:string (required);
+  message_type:string (required);
+}
+
+table PublishMessagePacket {
+  request_id:uint64;
+  topic_name:string (required);
+  message_type:string (required);
+  payload:[ubyte];   // Raw CDR-serialized message bytes
+}
+
+table QueryPlayersPacket {
+  request_id:uint64;
+}
+
+// ---------------------------------------------------------------------------
+// Outgoing packets (ROS → mod)
+// ---------------------------------------------------------------------------
+
+table PlaceBlockPacket {
+  x:int32;
+  y:int32;
+  z:int32;
+  block_id:string (required);
+}
+
+table GraphSnapshotPacket {
+  request_id:uint64;
+  topics:[string];
+  services:[string];
+  actions:[string];
+}
+
+table TopicPayloadPacket {
+  topic_name:string (required);
+  message_type:string (required);
+  payload:[ubyte];
+}
+
+table PlayerEntry {
+  name:string (required);
+  x:float;
+  y:float;
+  z:float;
+}
+
+table PlayerListPacket {
+  request_id:uint64;
+  players:[PlayerEntry];
+}
+
+// ---------------------------------------------------------------------------
+// Union and root table
+// ---------------------------------------------------------------------------
+
+/// All packet types in a single union so one datagram carries exactly one
+/// command.  The generated C++ switch over PacketPayload::NONE,
+/// PacketPayload::QueryGraphPacket, etc. is exhaustive.
+union PacketPayload {
+  // Incoming
+  QueryGraphPacket,
+  SubscribeTopicPacket,
+  PublishMessagePacket,
+  QueryPlayersPacket,
+  // Outgoing
+  PlaceBlockPacket,
+  GraphSnapshotPacket,
+  TopicPayloadPacket,
+  PlayerListPacket,
+}
+
+/// Root table — every UDP datagram deserializes to this.
+table BridgePacket {
+  payload:PacketPayload (required);
+}
+
+root_type BridgePacket;
+
+// File identifier embedded in the buffer (optional but useful for debugging).
+file_identifier "RCFT";
+file_extension  "bin";

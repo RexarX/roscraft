@@ -9,8 +9,8 @@ project(roscraft_core
 
 # Set archiver tools for Clang to support LTO
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    if(MSVC OR CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-        find_program(LLVM_LIB_EXECUTABLE
+  if(MSVC OR CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    find_program(LLVM_LIB_EXECUTABLE
             NAMES llvm-lib llvm-lib.exe
             HINTS
                 "$ENV{VCINSTALLDIR}/Tools/Llvm/x64/bin"
@@ -18,32 +18,32 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
                 "C:/Program Files/LLVM/bin"
                 "C:/Program Files (x86)/LLVM/bin"
         )
-        find_program(MSVC_LIB_EXECUTABLE NAMES lib lib.exe)
+    find_program(MSVC_LIB_EXECUTABLE NAMES lib lib.exe)
 
-        if(LLVM_LIB_EXECUTABLE)
-            set(CMAKE_AR "${LLVM_LIB_EXECUTABLE}" CACHE FILEPATH "Archiver" FORCE)
-            message(STATUS "Using LLVM archiver for clang-cl: ${LLVM_LIB_EXECUTABLE}")
-        elseif(MSVC_LIB_EXECUTABLE)
-            set(CMAKE_AR "${MSVC_LIB_EXECUTABLE}" CACHE FILEPATH "Archiver" FORCE)
-            message(STATUS "Using MSVC archiver for clang-cl: ${MSVC_LIB_EXECUTABLE}")
-        else()
-            message(WARNING "No MSVC-compatible archiver found for clang-cl. Build may fail.")
-        endif()
-        set(CMAKE_RANLIB "" CACHE FILEPATH "Ranlib" FORCE)
+    if(LLVM_LIB_EXECUTABLE)
+      set(CMAKE_AR "${LLVM_LIB_EXECUTABLE}" CACHE FILEPATH "Archiver" FORCE)
+      message(STATUS "Using LLVM archiver for clang-cl: ${LLVM_LIB_EXECUTABLE}")
+    elseif(MSVC_LIB_EXECUTABLE)
+      set(CMAKE_AR "${MSVC_LIB_EXECUTABLE}" CACHE FILEPATH "Archiver" FORCE)
+      message(STATUS "Using MSVC archiver for clang-cl: ${MSVC_LIB_EXECUTABLE}")
     else()
-        find_program(LLVM_AR_EXECUTABLE llvm-ar)
-        find_program(LLVM_RANLIB_EXECUTABLE llvm-ranlib)
-        if(LLVM_AR_EXECUTABLE)
-            set(CMAKE_AR "${LLVM_AR_EXECUTABLE}" CACHE FILEPATH "Archiver" FORCE)
-        endif()
-        if(LLVM_RANLIB_EXECUTABLE)
-            set(CMAKE_RANLIB "${LLVM_RANLIB_EXECUTABLE}" CACHE FILEPATH "Ranlib" FORCE)
-        endif()
+      message(WARNING "No MSVC-compatible archiver found for clang-cl. Build may fail.")
     endif()
+    set(CMAKE_RANLIB "" CACHE FILEPATH "Ranlib" FORCE)
+  else()
+    find_program(LLVM_AR_EXECUTABLE llvm-ar)
+    find_program(LLVM_RANLIB_EXECUTABLE llvm-ranlib)
+    if(LLVM_AR_EXECUTABLE)
+      set(CMAKE_AR "${LLVM_AR_EXECUTABLE}" CACHE FILEPATH "Archiver" FORCE)
+    endif()
+    if(LLVM_RANLIB_EXECUTABLE)
+      set(CMAKE_RANLIB "${LLVM_RANLIB_EXECUTABLE}" CACHE FILEPATH "Ranlib" FORCE)
+    endif()
+  endif()
 endif()
 
 if(CMAKE_CONFIGURATION_TYPES)
-    set(CMAKE_CONFIGURATION_TYPES "Debug;RelWithDebInfo;Release" CACHE STRING "" FORCE)
+  set(CMAKE_CONFIGURATION_TYPES "Debug;RelWithDebInfo;Release" CACHE STRING "" FORCE)
 endif()
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -55,14 +55,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(DEVELOPER_MODE "Enable developer-focused build features" ${PROJECT_IS_TOP_LEVEL})
 if(NOT DEFINED BUILD_TESTING)
-    set(BUILD_TESTING ${PROJECT_IS_TOP_LEVEL} CACHE BOOL "Build tests")
+  set(BUILD_TESTING ${PROJECT_IS_TOP_LEVEL} CACHE BOOL "Build tests")
 endif()
 option(ROSCRAFT_CORE_ENABLE_UNITY_BUILD "Enable Unity/Jumbo builds" OFF)
 option(ROSCRAFT_CORE_ENABLE_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 
 if(ROSCRAFT_CORE_ENABLE_UNITY_BUILD)
-    set(CMAKE_UNITY_BUILD ON)
-    set(CMAKE_UNITY_BUILD_BATCH_SIZE 16 CACHE STRING "Unity build batch size")
+  set(CMAKE_UNITY_BUILD ON)
+  set(CMAKE_UNITY_BUILD_BATCH_SIZE 16 CACHE STRING "Unity build batch size")
 endif()
 
 set(MODULE_NAME CORE)
@@ -81,19 +81,19 @@ roscraft_print_build_dir_info()
 include(CheckIPOSupported)
 check_ipo_supported(RESULT ROSCRAFT_CORE_IPO_SUPPORTED OUTPUT error)
 if(ROSCRAFT_CORE_IPO_SUPPORTED)
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON)
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
-    message(STATUS "Link-Time Optimization (LTO) enabled for Release and RelWithDebInfo builds")
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON)
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+  message(STATUS "Link-Time Optimization (LTO) enabled for Release and RelWithDebInfo builds")
 else()
-    message(STATUS "IPO/LTO not supported: ${error}")
+  message(STATUS "IPO/LTO not supported: ${error}")
 endif()
 
 if(CMAKE_CONFIGURATION_TYPES)
-    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-    message(STATUS "Position-Independent Code (PIC) enabled for multi-config generators")
-elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo" OR CMAKE_BUILD_TYPE STREQUAL "Release")
-    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-    message(STATUS "Position-Independent Code (PIC) enabled for ${CMAKE_BUILD_TYPE} builds")
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+  message(STATUS "Position-Independent Code (PIC) enabled for multi-config generators")
+elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo" OR CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+  message(STATUS "Position-Independent Code (PIC) enabled for ${CMAKE_BUILD_TYPE} builds")
 endif()
 
 include(${ROSCRAFT_WS_DIR}/cmake/Sanitizers.cmake)
@@ -114,7 +114,6 @@ set(ROSCRAFT_CORE_HEADERS
     include/roscraft/stacktrace.hpp
 
     include/roscraft/container/inline_callable_buffer.hpp
-    include/roscraft/container/multi_type_buffer.hpp
     include/roscraft/container/multi_type_map.hpp
     include/roscraft/container/sparse_set.hpp
     include/roscraft/container/static_string.hpp
@@ -183,67 +182,67 @@ roscraft_require_dependency(Boost)
 roscraft_require_dependency(FlatMap)
 
 target_link_libraries(roscraft_core PUBLIC
-    roscraft::flat_map
+    $<BUILD_INTERFACE:roscraft::flat_map>
 )
 
 # Platform-specific stacktrace backend
 if(ROSCRAFT_USE_STL_STACKTRACE)
-    message(STATUS "roscraft_core: Using C++23 STL stacktrace")
+  message(STATUS "roscraft_core: Using C++23 STL stacktrace")
 else()
-    if(UNIX AND NOT APPLE)
-        execute_process(
+  if(UNIX AND NOT APPLE)
+    execute_process(
             COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=libbacktrace.a
             OUTPUT_VARIABLE BACKTRACE_LIBRARY_FROM_COMPILER
             OUTPUT_STRIP_TRAILING_WHITESPACE
             ERROR_QUIET
         )
 
-        set(BACKTRACE_LIBRARY "")
-        if(BACKTRACE_LIBRARY_FROM_COMPILER
-            AND NOT BACKTRACE_LIBRARY_FROM_COMPILER STREQUAL "libbacktrace.a"
-            AND EXISTS "${BACKTRACE_LIBRARY_FROM_COMPILER}")
-            set(BACKTRACE_LIBRARY "${BACKTRACE_LIBRARY_FROM_COMPILER}")
-        else()
-            find_library(BACKTRACE_LIBRARY NAMES backtrace libbacktrace)
-        endif()
+    set(BACKTRACE_LIBRARY "")
+    if(BACKTRACE_LIBRARY_FROM_COMPILER
+              AND NOT BACKTRACE_LIBRARY_FROM_COMPILER STREQUAL "libbacktrace.a"
+              AND EXISTS "${BACKTRACE_LIBRARY_FROM_COMPILER}")
+      set(BACKTRACE_LIBRARY "${BACKTRACE_LIBRARY_FROM_COMPILER}")
+    else()
+      find_library(BACKTRACE_LIBRARY NAMES backtrace libbacktrace)
+    endif()
 
-        find_library(DL_LIBRARY NAMES dl)
+    find_library(DL_LIBRARY NAMES dl)
 
-        if(BACKTRACE_LIBRARY)
-            target_link_libraries(roscraft_core PRIVATE ${BACKTRACE_LIBRARY})
-            if(DL_LIBRARY)
-                target_link_libraries(roscraft_core PRIVATE ${DL_LIBRARY})
-            endif()
-            if(TARGET roscraft::boost::stacktrace_backtrace)
-                target_link_libraries(roscraft_core PRIVATE roscraft::boost::stacktrace_backtrace)
-            endif()
-            get_filename_component(BACKTRACE_INCLUDE_DIR "${BACKTRACE_LIBRARY}" DIRECTORY)
-            get_filename_component(BACKTRACE_INCLUDE_DIR "${BACKTRACE_INCLUDE_DIR}/include" ABSOLUTE)
-            if(EXISTS "${BACKTRACE_INCLUDE_DIR}/backtrace.h")
-                target_include_directories(roscraft_core PRIVATE ${BACKTRACE_INCLUDE_DIR})
-            endif()
-            target_compile_definitions(roscraft_core PRIVATE BOOST_STACKTRACE_USE_BACKTRACE)
-        else()
-            if(TARGET roscraft::boost::stacktrace_addr2line)
-                target_link_libraries(roscraft_core PRIVATE roscraft::boost::stacktrace_addr2line)
-            endif()
-            if(DL_LIBRARY)
-                target_link_libraries(roscraft_core PRIVATE ${DL_LIBRARY})
-            endif()
-            target_compile_definitions(roscraft_core PRIVATE BOOST_STACKTRACE_USE_ADDR2LINE)
-            message(STATUS "roscraft_core: libbacktrace not found, using Boost addr2line backend")
-        endif()
+    if(BACKTRACE_LIBRARY)
+      target_link_libraries(roscraft_core PRIVATE ${BACKTRACE_LIBRARY})
+      if(DL_LIBRARY)
+        target_link_libraries(roscraft_core PRIVATE ${DL_LIBRARY})
+      endif()
+      if(TARGET roscraft::boost::stacktrace_backtrace)
+        target_link_libraries(roscraft_core PRIVATE roscraft::boost::stacktrace_backtrace)
+      endif()
+      get_filename_component(BACKTRACE_INCLUDE_DIR "${BACKTRACE_LIBRARY}" DIRECTORY)
+      get_filename_component(BACKTRACE_INCLUDE_DIR "${BACKTRACE_INCLUDE_DIR}/include" ABSOLUTE)
+      if(EXISTS "${BACKTRACE_INCLUDE_DIR}/backtrace.h")
+        target_include_directories(roscraft_core PRIVATE ${BACKTRACE_INCLUDE_DIR})
+      endif()
+      target_compile_definitions(roscraft_core PRIVATE BOOST_STACKTRACE_USE_BACKTRACE)
+    else()
+      if(TARGET roscraft::boost::stacktrace_addr2line)
+        target_link_libraries(roscraft_core PRIVATE roscraft::boost::stacktrace_addr2line)
+      endif()
+      if(DL_LIBRARY)
+        target_link_libraries(roscraft_core PRIVATE ${DL_LIBRARY})
+      endif()
+      target_compile_definitions(roscraft_core PRIVATE BOOST_STACKTRACE_USE_ADDR2LINE)
+      message(STATUS "roscraft_core: libbacktrace not found, using Boost addr2line backend")
+    endif()
 
-        if(NOT ROSCRAFT_USE_STL_STACKTRACE)
-            target_link_options(roscraft_core INTERFACE
+    if(NOT ROSCRAFT_USE_STL_STACKTRACE)
+      target_link_options(roscraft_core INTERFACE
                 $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-rdynamic>
             )
-        endif()
-    elseif(APPLE)
-        target_compile_definitions(roscraft_core PRIVATE BOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED)
-    elseif(WIN32)
-        target_compile_definitions(roscraft_core PRIVATE BOOST_STACKTRACE_USE_WINDBG)
     endif()
+  elseif(APPLE)
+    target_compile_definitions(roscraft_core PRIVATE BOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED)
+  elseif(WIN32)
+    target_compile_definitions(roscraft_core PRIVATE BOOST_STACKTRACE_USE_WINDBG)
+  endif()
 endif()
 
 # Install the library and headers
@@ -284,9 +283,9 @@ install(FILES
 )
 
 if(BUILD_TESTING)
-    include(CTest)
-    enable_testing()
-    add_subdirectory(tests)
+  include(CTest)
+  enable_testing()
+  add_subdirectory(tests)
 endif()
 
 # Register with the colcon workspace. No ROS 2 sources are exposed —

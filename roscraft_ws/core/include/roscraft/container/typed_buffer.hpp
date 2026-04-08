@@ -250,8 +250,8 @@ constexpr TypedBuffer<Allocator>::TypedBuffer(std::in_place_type_t<T> /*tag*/,
                                               Args&&... args)
     : type_info_(TypeInfo::template From<T>()), has_value_(true) {
   storage_.resize(sizeof(T));
-  std::construct_at(std::launder(reinterpret_cast<T*>(storage_.data()),
-                                 std::forward<Args>(args)...));
+  std::construct_at(std::launder(reinterpret_cast<T*>(storage_.data())),
+                    std::forward<Args>(args)...);
 }
 
 template <typename Allocator>
@@ -380,8 +380,8 @@ inline T& TypedBuffer<Allocator>::Set(Args&&... args) {
     storage_.resize(sizeof(T));
   }
 
-  std::construct_at(std::launder(reinterpret_cast<T*>(storage_.data()),
-                                 std::forward<Args>(args)...));
+  std::construct_at(std::launder(reinterpret_cast<T*>(storage_.data())),
+                    std::forward<Args>(args)...);
   has_value_ = true;
   return *std::launder(reinterpret_cast<T*>(storage_.data()));
 }
