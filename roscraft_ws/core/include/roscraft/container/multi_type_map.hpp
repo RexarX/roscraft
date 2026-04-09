@@ -11,10 +11,13 @@
 #include <memory_resource>
 #include <type_traits>
 #include <utility>
+#include <version>
 
 #if defined(__cpp_lib_flat_map) && __cpp_lib_flat_map >= 202207L
+#define ROSCRAFT_HAS_STD_FLAT_MAP 1
 #include <flat_map>
 #else
+#define ROSCRAFT_HAS_STD_FLAT_MAP 0
 #include <boost/container/flat_map.hpp>
 #endif
 
@@ -50,13 +53,13 @@ public:
   using allocator_type = Allocator;
 
 private:
-#if defined(__cpp_lib_flat_map) && __cpp_lib_flat_map >= 202207L
+#if ROSCRAFT_HAS_STD_FLAT_MAP
   using KeyContainer =
       std::vector<TypeIndex, typename std::allocator_traits<allocator_type>::
                                  template rebind_alloc<TypeIndex>>;
   using MappedContainer =
       std::vector<Storage, typename std::allocator_traits<
-                               allocator_type>::template rebind_alloc<Storage>>;
+                                allocator_type>::template rebind_alloc<Storage>>;
 
   using MapType = std::flat_map<TypeIndex, Storage, std::less<TypeIndex>,
                                 KeyContainer, MappedContainer>;
@@ -73,7 +76,7 @@ private:
 public:
   constexpr MultiTypeMap() = default;
 
-#if defined(__cpp_lib_flat_map) && __cpp_lib_flat_map >= 202207L
+#if ROSCRAFT_HAS_STD_FLAT_MAP
   /**
    * @brief Constructs with a custom allocator.
    * @param alloc Allocator instance to use
@@ -503,7 +506,7 @@ constexpr void MultiTypeMap<Storage, Allocator>::Clear(
 
 template <typename Storage, typename Allocator>
 constexpr void MultiTypeMap<Storage, Allocator>::ClearAll() noexcept {
-  for (auto& [_, storage] : storage_) {
+  for (auto&& [_, storage] : storage_) {
     if constexpr (requires { storage.Clear(); }) {
       storage.Clear();
     } else if constexpr (requires { storage.clear(); }) {
@@ -597,7 +600,7 @@ template <typename Storage, typename Allocator>
 template <typename OtherStorage, typename OtherAllocator>
 constexpr void MultiTypeMap<Storage, Allocator>::Merge(
     MultiTypeMap<OtherStorage, OtherAllocator>&& other) {
-  for (auto& [index, other_storage] : other.storage_) {
+  for (auto&& [index, other_storage] : other.storage_) {
     if (const auto it = storage_.find(index); it != storage_.end()) {
       // Existing key: call Merge or merge on Storage if available.
       if constexpr (requires { it->second.Merge(std::move(other_storage)); }) {

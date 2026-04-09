@@ -5,7 +5,7 @@
 #include <roscraft/bridge/network/transport.hpp>
 #include <roscraft/container/multi_type_map.hpp>
 #include <roscraft/container/typed_buffer.hpp>
-#include <roscraft/generated/bridge_packets.hpp>
+#include <roscraft/generated/bridge_packets_generated.hpp>
 
 #include <flatbuffers/flatbuffers.h>
 

@@ -2,7 +2,7 @@
 
 #include <roscraft/bridge/command/queue.hpp>
 #include <roscraft/bridge/network/transport.hpp>
-#include <roscraft/generated/bridge_packets.hpp>
+#include <roscraft/generated/bridge_packets_generated.hpp>
 
 #include <flatbuffers/flatbuffers.h>
 

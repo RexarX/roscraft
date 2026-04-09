@@ -940,7 +940,7 @@ TEST_SUITE("container::MultiTypeMap") {
     map.Ensure<double>().Set(3);
 
     int count = 0;
-    for (auto& [id, storage] : map) {
+    for (auto&& [id, storage] : map) {
       ++count;
       CHECK(storage.has_value);
     }
@@ -979,7 +979,7 @@ TEST_SUITE("container::MultiTypeMap") {
     SimpleMap map;
     map.Ensure<int>().Set(1);
 
-    for (auto& [id, storage] : map) {
+    for (auto&& [id, storage] : map) {
       storage.Set(99);
     }
 

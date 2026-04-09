@@ -9,7 +9,7 @@
 
 include_guard(GLOBAL)
 
-set(ROSCRAFT_GLAZE_REQUIRED_VERSION_PATTERN "^7\\.2\\..*")
+set(ROSCRAFT_GLAZE_REQUIRED_VERSION_PATTERN "^7\\.[23]\\..*")
 
 # Check if already processed
 roscraft_dep_is_processed(NAME "glaze" OUTPUT_VAR _glaze_processed)
@@ -43,8 +43,8 @@ endif()
 if(_glaze_detected_version)
   if(NOT _glaze_detected_version MATCHES "${ROSCRAFT_GLAZE_REQUIRED_VERSION_PATTERN}")
     message(FATAL_ERROR
-            "glaze version ${_glaze_detected_version} is unsupported. "
-            "Required version series: 7.2.*"
+"glaze version ${_glaze_detected_version} is unsupported. "
+             "Required version series: 7.2.* or 7.3.*"
         )
   endif()
 endif()

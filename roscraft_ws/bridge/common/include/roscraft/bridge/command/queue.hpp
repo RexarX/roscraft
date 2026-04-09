@@ -4,10 +4,13 @@
 #include <roscraft/bridge/command/command.hpp>
 
 #include <concurrentqueue.h>
+#include <version>
 
 #if defined(__cpp_lib_flat_map) && __cpp_lib_flat_map >= 202207L
+#define ROSCRAFT_HAS_STD_FLAT_MAP 1
 #include <flat_map>
 #else
+#define ROSCRAFT_HAS_STD_FLAT_MAP 0
 #include <boost/container/flat_map.hpp>
 #endif
 
@@ -516,7 +519,7 @@ public:
       -> const TypedCommandStorage<T>&;
 
 private:
-#if defined(__cpp_lib_flat_map) && __cpp_lib_flat_map >= 202207L
+#if ROSCRAFT_HAS_STD_FLAT_MAP
   using CommandStorage =
       std::flat_map<CommandTypeIndex, std::unique_ptr<details::CommandStorage>>;
 #else
@@ -537,7 +540,7 @@ inline void CommandQueue::Register() {
 }
 
 inline void CommandQueue::Clear() {
-  for (auto& [_, storage] : messages_) {
+  for (auto&& [_, storage] : messages_) {
     storage->Clear();
   }
 }
