@@ -70,6 +70,7 @@ set(ROSCRAFT_BRIDGE_COMMON_DIR ${PROJECT_SOURCE_DIR})
 set(ROSCRAFT_BRIDGE_DIR ${PROJECT_SOURCE_DIR}/..)
 set(ROSCRAFT_WS_DIR ${PROJECT_SOURCE_DIR}/../..)
 set(ROSCRAFT_ROOT_DIR ${PROJECT_SOURCE_DIR}/../../..)
+set(ROSCRAFT_GENERATED_DIR ${ROSCRAFT_WS_DIR}/generated)
 
 list(APPEND CMAKE_MODULE_PATH "${ROSCRAFT_WS_DIR}/cmake")
 list(APPEND CMAKE_MODULE_PATH "${ROSCRAFT_WS_DIR}/cmake/helpers")
@@ -104,6 +105,7 @@ include(${ROSCRAFT_WS_DIR}/cmake/TargetUtils.cmake)
 roscraft_print_sanitizer_status()
 
 roscraft_require_dependency(FlatMap)
+roscraft_require_dependency(FlatBuffers)
 
 # Find roscraft_core — installed by core's package into the colcon workspace.
 # The roscraft::core imported target becomes available after this call.
@@ -118,11 +120,8 @@ find_package(action_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(rclcpp_action REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(std_msgs REQUIRED)
-
-
 
 # common bridge configuration
 set(ROSCRAFT_BRIDGE_COMMON_HEADERS
@@ -179,8 +178,6 @@ target_compile_definitions(roscraft_bridge_common PUBLIC
     $<$<BOOL:${ROSCRAFT_BRIDGE_ENABLE_NETWORK_BACKEND}>:ROSCRAFT_BRIDGE_ENABLE_NETWORK_BACKEND>
 )
 
-roscraft_require_dependency(Boost)
-roscraft_require_dependency(FlatMap)
 roscraft_require_dependency(concurrentqueue)
 roscraft_require_dependency(Taskflow)
 
@@ -188,33 +185,119 @@ target_link_libraries(roscraft_bridge_common
     PUBLIC
         roscraft::core
         rclcpp::rclcpp
-        rclcpp_action::rclcpp_action
 )
 
 if(TARGET roscraft::flat_map)
-    target_link_libraries(roscraft_bridge_common PUBLIC
+  target_link_libraries(roscraft_bridge_common PUBLIC
         $<BUILD_INTERFACE:roscraft::flat_map>
+        $<INSTALL_INTERFACE:roscraft::flat_map>
     )
-    if(roscraft_USE_STL_FLAT_MAP)
-        target_compile_definitions(roscraft_bridge_common PUBLIC
+  if(roscraft_USE_STL_FLAT_MAP)
+    target_compile_definitions(roscraft_bridge_common PUBLIC
             $<INSTALL_INTERFACE:roscraft_USE_STL_FLAT_MAP>
         )
-    endif()
+  endif()
 endif()
 
 if(TARGET concurrentqueue::concurrentqueue OR TARGET concurrentqueue)
-    target_link_libraries(roscraft_bridge_common PUBLIC
+  target_link_libraries(roscraft_bridge_common PUBLIC
         $<BUILD_INTERFACE:roscraft::concurrentqueue>
         $<INSTALL_INTERFACE:concurrentqueue::concurrentqueue>
     )
 endif()
 
 if(TARGET Taskflow::Taskflow OR TARGET Taskflow)
-    target_link_libraries(roscraft_bridge_common PUBLIC
+  target_link_libraries(roscraft_bridge_common PUBLIC
         $<BUILD_INTERFACE:roscraft::taskflow::taskflow>
         $<INSTALL_INTERFACE:Taskflow::Taskflow>
     )
 endif()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FlatBuffers code generation
+# ─────────────────────────────────────────────────────────────────────────────
+set(ROSCRAFT_FBS_SCHEMAS
+    ${ROSCRAFT_ROOT_DIR}/schemas/bridge_packets.fbs
+)
+
+set(FLATC_FLAGS
+    --cpp
+    --cpp-std "c++17"
+    --gen-object-api
+    --scoped-enums
+    --filename-ext "hpp"
+)
+
+if(TARGET flatbuffers::flatc)
+  get_target_property(FLATC_EXECUTABLE flatbuffers::flatc IMPORTED_LOCATION)
+  if(NOT FLATC_EXECUTABLE)
+    get_target_property(_flatc_configs flatbuffers::flatc IMPORTED_CONFIGURATIONS)
+    foreach(_config IN LISTS _flatc_configs)
+      get_target_property(FLATC_EXECUTABLE flatbuffers::flatc IMPORTED_LOCATION_${_config})
+      if(FLATC_EXECUTABLE)
+        break()
+      endif()
+    endforeach()
+  endif()
+  if(NOT FLATC_EXECUTABLE)
+    get_target_property(FLATC_EXECUTABLE flatbuffers::flatc IMPORTED_LOCATION_NOCONFIG)
+  endif()
+endif()
+if(NOT FLATC_EXECUTABLE)
+  find_program(FLATC_EXECUTABLE flatc REQUIRED)
+endif()
+
+set(ROSCRAFT_FBS_GENERATED_HEADERS "")
+foreach(_schema ${ROSCRAFT_FBS_SCHEMAS})
+  get_filename_component(_schema_name "${_schema}" NAME_WE)
+  set(_generated_header ${ROSCRAFT_GENERATED_DIR}/include/roscraft/generated/${_schema_name}_generated.hpp)
+  set(_output_dir ${ROSCRAFT_GENERATED_DIR}/include/roscraft/generated)
+
+  add_custom_command(
+        OUTPUT  "${_generated_header}"
+        COMMAND "${FLATC_EXECUTABLE}"
+                ${FLATC_FLAGS}
+                -o "${_output_dir}"
+                "${_schema}"
+        DEPENDS "${_schema}"
+        COMMENT "Compiling Flatbuffers schema: ${_schema_name}.fbs → ${_schema_name}.hpp"
+        VERBATIM
+  )
+
+  list(APPEND ROSCRAFT_FBS_GENERATED_HEADERS "${_generated_header}")
+endforeach()
+
+add_library(roscraft_bridge_fbs INTERFACE)
+add_library(roscraft::bridge::fbs ALIAS roscraft_bridge_fbs)
+
+target_sources(roscraft_bridge_fbs INTERFACE
+    FILE_SET HEADERS
+        BASE_DIRS ${ROSCRAFT_GENERATED_DIR}/include
+        FILES ${ROSCRAFT_FBS_GENERATED_HEADERS}
+)
+
+target_include_directories(roscraft_bridge_fbs INTERFACE
+    $<BUILD_INTERFACE:${ROSCRAFT_GENERATED_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+
+target_link_libraries(roscraft_bridge_fbs INTERFACE
+    roscraft::flatbuffers
+)
+
+install(TARGETS roscraft_bridge_fbs
+    EXPORT export_roscraft_bridge_common
+    FILE_SET HEADERS DESTINATION include
+)
+
+add_custom_target(roscraft_bridge_fbs_generate ALL
+    DEPENDS ${ROSCRAFT_FBS_GENERATED_HEADERS}
+    COMMENT "Flatbuffers code generation"
+)
+
+add_dependencies(roscraft_bridge_fbs roscraft_bridge_fbs_generate)
+
+target_link_libraries(roscraft_bridge_common PUBLIC roscraft::bridge::fbs)
 
 set(ROSCRAFT_BRIDGE_COMMON_INTERFACE_FILES)
 file(GLOB ROSCRAFT_BRIDGE_COMMON_MSG_FILES    RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} msg/*.msg)
@@ -250,8 +333,6 @@ endif()
 install(TARGETS roscraft_bridge_common
     EXPORT export_roscraft_bridge_common
     ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-    RUNTIME DESTINATION bin
 )
 
 install(EXPORT export_roscraft_bridge_common
@@ -296,7 +377,6 @@ ament_export_dependencies(
     builtin_interfaces
     geometry_msgs
     rclcpp
-    rclcpp_action
     std_msgs
 )
 ament_export_include_directories(include)

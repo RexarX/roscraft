@@ -1,0 +1,415 @@
+plugins {
+    id 'fabric-loom' version '1.12-SNAPSHOT'
+    id 'maven-publish'
+    id 'com.diffplug.spotless' version '6.25.+'
+}
+
+java {
+    withSourcesJar()
+}
+
+version = project.mod_version
+group   = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+repositories {
+    // Add repositories to retrieve artifacts from in here.
+    // Loom adds the essential maven repositories for Minecraft and Fabric automatically.
+    // See https://docs.gradle.org/current/userguide/declaring_repositories.html
+    maven {
+        name = "Terraformers"
+        url = "https://maven.terraformersmc.com/"
+    }
+    mavenCentral()
+}
+
+loom {
+    splitEnvironmentSourceSets()
+
+    mods {
+        "roscraft" {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
+        }
+    }
+}
+
+dependencies {
+    // To change the versions see the gradle.properties file
+    minecraft         "com.mojang:minecraft:${project.minecraft_version}"
+    mappings          "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+    // Fabric API
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    // Mod Menu API (optional runtime dependency)
+    modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+
+    // FlatBuffers Java runtime
+    implementation "com.google.flatbuffers:flatbuffers-java:${project.flatbuffers_version}"
+
+    // Gson ships with Minecraft; declared explicitly for IDE completion.
+    implementation "com.google.code.gson:gson:2.10.1"
+}
+
+// =============================================================================
+// FlatBuffers code generation
+// =============================================================================
+//
+// Generates Java sources from schemas/bridge_packets.fbs (or legacy
+// roscraft/schemas/bridge_packets.fbs) into
+// build/generated/flatbuffers/ and adds them to the main source set so
+// compileJava picks them up automatically.
+//
+// Configure via gradle.properties or CLI:
+//   roscraft_root        — path to the roscraft repository root
+//   flatc_path           — flatc binary  (default: "flatc")
+//   flatbuffers_min_version — minimum MAJOR.MINOR  (warning only)
+//
+// Examples:
+//   ./gradlew generateFlatBuffers
+//   ./gradlew generateFlatBuffers -PflatcPath=/opt/flatbuffers/bin/flatc
+//   ./gradlew build               -ProscraftRoot=/home/user/roscraft
+
+def flatcBin = (
+    project.findProperty("flatcPath")
+        ?: project.findProperty("flatc_path")
+        ?: "flatc"
+).toString()
+
+def roscraftRoot = (
+    project.findProperty("roscraftRoot")
+        ?: project.findProperty("roscraft_root")
+        ?: ".."
+).toString()
+
+def schemaFileCandidates = [
+    file("${roscraftRoot}/schemas/bridge_packets.fbs"),
+    file("${roscraftRoot}/roscraft/schemas/bridge_packets.fbs"),
+]
+def schemaFile = schemaFileCandidates.find { it.exists() } ?: schemaFileCandidates[0]
+def flatcOutputDir = layout.buildDirectory.dir("generated/flatbuffers")
+
+// ---- Soft version check — warns but never breaks the build ----------------
+
+tasks.register("checkFlatcVersion") {
+    group       = "verification"
+    description = "Warn when the installed flatc is older than flatbuffers_min_version."
+
+    doLast {
+        try {
+            def proc = [flatcBin, "--version"].execute()
+            proc.waitFor()
+            def out     = proc.text.trim()           // e.g. "flatc version 24.3.25"
+            def matcher = (out =~ /(\d+)\.(\d+)/)
+            if (!matcher.find()) {
+                logger.warn("[roscraft] Cannot parse flatc version from '{}'. Skipping check.", out)
+                return
+            }
+            def gotMaj = matcher.group(1).toInteger()
+            def gotMin = matcher.group(2).toInteger()
+
+            def minVersion = (
+                project.findProperty("flatbuffersMinVersion")
+                    ?: project.findProperty("flatbuffers_min_version")
+                    ?: "2.0"
+            ).toString()
+            def parts  = minVersion.split("\\.")
+            def minMaj = parts[0].toInteger()
+            def minMin = parts.length > 1 ? parts[1].toInteger() : 0
+
+            if (gotMaj < minMaj || (gotMaj == minMaj && gotMin < minMin)) {
+                logger.warn(
+                    "[roscraft] flatc {}.{} is older than minimum {}.{} required by " +
+                    "this project. Generated code may be incompatible with the C++ bridge.",
+                    gotMaj, gotMin, minMaj, minMin)
+            } else {
+                logger.lifecycle("[roscraft] flatc {}.{} ✓", gotMaj, gotMin)
+            }
+        } catch (Exception e) {
+            logger.warn("[roscraft] Could not run '{}' to check its version: {}. " +
+                        "Ensure flatc is on PATH or set -PflatcPath=…", flatcBin, e.message)
+        }
+    }
+}
+
+// ---- Code-generation task -------------------------------------------------
+
+tasks.register("generateFlatBuffers", Exec) {
+    group       = "build"
+    description = "Generate Java sources from bridge_packets.fbs using flatc."
+    dependsOn("checkFlatcVersion")
+
+    inputs.file(schemaFile)
+    outputs.dir(flatcOutputDir)
+
+    doFirst {
+        flatcOutputDir.get().asFile.mkdirs()
+        if (!schemaFile.exists()) {
+            throw new GradleException(
+                "[roscraft] FlatBuffers schema not found at:\n" +
+                "  ${schemaFile.absolutePath}\n" +
+                "Set the 'roscraftRoot' Gradle property:\n" +
+                "  ./gradlew build -ProscraftRoot=/path/to/roscraft")
+        }
+        logger.lifecycle("[roscraft] flatc --java -o {} {}", flatcOutputDir.get().asFile, schemaFile)
+    }
+
+    commandLine flatcBin, "--java",
+                "-o", flatcOutputDir.get().asFile.absolutePath,
+                schemaFile.absolutePath
+}
+
+sourceSets.main.java.srcDir(flatcOutputDir)
+compileJava.dependsOn("generateFlatBuffers")
+
+// client source set also needs the generated code (loom split environment)
+tasks.named("compileClientJava") { dependsOn("generateFlatBuffers") }
+tasks.named("sourcesJar")        { dependsOn("generateFlatBuffers") }
+
+// =============================================================================
+// Native library auto-discovery & bundling
+// =============================================================================
+//
+// Probes the CMake build tree for libroscraft_bridge_jni and copies it into
+// src/main/resources/natives/<os>/ so System.loadLibrary works from the jar.
+// Build succeeds when the library is absent (network-only mode).
+//
+// Probe order (first directory that contains a matching file wins):
+//   1. -PnativeLibDir=<dir>                   explicit override
+//   2. <cmake_build_dir>/lib/                 single-config default
+//   3. <cmake_build_dir>/install/lib/         legacy install layout
+//   4. <cmake_build_dir>/Release/lib/         multi-config Release
+//   5. <cmake_build_dir>/RelWithDebInfo/lib/  multi-config RelWithDebInfo
+//   6. <cmake_build_dir>/roscraft_bridge_jni/lib/
+//   7. <cmake_build_dir>/../install/roscraft_bridge_jni/lib/
+
+def nativeLibNames = [
+    "libroscraft_bridge_jni.so",    // Linux
+    "roscraft_bridge_jni.dll",      // Windows
+    "libroscraft_bridge_jni.dylib", // macOS
+]
+
+def forceNetworkOnly = project.findProperty("forceNetworkOnly")?.toString()?.toBoolean() ?: false
+
+def resolveNativeLibDir = {
+    if (forceNetworkOnly) {
+        logger.lifecycle("[roscraft] Network-only mode forced via -PforceNetworkOnly=true")
+        return null
+    }
+
+    def explicitNativeDir = project.findProperty("nativeLibDir") ?: project.findProperty("native_lib_dir")
+    if (explicitNativeDir != null) {
+        def d = file(explicitNativeDir)
+        logger.lifecycle("[roscraft] Native lib: explicit override → {}", d)
+        return d
+    }
+
+    def cmakeBuildDir = (
+        project.findProperty("cmakeBuildDir")
+            ?: project.findProperty("cmake_build_dir")
+            ?: "../roscraft_ws/build"
+    ).toString()
+    def base = file(cmakeBuildDir)
+
+    def installBase = base.parentFile != null
+        ? new File(base.parentFile, "install/roscraft_bridge_jni/lib")
+        : null
+
+    def candidates = [
+        new File(base, "lib"),
+        new File(base, "install/lib"),
+        new File(base, "Release/lib"),
+        new File(base, "RelWithDebInfo/lib"),
+        installBase,
+    ].findAll { it != null }
+
+    if (base.name == "build") {
+        candidates.add(new File(base, "roscraft_bridge_jni/lib"))
+    } else {
+        candidates.add(new File(base, "install/roscraft_bridge_jni/lib"))
+        candidates.add(new File(base, "roscraft_bridge_jni/lib"))
+    }
+
+    for (def c : candidates.unique()) {
+        if (!c.exists()) {
+            continue
+        }
+        if (nativeLibNames.any { new File(c, it).exists() }) {
+            logger.lifecycle("[roscraft] Native lib: found in {}", c)
+            return c
+        }
+    }
+    logger.lifecycle(
+        "[roscraft] Native lib not found — mod will start in network-only mode.\n" +
+        "  Build/install the C++ bridge first, then re-run Gradle.\n" +
+        "  Override build dir: ./gradlew build -PcmakeBuildDir=<cmake-build-dir>\n" +
+        "  Override lib dir:   ./gradlew build -PnativeLibDir=<lib-dir>\n" +
+        "  Force network-only: ./gradlew build -PforceNetworkOnly=true")
+    return null
+}
+
+def discoveredNativeDir = resolveNativeLibDir()
+def jniAvailable = discoveredNativeDir != null
+
+// Generate a class that indicates whether JNI is available at build time
+def buildInfoDir = layout.buildDirectory.dir("generated/roscraft-build-info/net/roscraft/build")
+
+tasks.register("generateBuildInfo") {
+    group       = "build"
+    description = "Generate build info class indicating JNI availability."
+
+    doFirst {
+        buildInfoDir.get().asFile.mkdirs()
+        def buildInfoFile = new File(buildInfoDir.get().asFile, "BuildInfo.java")
+        buildInfoFile.text = """package net.roscraft.build;
+
+public final class BuildInfo {
+    public static final boolean JNI_AVAILABLE = ${jniAvailable};
+    public static final boolean NETWORK_ONLY = ${!jniAvailable};
+}
+"""
+    }
+}
+
+sourceSets.main.java.srcDir(layout.buildDirectory.dir("generated/roscraft-build-info"))
+compileJava.dependsOn("generateBuildInfo")
+
+if (discoveredNativeDir != null) {
+    def generatedNativeDir = layout.buildDirectory
+            .dir("generated/roscraft-natives/${currentOsClassifier()}")
+
+    tasks.register("copyNativeLib", Copy) {
+        group       = "build"
+        description = "Copy roscraft_bridge_jni into the mod resources."
+        from(discoveredNativeDir) { include nativeLibNames }
+        into(generatedNativeDir)
+        doFirst {
+            logger.lifecycle("[roscraft] Copying native lib: {} → {}",
+                discoveredNativeDir, generatedNativeDir.get().asFile)
+        }
+    }
+    processResources.dependsOn("copyNativeLib")
+} else {
+    // Optionally add a marker file or property to indicate network-only mode
+    tasks.register("markNetworkOnly") {
+        doLast {
+            def markerFile = layout.buildDirectory.file("network-only-mode")
+            markerFile.get().asFile.text = "This mod was built in network-only mode"
+        }
+    }
+    processResources.dependsOn("markNetworkOnly")
+}
+
+static String currentOsClassifier() {
+    def os = System.getProperty("os.name").toLowerCase(Locale.ROOT)
+    if (os.contains("win")) return "windows"
+    if (os.contains("mac")) return "macos"
+    return "linux"
+}
+
+// =============================================================================
+// Google Java Format (Spotless)
+// =============================================================================
+//
+//   ./gradlew spotlessApply   — reformat all src/**/*.java in-place
+//   ./gradlew spotlessCheck   — check formatting (also runs during `build`)
+//
+// Generated sources under build/ are excluded.
+
+spotless {
+    java {
+        // Only format hand-written sources; skip flatc-generated files.
+        target "src/**/*.java"
+        targetExclude "build/**"
+
+        // AOSP style = 4-space indent (matches existing code).
+        // Drop .aosp() to use the standard Google 2-space style.
+        googleJavaFormat("1.22.0").aosp().reflowLongStrings().skipJavadocFormatting()
+
+        removeUnusedImports()
+        lineEndings "UNIX"
+    }
+}
+
+// Catch formatting violations in CI.
+build.dependsOn("spotlessCheck")
+
+// =============================================================================
+// Resources
+// =============================================================================
+
+processResources {
+    inputs.property "version", project.version
+
+    if (discoveredNativeDir != null) {
+        from(layout.buildDirectory.dir("generated/roscraft-natives/${currentOsClassifier()}")) {
+            include nativeLibNames
+            into "natives/${currentOsClassifier()}"
+        }
+    }
+
+    filesMatching("fabric.mod.json") {
+        expand "version": inputs.properties.version
+    }
+}
+
+// =============================================================================
+// Java compilation
+// =============================================================================
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 21
+}
+
+java {
+    // Loom will automatically attach sourcesJar to a RemapSourcesJar task and
+    // to the "build" task if it is present.
+    // If you remove this line, sources will not be generated.
+    withSourcesJar()
+
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+// =============================================================================
+// Jar
+// =============================================================================
+
+jar {
+    from("LICENSE") {
+        rename { "${it}_${project.base.archivesName.get()}" }
+    }
+    // Include flatbuffers from implementation dependencies
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    } {
+        include 'com/google/flatbuffers/**'
+        exclude 'META-INF/**'
+    }
+}
+
+tasks.build.dependsOn(jar)
+
+// =============================================================================
+// Publishing
+// =============================================================================
+
+publishing {
+    publications {
+        create("mavenJava", MavenPublication) {
+            artifactId = project.archives_base_name
+            from components.java
+        }
+    }
+
+    // See https://docs.gradle.org/current/userguide/publishing_maven.html
+    // for information on how to set up publishing.
+    repositories {
+        // mavenLocal()
+    }
+}

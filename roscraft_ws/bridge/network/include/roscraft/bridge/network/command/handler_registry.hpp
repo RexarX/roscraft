@@ -2,10 +2,10 @@
 
 #include <roscraft/bridge/assert.hpp>
 #include <roscraft/bridge/network/command/handler.hpp>
-#include <roscraft/bridge/network/transport.hpp>
 #include <roscraft/container/multi_type_map.hpp>
 #include <roscraft/container/typed_buffer.hpp>
 #include <roscraft/generated/bridge_packets_generated.hpp>
+#include <roscraft/utils/type_info.hpp>
 
 #include <flatbuffers/flatbuffers.h>
 
@@ -17,12 +17,16 @@
 #include <type_traits>
 #include <utility>
 
-namespace roscraft {
+namespace roscraft::bridge {
 
-namespace bridge {
+class CommandQueue;
 
 namespace network {
 
+class UdpTransport;
+
+/// @brief Registry that stores typed command handlers and provides interface
+/// for operations with them.
 class CommandHandlerRegistry {
 public:
   CommandHandlerRegistry() = default;
@@ -138,19 +142,17 @@ public:
   /// @tparam T Command handler type
   /// @return `true` if the handler exists, `false` otherwise
   template <CommandHandler T>
-  [[nodiscard]] constexpr bool Contains() const noexcept {
+  [[nodiscard]] bool Contains() const noexcept {
     return map_.Contains<T>();
   }
 
   /// @brief Checks if the registry is empty.
   /// @return `true` if the registry is empty, `false` otherwise
-  [[nodiscard]] constexpr bool Empty() const noexcept {
-    return map_.TypeCount() == 0;
-  }
+  [[nodiscard]] bool Empty() const noexcept { return map_.TypeCount() == 0; }
 
   /// @brief Returns the number of handlers in the registry.
   /// @return The number of handlers in the registry
-  [[nodiscard]] constexpr size_t Size() const noexcept { return map_.Size(); }
+  [[nodiscard]] size_t Size() const noexcept { return map_.Size(); }
 
 private:
   /// @brief Implementation detail — expands a `std::tuple` type list into a
@@ -225,7 +227,8 @@ inline auto CommandHandlerRegistry::TryEmplaceHandler(Args&&... args)
 
 template <CommandHandler T>
 inline void CommandHandlerRegistry::RemoveHandler() noexcept {
-  ROSCRAFT_ASSERT(map_.Contains<T>(), "Handler does not exist!");
+  ROSCRAFT_ASSERT(map_.Contains<T>(), "Handler '{}' does not exist!",
+                  utils::TypeNameOf<T>());
   map_.Remove<T>();
 }
 
@@ -245,7 +248,8 @@ template <CommandHandlerWithDrainAndSend T>
 inline void CommandHandlerRegistry::DrainAndSend(
     CommandQueue& out, UdpTransport& transport,
     flatbuffers::FlatBufferBuilder& fbb) {
-  ROSCRAFT_ASSERT(map_.Contains<T>(), "Handler does not exist!");
+  ROSCRAFT_ASSERT(map_.Contains<T>(), "Handler '{}' does not exist!",
+                  utils::TypeNameOf<T>());
   auto& handler = map_.Get<T>().template Value<T>();
   handler.DrainAndSend(out, transport, fbb);
 }
@@ -254,7 +258,8 @@ template <CommandHandlerWithReceive T>
 inline void CommandHandlerRegistry::Receive(CommandQueue& in,
                                             const fbs::BridgePacket& pkt,
                                             std::pmr::memory_resource& arena) {
-  ROSCRAFT_ASSERT(map_.Contains<T>(), "Handler does not exist!");
+  ROSCRAFT_ASSERT(map_.Contains<T>(), "Handler '{}' does not exist!",
+                  utils::TypeNameOf<T>());
   auto& handler = map_.Get<T>().template Value<T>();
   if constexpr (handler.kReceiveType != fbs::PacketPayload::NONE) {
     if (pkt.payload_type() == handler.kReceiveType) [[likely]] {
@@ -265,6 +270,4 @@ inline void CommandHandlerRegistry::Receive(CommandQueue& in,
 
 }  // namespace network
 
-}  // namespace bridge
-
-}  // namespace roscraft
+}  // namespace roscraft::bridge

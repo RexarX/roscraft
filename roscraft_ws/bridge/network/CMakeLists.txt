@@ -17,7 +17,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
                 "$ENV{VCINSTALLDIR}/Tools/Llvm/bin"
                 "C:/Program Files/LLVM/bin"
                 "C:/Program Files (x86)/LLVM/bin"
-        )
+    )
     find_program(MSVC_LIB_EXECUTABLE NAMES lib lib.exe)
 
     if(LLVM_LIB_EXECUTABLE)
@@ -70,7 +70,6 @@ set(ROSCRAFT_BRIDGE_NETWORK_DIR ${PROJECT_SOURCE_DIR})
 set(ROSCRAFT_BRIDGE_DIR ${PROJECT_SOURCE_DIR}/..)
 set(ROSCRAFT_WS_DIR ${PROJECT_SOURCE_DIR}/../..)
 set(ROSCRAFT_ROOT_DIR ${PROJECT_SOURCE_DIR}/../../..)
-set(ROSCRAFT_GENERATED_DIR ${ROSCRAFT_WS_DIR}/generated)
 
 list(APPEND CMAKE_MODULE_PATH "${ROSCRAFT_WS_DIR}/cmake")
 list(APPEND CMAKE_MODULE_PATH "${ROSCRAFT_WS_DIR}/cmake/helpers")
@@ -104,108 +103,35 @@ include(${ROSCRAFT_WS_DIR}/cmake/TargetUtils.cmake)
 
 roscraft_print_sanitizer_status()
 
-
-
-# Find roscraft_core — installed by core's package into the colcon workspace.
-# The roscraft::core imported target becomes available after this call.
-find_package(roscraft_core REQUIRED)
-
-if(TARGET roscraft::roscraft_core AND NOT TARGET roscraft::core)
-  add_library(roscraft::core ALIAS roscraft::roscraft_core)
-endif()
-
 find_package(roscraft_bridge_common REQUIRED)
-
 if(TARGET roscraft::roscraft_bridge_common AND NOT TARGET roscraft::bridge::common)
   add_library(roscraft::bridge::common ALIAS roscraft::roscraft_bridge_common)
 endif()
 if(TARGET roscraft_bridge_common::roscraft_bridge_common AND NOT TARGET roscraft::bridge::common)
   add_library(roscraft::bridge::common ALIAS roscraft_bridge_common::roscraft_bridge_common)
 endif()
+if(TARGET roscraft::roscraft_bridge_fbs AND NOT TARGET roscraft::bridge::fbs)
+  add_library(roscraft::bridge::fbs ALIAS roscraft::roscraft_bridge_fbs)
+endif()
+if(TARGET roscraft_bridge_common::roscraft_bridge_fbs AND NOT TARGET roscraft::bridge::fbs)
+  add_library(roscraft::bridge::fbs ALIAS roscraft_bridge_common::roscraft_bridge_fbs)
+endif()
+
+find_package(roscraft_core REQUIRED)
+if(TARGET roscraft::roscraft_core AND NOT TARGET roscraft::core)
+  add_library(roscraft::core ALIAS roscraft::roscraft_core)
+endif()
+if(TARGET roscraft_core::roscraft_core AND NOT TARGET roscraft::core)
+  add_library(roscraft::core ALIAS roscraft_core::roscraft_core)
+endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Flatbuffers code generation
+# Dependencies
 # ─────────────────────────────────────────────────────────────────────────────
 roscraft_require_dependency(FlatBuffers)
-
-set(ROSCRAFT_FBS_SCHEMAS
-    ${CMAKE_CURRENT_SOURCE_DIR}/schemas/bridge_packets.fbs
-)
-
-set(FLATC_FLAGS
-    --cpp
-    --cpp-std "c++17"
-    --gen-object-api
-    --scoped-enums
-    --filename-ext "hpp"
-)
-
-if(TARGET flatbuffers::flatc)
-  get_target_property(FLATC_EXECUTABLE flatbuffers::flatc IMPORTED_LOCATION)
-  if(NOT FLATC_EXECUTABLE)
-    get_target_property(_flatc_configs flatbuffers::flatc IMPORTED_CONFIGURATIONS)
-    foreach(_config IN LISTS _flatc_configs)
-      get_target_property(FLATC_EXECUTABLE flatbuffers::flatc IMPORTED_LOCATION_${_config})
-      if(FLATC_EXECUTABLE)
-        break()
-      endif()
-    endforeach()
-  endif()
-  if(NOT FLATC_EXECUTABLE)
-    get_target_property(FLATC_EXECUTABLE flatbuffers::flatc IMPORTED_LOCATION_NOCONFIG)
-  endif()
-endif()
-if(NOT FLATC_EXECUTABLE)
-  find_program(FLATC_EXECUTABLE flatc REQUIRED)
-endif()
-
-set(ROSCRAFT_FBS_GENERATED_HEADERS "")
-foreach(_schema ${ROSCRAFT_FBS_SCHEMAS})
-  get_filename_component(_schema_name "${_schema}" NAME_WE)
-  set(_generated_header ${ROSCRAFT_GENERATED_DIR}/include/roscraft/generated/${_schema_name}_generated.hpp)
-  set(_output_dir ${ROSCRAFT_GENERATED_DIR}/include/roscraft/generated)
-
-  add_custom_command(
-        OUTPUT  "${_generated_header}"
-        COMMAND "${FLATC_EXECUTABLE}"
-                ${FLATC_FLAGS}
-                -o "${_output_dir}"
-                "${_schema}"
-        DEPENDS "${_schema}"
-        COMMENT "Compiling Flatbuffers schema: ${_schema_name}.fbs → ${_schema_name}.hpp"
-        VERBATIM
-    )
-
-  list(APPEND ROSCRAFT_FBS_GENERATED_HEADERS "${_generated_header}")
-endforeach()
-
-add_library(roscraft_bridge_fbs INTERFACE)
-add_library(roscraft::bridge::fbs ALIAS roscraft_bridge_fbs)
-
-target_sources(roscraft_bridge_fbs INTERFACE
-    FILE_SET HEADERS
-        BASE_DIRS ${ROSCRAFT_GENERATED_DIR}/include
-        FILES ${ROSCRAFT_FBS_GENERATED_HEADERS}
-)
-
-target_include_directories(roscraft_bridge_fbs INTERFACE
-    $<BUILD_INTERFACE:${ROSCRAFT_GENERATED_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
-
-target_link_libraries(roscraft_bridge_fbs INTERFACE
-    roscraft::flatbuffers
-)
-
-add_custom_target(roscraft_bridge_fbs_generate ALL
-    DEPENDS ${ROSCRAFT_FBS_GENERATED_HEADERS}
-    COMMENT "Flatbuffers code generation"
-)
-
-add_dependencies(roscraft_bridge_fbs roscraft_bridge_fbs_generate)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Static library  (roscraft::bridge::network)
@@ -223,6 +149,7 @@ set(ROSCRAFT_BRIDGE_NETWORK_HEADERS
 
 set(ROSCRAFT_BRIDGE_NETWORK_SOURCES
     src/bridge.cpp
+    src/config.cpp
     src/runner.cpp
 )
 
@@ -256,25 +183,18 @@ target_include_directories(roscraft_bridge_network_lib
 )
 
 roscraft_require_dependency(argparse)
-roscraft_require_dependency(glaze)
 roscraft_require_dependency(Asio)
-roscraft_require_dependency(FlatMap)
-roscraft_require_dependency(concurrentqueue)
-roscraft_require_dependency(Taskflow)
 
 target_link_libraries(roscraft_bridge_network_lib
     PUBLIC
         roscraft::bridge::common
+        roscraft::core
         roscraft::bridge::fbs
         roscraft::asio
-        $<BUILD_INTERFACE:roscraft::flat_map>
-        $<BUILD_INTERFACE:roscraft::concurrentqueue>
-        $<BUILD_INTERFACE:roscraft::taskflow::taskflow>
         rclcpp::rclcpp
     PRIVATE
         roscraft::argparse
-        roscraft::glaze
-    )
+)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Executable  (roscraft_bridge_network)
@@ -305,11 +225,9 @@ target_link_libraries(roscraft_bridge_network PRIVATE
 install(TARGETS
         roscraft_bridge_network_lib
         roscraft_bridge_network
-        roscraft_bridge_fbs
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
-    RUNTIME DESTINATION bin
-    FILE_SET HEADERS DESTINATION include
+    RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
 if(BUILD_TESTING)
@@ -323,6 +241,7 @@ install(DIRECTORY include/
 )
 
 ament_export_dependencies(
+    roscraft_bridge_common
     roscraft_core
     rclcpp
 )

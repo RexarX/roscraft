@@ -59,7 +59,7 @@ private:
                                  template rebind_alloc<TypeIndex>>;
   using MappedContainer =
       std::vector<Storage, typename std::allocator_traits<
-                                allocator_type>::template rebind_alloc<Storage>>;
+                               allocator_type>::template rebind_alloc<Storage>>;
 
   using MapType = std::flat_map<TypeIndex, Storage, std::less<TypeIndex>,
                                 KeyContainer, MappedContainer>;
@@ -506,7 +506,7 @@ constexpr void MultiTypeMap<Storage, Allocator>::Clear(
 
 template <typename Storage, typename Allocator>
 constexpr void MultiTypeMap<Storage, Allocator>::ClearAll() noexcept {
-  for (auto&& [_, storage] : storage_) {
+  for (auto& [_, storage] : storage_) {
     if constexpr (requires { storage.Clear(); }) {
       storage.Clear();
     } else if constexpr (requires { storage.clear(); }) {
@@ -600,7 +600,7 @@ template <typename Storage, typename Allocator>
 template <typename OtherStorage, typename OtherAllocator>
 constexpr void MultiTypeMap<Storage, Allocator>::Merge(
     MultiTypeMap<OtherStorage, OtherAllocator>&& other) {
-  for (auto&& [index, other_storage] : other.storage_) {
+  for (auto& [index, other_storage] : other.storage_) {
     if (const auto it = storage_.find(index); it != storage_.end()) {
       // Existing key: call Merge or merge on Storage if available.
       if constexpr (requires { it->second.Merge(std::move(other_storage)); }) {

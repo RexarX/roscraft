@@ -1,0 +1,17 @@
+{
+    "text.roscraft.config.title": "Roscraft Configuration",
+    "text.roscraft.config.mode": "Bridge mode",
+    "text.roscraft.config.mode.value": "Mode: %s",
+    "text.roscraft.config.mode.network": "Network",
+    "text.roscraft.config.mode.jni": "JNI",
+    "text.roscraft.config.host": "Network host",
+    "text.roscraft.config.port": "Network port",
+    "text.roscraft.config.save": "Save",
+    "text.roscraft.config.cancel": "Cancel",
+    "text.roscraft.config.jni_unavailable": "JNI bridge is not available in this build.",
+    "text.roscraft.config.jni_mode_note": "Network host and port are ignored in JNI mode.",
+    "text.roscraft.config.error.invalid_port": "Port must be an integer between 1 and 65535.",
+    "modmenu.nameTranslation.roscraft": "Roscraft",
+    "modmenu.summaryTranslation.roscraft": "Bridge ROS 2 and Minecraft with configurable network or JNI transport.",
+    "modmenu.descriptionTranslation.roscraft": "Roscraft integrates Minecraft with ROS 2. Use /ros connection commands or Mod Menu configuration to choose network or JNI mode, configure host and port, and control bridge connect or disconnect behavior."
+}

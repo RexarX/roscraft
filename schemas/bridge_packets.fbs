@@ -41,13 +41,6 @@ table QueryPlayersPacket {
 // Outgoing packets (ROS → mod)
 // ---------------------------------------------------------------------------
 
-table PlaceBlockPacket {
-  x:int32;
-  y:int32;
-  z:int32;
-  block_id:string (required);
-}
-
 table GraphSnapshotPacket {
   request_id:uint64;
   topics:[string];
@@ -87,7 +80,6 @@ union PacketPayload {
   PublishMessagePacket,
   QueryPlayersPacket,
   // Outgoing
-  PlaceBlockPacket,
   GraphSnapshotPacket,
   TopicPayloadPacket,
   PlayerListPacket,

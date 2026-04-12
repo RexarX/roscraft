@@ -187,70 +187,64 @@ target_link_libraries(roscraft_core PUBLIC
 
 # Platform-specific stacktrace backend
 if(ROSCRAFT_USE_STL_STACKTRACE)
-  message(STATUS "roscraft_core: Using C++23 STL stacktrace")
-else()
-  if(UNIX AND NOT APPLE)
-    execute_process(
+  message(STATUS "roscraft_core: Using C++23 STL stacktrace for Capture()")
+  target_link_libraries(roscraft_core
+    PUBLIC
+      $<BUILD_INTERFACE:roscraft::stl_stacktrace>
+  )
+endif()
+
+if(UNIX AND NOT APPLE)
+  execute_process(
             COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=libbacktrace.a
             OUTPUT_VARIABLE BACKTRACE_LIBRARY_FROM_COMPILER
             OUTPUT_STRIP_TRAILING_WHITESPACE
             ERROR_QUIET
-        )
+  )
 
-    set(BACKTRACE_LIBRARY "")
-    if(BACKTRACE_LIBRARY_FROM_COMPILER
+  set(BACKTRACE_LIBRARY "")
+  if(BACKTRACE_LIBRARY_FROM_COMPILER
               AND NOT BACKTRACE_LIBRARY_FROM_COMPILER STREQUAL "libbacktrace.a"
               AND EXISTS "${BACKTRACE_LIBRARY_FROM_COMPILER}")
-      set(BACKTRACE_LIBRARY "${BACKTRACE_LIBRARY_FROM_COMPILER}")
-    else()
-      find_library(BACKTRACE_LIBRARY NAMES backtrace libbacktrace)
-    endif()
-
-    find_library(DL_LIBRARY NAMES dl)
-
-    if(BACKTRACE_LIBRARY)
-      target_link_libraries(roscraft_core PRIVATE ${BACKTRACE_LIBRARY})
-      if(DL_LIBRARY)
-        target_link_libraries(roscraft_core PRIVATE ${DL_LIBRARY})
-      endif()
-      if(TARGET roscraft::boost::stacktrace_backtrace)
-        target_link_libraries(roscraft_core PRIVATE roscraft::boost::stacktrace_backtrace)
-      endif()
-      get_filename_component(BACKTRACE_INCLUDE_DIR "${BACKTRACE_LIBRARY}" DIRECTORY)
-      get_filename_component(BACKTRACE_INCLUDE_DIR "${BACKTRACE_INCLUDE_DIR}/include" ABSOLUTE)
-      if(EXISTS "${BACKTRACE_INCLUDE_DIR}/backtrace.h")
-        target_include_directories(roscraft_core PRIVATE ${BACKTRACE_INCLUDE_DIR})
-      endif()
-      target_compile_definitions(roscraft_core PRIVATE BOOST_STACKTRACE_USE_BACKTRACE)
-    else()
-      if(TARGET roscraft::boost::stacktrace_addr2line)
-        target_link_libraries(roscraft_core PRIVATE roscraft::boost::stacktrace_addr2line)
-      endif()
-      if(DL_LIBRARY)
-        target_link_libraries(roscraft_core PRIVATE ${DL_LIBRARY})
-      endif()
-      target_compile_definitions(roscraft_core PRIVATE BOOST_STACKTRACE_USE_ADDR2LINE)
-      message(STATUS "roscraft_core: libbacktrace not found, using Boost addr2line backend")
-    endif()
-
-    if(NOT ROSCRAFT_USE_STL_STACKTRACE)
-      target_link_options(roscraft_core INTERFACE
-                $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-rdynamic>
-            )
-    endif()
-  elseif(APPLE)
-    target_compile_definitions(roscraft_core PRIVATE BOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED)
-  elseif(WIN32)
-    target_compile_definitions(roscraft_core PRIVATE BOOST_STACKTRACE_USE_WINDBG)
+    set(BACKTRACE_LIBRARY "${BACKTRACE_LIBRARY_FROM_COMPILER}")
+  else()
+    find_library(BACKTRACE_LIBRARY NAMES backtrace libbacktrace)
   endif()
+
+  find_library(DL_LIBRARY NAMES dl)
+
+  if(BACKTRACE_LIBRARY)
+    target_link_libraries(roscraft_core PRIVATE ${BACKTRACE_LIBRARY})
+    if(DL_LIBRARY)
+      target_link_libraries(roscraft_core PRIVATE ${DL_LIBRARY})
+    endif()
+    get_filename_component(BACKTRACE_INCLUDE_DIR "${BACKTRACE_LIBRARY}" DIRECTORY)
+    get_filename_component(BACKTRACE_INCLUDE_DIR "${BACKTRACE_INCLUDE_DIR}/include" ABSOLUTE)
+    if(EXISTS "${BACKTRACE_INCLUDE_DIR}/backtrace.h")
+      target_include_directories(roscraft_core PRIVATE ${BACKTRACE_INCLUDE_DIR})
+    endif()
+    target_compile_definitions(roscraft_core PRIVATE BOOST_STACKTRACE_USE_BACKTRACE)
+  else()
+    if(DL_LIBRARY)
+      target_link_libraries(roscraft_core PRIVATE ${DL_LIBRARY})
+    endif()
+    target_compile_definitions(roscraft_core PRIVATE BOOST_STACKTRACE_USE_ADDR2LINE)
+    message(STATUS "roscraft_core: libbacktrace not found, using Boost addr2line backend")
+  endif()
+
+  target_link_options(roscraft_core INTERFACE
+              $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-rdynamic>
+  )
+elseif(APPLE)
+  target_compile_definitions(roscraft_core PRIVATE BOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED)
+elseif(WIN32)
+  target_compile_definitions(roscraft_core PRIVATE BOOST_STACKTRACE_USE_WINDBG)
 endif()
 
 # Install the library and headers
 install(TARGETS roscraft_core
     EXPORT export_roscraft_core
     ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-    RUNTIME DESTINATION bin
 )
 
 install(DIRECTORY include/

@@ -1,0 +1,33 @@
+{
+    "schemaVersion": 1,
+    "id": "roscraft",
+    "version": "${version}",
+    "name": "Roscraft",
+    "description": "Bidirectional ROS2 ↔ Minecraft bridge.",
+    "authors": [],
+    "contact": {
+        "sources": "https://github.com/RexarX/roscraft"
+    },
+    "license": "MIT",
+    "icon": "assets/roscraft/icon.png",
+    "environment": "*",
+    "entrypoints": {
+        "main": ["net.roscraft.mod.RoscraftMod"],
+        "modmenu": ["net.roscraft.mod.client.RoscraftModMenuApiImpl"]
+    },
+    "mixins": [],
+    "custom": {
+        "modmenu": {
+            "links": {
+                "modmenu.github": "https://github.com/RexarX/roscraft"
+            },
+            "update_checker": false
+        }
+    },
+    "depends": {
+        "fabricloader": ">=0.16.5",
+        "fabric-api": ">=0.102.0",
+        "minecraft": "~1.21.1",
+        "java": ">=21"
+    }
+}

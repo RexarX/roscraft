@@ -5,6 +5,7 @@
 #include <roscraft/bridge/assert.hpp>
 #include <roscraft/bridge/nodes/graph.hpp>
 #include <roscraft/bridge/nodes/topic_relay.hpp>
+#include <roscraft/stacktrace.hpp>
 
 #include <rclcpp/logging.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -19,12 +20,16 @@ void App::Init(AppConfig config) {
   ROSCRAFT_ASSERT(State() == AppState::kUninitialized,
                   "App is already initialized!");
 
+  RCLCPP_INFO(rclcpp::get_logger("App"), "Initializing application...");
+
   RegisterAllCommandTypes();
 
   bridge_ = std::move(config.bridge);
   bridge_->Init(*this);
 
   InitROS(config.argc, config.argv);
+
+  RCLCPP_INFO(rclcpp::get_logger("App"), "App initialized successfully");
 
   state_.store(AppState::kInitialized, std::memory_order_release);
 }
@@ -40,17 +45,19 @@ void App::Tick() {
 void App::Shutdown() {
   AppState expected = AppState::kInitialized;
   if (!state_.compare_exchange_strong(expected, AppState::kShuttingDown,
-                                      std::memory_order_acq_rel)) {
+                                      std::memory_order_acq_rel)) [[unlikely]] {
     return;
   }
+
+  RCLCPP_INFO(rclcpp::get_logger("App"), "Shutting down application...");
 
   // Signal shutdown to all waiting threads
   RequestShutdown();
 
-  // Shutdown ROS first to unblock spin()
-  ShutdownROS();
+  // Clean up ROS resources before destroying the bridge
+  CleanUpROS();
 
-  if (bridge_ != nullptr) {
+  if (bridge_ != nullptr) [[likely]] {
     bridge_->Destroy(*this);
   }
   bridge_.reset();
@@ -61,11 +68,22 @@ void App::Shutdown() {
   incoming_queue_.Clear();
   ResetAllocator();
 
+  ShutdownROS();
+
+  RCLCPP_INFO(rclcpp::get_logger("App"), "Application shut down successfully");
+
   state_.store(AppState::kUninitialized, std::memory_order_release);
 }
 
 void App::InitROS(int argc, char* argv[]) {
-  rclcpp::init(argc, argv);
+  if (!rclcpp::ok()) [[likely]] {
+    rclcpp::init(argc, argv);
+  } else {
+    RCLCPP_WARN(rclcpp::get_logger("App"),
+                "App is being initialized with existing ROS context!");
+  }
+
+  ros_executor_.emplace();
 
   RegisterAllNodes();
 
@@ -74,37 +92,47 @@ void App::InitROS(int argc, char* argv[]) {
 
 void App::SpinROS() {
   try {
-    ros_executor_.spin();
+    ros_executor_->spin();
   } catch (const std::exception& e) {
-    RCLCPP_ERROR(rclcpp::get_logger("roscraft_app"),
-                 "Exception in ROS spin: %s", e.what());
+    const auto st = roscraft::Stacktrace::FromCurrentException();
+    RCLCPP_ERROR(rclcpp::get_logger("App"), "Exception in ROS spin: %s!\n%s",
+                 e.what(), st.ToString().c_str());
     RequestShutdown();
   } catch (...) {
-    RCLCPP_ERROR(rclcpp::get_logger("roscraft_app"),
-                 "Unknown exception in ROS spin");
+    const auto st = roscraft::Stacktrace::FromCurrentException();
+
+    RCLCPP_ERROR(rclcpp::get_logger("App"),
+                 "Unknown exception in ROS spin!\n%s", st.ToString().c_str());
     RequestShutdown();
   }
 }
 
-void App::ShutdownROS() {
-  if (rclcpp::ok()) [[likely]] {
-    rclcpp::shutdown();
+void App::CleanUpROS() {
+  if (ros_executor_.has_value()) [[likely]] {
+    ros_executor_->cancel();
   }
 
-  if (ros_spin_task_.valid()) {
+  if (ros_spin_task_.valid()) [[likely]] {
     ros_spin_task_.wait();
   }
 
   UnregisterAllNodes();
 }
 
+void App::ShutdownROS() {
+  if (rclcpp::ok()) [[likely]] {
+    rclcpp::shutdown();
+  }
+}
+
 void App::UnregisterAllNodes() {
   for (auto& node : nodes_) {
-    if (node != nullptr) {
-      ros_executor_.remove_node(node);
+    if (node != nullptr) [[likely]] {
+      ros_executor_->remove_node(node);
     }
   }
   nodes_.clear();
+  ros_executor_.reset();
 }
 
 void App::RegisterAllCommandTypes() {
@@ -118,7 +146,6 @@ void App::RegisterAllCommandTypes() {
   outgoing_queue_.Register<GraphSnapshotCmd>();
   outgoing_queue_.Register<TopicPayloadCmd>();
   outgoing_queue_.Register<PlayerListCmd>();
-  outgoing_queue_.Register<PlaceBlockCmd>();
 }
 
 void App::RegisterAllNodes() {

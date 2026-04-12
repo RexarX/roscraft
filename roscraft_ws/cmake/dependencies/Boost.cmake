@@ -65,7 +65,7 @@ int main() {
 cmake_pop_check_state()
 
 if(ROSCRAFT_HAS_STL_STACKTRACE)
-  roscraft_dep_log(SUCCESS "C++23 <stacktrace> header available, using STL stacktrace")
+  roscraft_dep_log(SUCCESS "C++23 <stacktrace> header available, using STL stacktrace for Capture()")
   set(ROSCRAFT_USE_STL_STACKTRACE ON CACHE INTERNAL "Use C++23 STL stacktrace instead of Boost")
 
   # Create a target for STL stacktrace
@@ -78,13 +78,6 @@ if(ROSCRAFT_HAS_STL_STACKTRACE)
       target_link_libraries(roscraft::stl_stacktrace INTERFACE ${_stl_stacktrace_link_libs})
     endif()
   endif()
-
-  # Create roscraft::boost::stacktrace as alias to STL stacktrace
-  # This allows existing code to link against roscraft::boost::stacktrace without changes
-  if(NOT TARGET roscraft::boost::stacktrace)
-    add_library(roscraft::boost::stacktrace INTERFACE IMPORTED GLOBAL)
-    target_link_libraries(roscraft::boost::stacktrace INTERFACE roscraft::stl_stacktrace)
-  endif()
 else()
   roscraft_dep_log(STATUS "C++23 <stacktrace> not available, using Boost stacktrace")
   set(ROSCRAFT_USE_STL_STACKTRACE OFF CACHE INTERNAL "Use C++23 STL stacktrace instead of Boost")
@@ -92,13 +85,17 @@ endif()
 
 # Boost components required by Roscraft
 # Note: unordered is header-only and doesn't need to be in this list
-# stacktrace is only required if STL stacktrace is not available
-if(NOT ROSCRAFT_USE_STL_STACKTRACE)
-  set(ROSCRAFT_BOOST_REQUIRED_COMPONENTS
-        stacktrace
-    )
+# stacktrace is always required (for boost::stacktrace::from_current_exception
+# even when STL <stacktrace> is available)
+set(ROSCRAFT_BOOST_REQUIRED_COMPONENTS
+      stacktrace
+  )
+
+# Minimum Boost version for proper boost::stacktrace::from_current_exception support
+if(WIN32)
+  set(ROSCRAFT_BOOST_MIN_VERSION 1.86)
 else()
-  set(ROSCRAFT_BOOST_REQUIRED_COMPONENTS "")
+  set(ROSCRAFT_BOOST_MIN_VERSION 1.85)
 endif()
 
 # Try to find Boost in order of preference
@@ -111,27 +108,127 @@ if(DEFINED ROSCRAFT_DEP_BOOST_FOUND_VIA AND ROSCRAFT_DEP_BOOST_FOUND_VIA STREQUA
   set(_boost_prefer_cpm TRUE)
 endif()
 
-# 1. Try system package manager first
-# Try CONFIG mode first (modern CMake packages like Arch Linux, Ubuntu 22.04+)
-if(NOT _boost_prefer_cpm)
-  find_package(Boost 1.83 QUIET CONFIG)
-  if(Boost_FOUND)
-    set(_boost_found_via "system (CONFIG)")
-  else()
-    # Fall back to MODULE mode with specific components
-    if(ROSCRAFT_BOOST_REQUIRED_COMPONENTS)
-      find_package(Boost 1.83 QUIET COMPONENTS ${ROSCRAFT_BOOST_REQUIRED_COMPONENTS})
-    else()
-      find_package(Boost 1.83 QUIET)
-    endif()
+# If Boost targets already exist (e.g., from a parent project or prior
+# find_package), skip finding/downloading Boost entirely. This prevents
+# ALIAS target conflicts in colcon workspaces where multiple packages
+# independently try to add Boost via CPM.
+if(TARGET Boost::boost OR TARGET Boost::headers)
+  set(_boost_already_exists TRUE)
+else()
+  set(_boost_already_exists FALSE)
+endif()
+
+if(NOT _boost_already_exists)
+  # 1. Try system package manager first
+  # Try CONFIG mode first (modern CMake packages like Arch Linux, Ubuntu 22.04+)
+  if(NOT _boost_prefer_cpm)
+    find_package(Boost ${ROSCRAFT_BOOST_MIN_VERSION} QUIET CONFIG)
     if(Boost_FOUND)
-      set(_boost_found_via "system (MODULE)")
+      set(_boost_found_via "system (CONFIG)")
+    else()
+      # Fall back to MODULE mode with specific components
+      if(ROSCRAFT_BOOST_REQUIRED_COMPONENTS)
+        find_package(Boost ${ROSCRAFT_BOOST_MIN_VERSION} QUIET COMPONENTS ${ROSCRAFT_BOOST_REQUIRED_COMPONENTS})
+      else()
+        find_package(Boost ${ROSCRAFT_BOOST_MIN_VERSION} QUIET)
+      endif()
+      if(Boost_FOUND)
+        set(_boost_found_via "system (MODULE)")
+      endif()
     endif()
   endif()
 endif()
 
-# 3. Create Boost targets if found
-if(Boost_FOUND)
+if(_boost_already_exists)
+  # Boost targets already exist (from CPM in a prior colcon package or parent project).
+  # Create our roscraft::boost:: aliases pointing to the existing Boost targets.
+  # The CPM add_subdirectory has already been done by another package in this workspace.
+  #
+  # If Boost was discovered earlier without COMPONENTS (e.g. plain
+  # find_package(Boost)), stacktrace component targets may be missing even
+  # though Boost itself is available. Request stacktrace components explicitly
+  # so roscraft::boost::stacktrace resolves to real link libraries.
+  if(NOT TARGET Boost::stacktrace
+       AND NOT TARGET Boost::stacktrace_backtrace
+       AND NOT TARGET Boost::stacktrace_addr2line
+       AND NOT TARGET Boost::stacktrace_basic
+       AND NOT TARGET Boost::stacktrace_from_exception
+       AND NOT TARGET Boost::stacktrace_noop)
+    find_package(Boost QUIET COMPONENTS
+        stacktrace
+        stacktrace_backtrace
+        stacktrace_addr2line
+        stacktrace_basic
+        stacktrace_from_exception
+        stacktrace_noop
+    )
+  endif()
+
+  roscraft_dep_log(SUCCESS "Boost targets already exist, creating aliases")
+  roscraft_dep_mark_found(NAME "Boost" VIA "existing")
+
+  if(NOT TARGET roscraft::boost::boost)
+    add_library(roscraft::boost::boost INTERFACE IMPORTED GLOBAL)
+    if(TARGET Boost::boost)
+      target_link_libraries(roscraft::boost::boost INTERFACE Boost::boost)
+    endif()
+  endif()
+
+  if(NOT TARGET roscraft::boost::stacktrace)
+    add_library(roscraft::boost::stacktrace INTERFACE IMPORTED GLOBAL)
+    if(TARGET Boost::stacktrace)
+      target_link_libraries(roscraft::boost::stacktrace INTERFACE Boost::stacktrace)
+    elseif(TARGET Boost::stacktrace_backtrace)
+      target_link_libraries(roscraft::boost::stacktrace INTERFACE Boost::stacktrace_backtrace)
+    elseif(TARGET roscraft::boost::boost)
+      target_link_libraries(roscraft::boost::stacktrace INTERFACE roscraft::boost::boost)
+    endif()
+  endif()
+
+  if(TARGET Boost::stacktrace_basic AND NOT TARGET roscraft::boost::stacktrace_basic)
+    add_library(roscraft::boost::stacktrace_basic INTERFACE IMPORTED GLOBAL)
+    target_link_libraries(roscraft::boost::stacktrace_basic INTERFACE Boost::stacktrace_basic)
+  endif()
+
+  if(TARGET Boost::stacktrace_backtrace AND NOT TARGET roscraft::boost::stacktrace_backtrace)
+    add_library(roscraft::boost::stacktrace_backtrace INTERFACE IMPORTED GLOBAL)
+    target_link_libraries(roscraft::boost::stacktrace_backtrace INTERFACE Boost::stacktrace_backtrace)
+  endif()
+
+  if(TARGET Boost::stacktrace_addr2line AND NOT TARGET roscraft::boost::stacktrace_addr2line)
+    add_library(roscraft::boost::stacktrace_addr2line INTERFACE IMPORTED GLOBAL)
+    target_link_libraries(roscraft::boost::stacktrace_addr2line INTERFACE Boost::stacktrace_addr2line)
+  endif()
+
+  if(TARGET Boost::stacktrace_from_exception AND NOT TARGET roscraft::boost::stacktrace_from_exception)
+    add_library(roscraft::boost::stacktrace_from_exception INTERFACE IMPORTED GLOBAL)
+    target_link_libraries(roscraft::boost::stacktrace_from_exception INTERFACE Boost::stacktrace_from_exception)
+  endif()
+
+  if(NOT TARGET roscraft::boost::stacktrace_from_exception AND TARGET Boost::stacktrace)
+    add_library(roscraft::boost::stacktrace_from_exception INTERFACE IMPORTED GLOBAL)
+    target_link_libraries(roscraft::boost::stacktrace_from_exception INTERFACE Boost::stacktrace)
+  endif()
+
+  if(TARGET Boost::stacktrace_noop AND NOT TARGET roscraft::boost::stacktrace_noop)
+    add_library(roscraft::boost::stacktrace_noop INTERFACE IMPORTED GLOBAL)
+    target_link_libraries(roscraft::boost::stacktrace_noop INTERFACE Boost::stacktrace_noop)
+  endif()
+
+  if(NOT TARGET roscraft::boost::unordered)
+    add_library(roscraft::boost::unordered INTERFACE IMPORTED GLOBAL)
+    target_link_libraries(roscraft::boost::unordered INTERFACE Boost::boost)
+  endif()
+
+  if(TARGET Boost::container AND NOT TARGET roscraft::boost::container)
+    add_library(roscraft::boost::container INTERFACE IMPORTED GLOBAL)
+    target_link_libraries(roscraft::boost::container INTERFACE Boost::container)
+  endif()
+
+  roscraft_dep_mark_processed(NAME "Boost")
+
+elseif(Boost_FOUND)
+  # 3. Create Boost targets if found via system package
   if(_boost_found_via)
     roscraft_dep_log(SUCCESS "Boost found via ${_boost_found_via}")
     roscraft_dep_mark_found(NAME "Boost" VIA "${_boost_found_via}")
@@ -146,46 +243,55 @@ if(Boost_FOUND)
     target_link_libraries(roscraft::boost::boost INTERFACE Boost::boost)
   endif()
 
-  # Create stacktrace-specific alias: roscraft::boost::stacktrace (only if not using STL stacktrace)
-  if(NOT ROSCRAFT_USE_STL_STACKTRACE)
-    if(NOT TARGET roscraft::boost::stacktrace)
-      add_library(roscraft::boost::stacktrace INTERFACE IMPORTED GLOBAL)
-      if(TARGET Boost::stacktrace)
-        target_link_libraries(roscraft::boost::stacktrace INTERFACE Boost::stacktrace)
-      endif()
+  # Create stacktrace target: roscraft::boost::stacktrace always links to Boost::stacktrace
+  if(NOT TARGET roscraft::boost::stacktrace)
+    add_library(roscraft::boost::stacktrace INTERFACE IMPORTED GLOBAL)
+    if(TARGET Boost::stacktrace)
+      target_link_libraries(roscraft::boost::stacktrace INTERFACE Boost::stacktrace)
+    elseif(TARGET roscraft::boost::boost)
+      target_link_libraries(roscraft::boost::stacktrace INTERFACE roscraft::boost::boost)
     endif()
+  endif()
 
-    if(TARGET Boost::stacktrace_basic AND NOT TARGET roscraft::boost::stacktrace_basic)
-      add_library(roscraft::boost::stacktrace_basic INTERFACE IMPORTED GLOBAL)
-      target_link_libraries(roscraft::boost::stacktrace_basic INTERFACE Boost::stacktrace_basic)
-    endif()
+  if(TARGET Boost::stacktrace_basic AND NOT TARGET roscraft::boost::stacktrace_basic)
+    add_library(roscraft::boost::stacktrace_basic INTERFACE IMPORTED GLOBAL)
+    target_link_libraries(roscraft::boost::stacktrace_basic INTERFACE Boost::stacktrace_basic)
+  endif()
 
-    if(TARGET Boost::stacktrace_backtrace AND NOT TARGET roscraft::boost::stacktrace_backtrace)
-      add_library(roscraft::boost::stacktrace_backtrace INTERFACE IMPORTED GLOBAL)
-      target_link_libraries(roscraft::boost::stacktrace_backtrace INTERFACE Boost::stacktrace_backtrace)
-    endif()
+  if(TARGET Boost::stacktrace_backtrace AND NOT TARGET roscraft::boost::stacktrace_backtrace)
+    add_library(roscraft::boost::stacktrace_backtrace INTERFACE IMPORTED GLOBAL)
+    target_link_libraries(roscraft::boost::stacktrace_backtrace INTERFACE Boost::stacktrace_backtrace)
+  endif()
 
-    if(TARGET Boost::stacktrace_addr2line AND NOT TARGET roscraft::boost::stacktrace_addr2line)
-      add_library(roscraft::boost::stacktrace_addr2line INTERFACE IMPORTED GLOBAL)
-      target_link_libraries(roscraft::boost::stacktrace_addr2line INTERFACE Boost::stacktrace_addr2line)
-    endif()
+  if(TARGET Boost::stacktrace_addr2line AND NOT TARGET roscraft::boost::stacktrace_addr2line)
+    add_library(roscraft::boost::stacktrace_addr2line INTERFACE IMPORTED GLOBAL)
+    target_link_libraries(roscraft::boost::stacktrace_addr2line INTERFACE Boost::stacktrace_addr2line)
+  endif()
 
-    if(TARGET Boost::stacktrace_windbg AND NOT TARGET roscraft::boost::stacktrace_windbg)
-      add_library(roscraft::boost::stacktrace_windbg INTERFACE IMPORTED GLOBAL)
-      target_link_libraries(roscraft::boost::stacktrace_windbg INTERFACE Boost::stacktrace_windbg)
-    endif()
+  if(TARGET Boost::stacktrace_from_exception AND NOT TARGET roscraft::boost::stacktrace_from_exception)
+    add_library(roscraft::boost::stacktrace_from_exception INTERFACE IMPORTED GLOBAL)
+    target_link_libraries(roscraft::boost::stacktrace_from_exception INTERFACE Boost::stacktrace_from_exception)
+  endif()
+
+  if(NOT TARGET roscraft::boost::stacktrace_from_exception AND TARGET Boost::stacktrace)
+    add_library(roscraft::boost::stacktrace_from_exception INTERFACE IMPORTED GLOBAL)
+    target_link_libraries(roscraft::boost::stacktrace_from_exception INTERFACE Boost::stacktrace)
+  endif()
+
+  if(TARGET Boost::stacktrace_noop AND NOT TARGET roscraft::boost::stacktrace_noop)
+    add_library(roscraft::boost::stacktrace_noop INTERFACE IMPORTED GLOBAL)
+    target_link_libraries(roscraft::boost::stacktrace_noop INTERFACE Boost::stacktrace_noop)
+  endif()
+
+  if(TARGET Boost::stacktrace_windbg AND NOT TARGET roscraft::boost::stacktrace_windbg)
+    add_library(roscraft::boost::stacktrace_windbg INTERFACE IMPORTED GLOBAL)
+    target_link_libraries(roscraft::boost::stacktrace_windbg INTERFACE Boost::stacktrace_windbg)
   endif()
 
   # Create alias for header-only unordered (not a separate component)
   if(NOT TARGET roscraft::boost::unordered)
     add_library(roscraft::boost::unordered INTERFACE IMPORTED GLOBAL)
     target_link_libraries(roscraft::boost::unordered INTERFACE Boost::boost)
-
-    # Manually add unordered include path if found via system
-    if(Boost_INCLUDE_DIRS)
-      # System Boost should already have all headers accessible
-      # No need to add extra paths
-    endif()
   endif()
 
   # Mark as processed
@@ -195,13 +301,10 @@ else()
   if(ROSCRAFT_${MODULE_NAME}_DOWNLOAD_PACKAGES)
     roscraft_dep_log(DOWNLOAD "Boost not found in system, downloading via CPM...")
 
-    # Only include stacktrace in download if STL stacktrace is not available
+    # Always include stacktrace
+    # (needed for boost::stacktrace::stacktrace::from_current_exception)
     # Always include container for flat_map support
-    if(ROSCRAFT_USE_STL_STACKTRACE)
-      set(_boost_include_libs "container;unordered")
-    else()
-      set(_boost_include_libs "container;stacktrace;unordered")
-    endif()
+    set(BOOST_INCLUDE_LIBRARIES "container;stacktrace;unordered" CACHE STRING "" FORCE)
 
     include(DownloadUsingCPM)
     roscraft_cpm_add_package(
@@ -210,7 +313,6 @@ else()
             URL https://github.com/boostorg/boost/releases/download/boost-1.90.0/boost-1.90.0-cmake.tar.xz
             OPTIONS
                 "BOOST_ENABLE_CMAKE ON"
-                "BOOST_INCLUDE_LIBRARIES ${_boost_include_libs}"
                 "BUILD_SHARED_LIBS OFF"
                 "CMAKE_POSITION_INDEPENDENT_CODE ON"
             SYSTEM
@@ -225,27 +327,40 @@ else()
         endif()
       endif()
 
-      # Only create Boost stacktrace target if not using STL stacktrace
-      if(NOT ROSCRAFT_USE_STL_STACKTRACE)
-        if(NOT TARGET roscraft::boost::stacktrace)
-          add_library(roscraft::boost::stacktrace INTERFACE IMPORTED GLOBAL)
-        endif()
+      # Always create Boost stacktrace target (needed for from_current_exception even with STL stacktrace)
+      if(NOT TARGET roscraft::boost::stacktrace)
+        add_library(roscraft::boost::stacktrace INTERFACE IMPORTED GLOBAL)
+      endif()
 
-        if(TARGET Boost::stacktrace)
-          target_link_libraries(roscraft::boost::stacktrace INTERFACE Boost::stacktrace)
-        else()
-          target_link_libraries(roscraft::boost::stacktrace INTERFACE roscraft::boost::boost)
-        endif()
+      if(TARGET Boost::stacktrace)
+        target_link_libraries(roscraft::boost::stacktrace INTERFACE Boost::stacktrace)
+      else()
+        target_link_libraries(roscraft::boost::stacktrace INTERFACE roscraft::boost::boost)
+      endif()
 
-        if(TARGET Boost::stacktrace_backtrace AND NOT TARGET roscraft::boost::stacktrace_backtrace)
-          add_library(roscraft::boost::stacktrace_backtrace INTERFACE IMPORTED GLOBAL)
-          target_link_libraries(roscraft::boost::stacktrace_backtrace INTERFACE Boost::stacktrace_backtrace)
-        endif()
+      if(TARGET Boost::stacktrace_backtrace AND NOT TARGET roscraft::boost::stacktrace_backtrace)
+        add_library(roscraft::boost::stacktrace_backtrace INTERFACE IMPORTED GLOBAL)
+        target_link_libraries(roscraft::boost::stacktrace_backtrace INTERFACE Boost::stacktrace_backtrace)
+      endif()
 
-        if(TARGET Boost::stacktrace_addr2line AND NOT TARGET roscraft::boost::stacktrace_addr2line)
-          add_library(roscraft::boost::stacktrace_addr2line INTERFACE IMPORTED GLOBAL)
-          target_link_libraries(roscraft::boost::stacktrace_addr2line INTERFACE Boost::stacktrace_addr2line)
-        endif()
+      if(TARGET Boost::stacktrace_addr2line AND NOT TARGET roscraft::boost::stacktrace_addr2line)
+        add_library(roscraft::boost::stacktrace_addr2line INTERFACE IMPORTED GLOBAL)
+        target_link_libraries(roscraft::boost::stacktrace_addr2line INTERFACE Boost::stacktrace_addr2line)
+      endif()
+
+      if(TARGET Boost::stacktrace_from_exception AND NOT TARGET roscraft::boost::stacktrace_from_exception)
+        add_library(roscraft::boost::stacktrace_from_exception INTERFACE IMPORTED GLOBAL)
+        target_link_libraries(roscraft::boost::stacktrace_from_exception INTERFACE Boost::stacktrace_from_exception)
+      endif()
+
+      if(NOT TARGET roscraft::boost::stacktrace_from_exception AND TARGET Boost::stacktrace)
+        add_library(roscraft::boost::stacktrace_from_exception INTERFACE IMPORTED GLOBAL)
+        target_link_libraries(roscraft::boost::stacktrace_from_exception INTERFACE Boost::stacktrace)
+      endif()
+
+      if(TARGET Boost::stacktrace_noop AND NOT TARGET roscraft::boost::stacktrace_noop)
+        add_library(roscraft::boost::stacktrace_noop INTERFACE IMPORTED GLOBAL)
+        target_link_libraries(roscraft::boost::stacktrace_noop INTERFACE Boost::stacktrace_noop)
       endif()
 
       # Create alias for header-only unordered (not a separate component)
@@ -319,14 +434,23 @@ foreach(component IN LISTS ROSCRAFT_BOOST_REQUIRED_COMPONENTS)
       target_link_libraries(${target_name} INTERFACE "Boost::${component}")
       roscraft_dep_log(STATUS "Created alias: ${target_name}")
     endif()
-    # Link the component to the main roscraft::boost::boost target (excluding pool and container)
-    if(NOT component STREQUAL "pool" AND NOT component STREQUAL "container")
+    # Link header-only style components to roscraft::boost::boost.
+    # Avoid linking stacktrace components here to prevent leaking
+    # BOOST_STACKTRACE_* link macros into unrelated targets.
+    if(NOT component STREQUAL "pool"
+         AND NOT component STREQUAL "container"
+         AND NOT component STREQUAL "stacktrace"
+         AND NOT component STREQUAL "stacktrace_backtrace"
+         AND NOT component STREQUAL "stacktrace_addr2line"
+         AND NOT component STREQUAL "stacktrace_basic"
+         AND NOT component STREQUAL "stacktrace_from_exception"
+         AND NOT component STREQUAL "stacktrace_noop")
       target_link_libraries(roscraft::boost::boost INTERFACE "Boost::${component}")
     endif()
-  else()
-    if(NOT ROSCRAFT_USE_STL_STACKTRACE OR NOT component STREQUAL "stacktrace")
-      roscraft_dep_log(WARNING "Boost component '${component}' not found")
-    endif()
+  elseif(NOT TARGET ${target_name})
+    # The roscraft::boost::stacktrace target may already be created from
+    # individual backend targets (backtrace, addr2line, etc.)
+    roscraft_dep_log(WARNING "Boost component '${component}' not found")
   endif()
 endforeach()
 

@@ -5,8 +5,15 @@
 
 #ifdef ROSCRAFT_USE_STL_STACKTRACE
 #include <stacktrace>
-#else
+#endif
+
 #include <boost/stacktrace.hpp>
+
+#if __has_include(<boost/stacktrace/this_thread.hpp>)
+#include <boost/stacktrace/this_thread.hpp>
+#define ROSCRAFT_HAS_BOOST_STACKTRACE_THIS_THREAD 1
+#else
+#define ROSCRAFT_HAS_BOOST_STACKTRACE_THIS_THREAD 0
 #endif
 
 #include <algorithm>
@@ -288,12 +295,37 @@ namespace roscraft {
 Stacktrace Stacktrace::Capture(const StacktraceConfig& config) {
   try {
 #ifdef ROSCRAFT_USE_STL_STACKTRACE
-    const std::stacktrace stack_trace = std::stacktrace::current();
+    const auto stack_trace = std::stacktrace::current();
 #else
     const boost::stacktrace::stacktrace stack_trace;
 #endif
 
     auto capture_result = CaptureFrames(stack_trace, config);
+    return {std::move(capture_result.frames), capture_result.capture_error};
+  } catch (...) {
+    return {{}, true};
+  }
+}
+
+Stacktrace Stacktrace::FromCurrentException(const StacktraceConfig& config) {
+  try {
+#if ROSCRAFT_HAS_BOOST_STACKTRACE_THIS_THREAD
+    boost::stacktrace::this_thread::set_capture_stacktraces_at_throw(true);
+#endif
+
+#if ROSCRAFT_HAS_BOOST_STACKTRACE_THIS_THREAD
+    const auto stack_trace =
+        boost::stacktrace::stacktrace::from_current_exception();
+
+    if (!stack_trace.empty()) {
+      auto capture_result = CaptureFrames(stack_trace, config);
+      return {std::move(capture_result.frames), capture_result.capture_error};
+    }
+#endif
+
+    const boost::stacktrace::stacktrace fallback_trace;
+    auto capture_result = CaptureFrames(fallback_trace, config);
+    capture_result.capture_error = true;
     return {std::move(capture_result.frames), capture_result.capture_error};
   } catch (...) {
     return {{}, true};

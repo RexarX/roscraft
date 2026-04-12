@@ -103,30 +103,48 @@ include(${ROSCRAFT_WS_DIR}/cmake/TargetUtils.cmake)
 
 roscraft_print_sanitizer_status()
 
-
-
-# Find roscraft_core — installed by core's package into the colcon workspace.
-# The roscraft::core imported target becomes available after this call.
-find_package(roscraft_core REQUIRED)
-
 find_package(roscraft_bridge_common REQUIRED)
-
+if(TARGET roscraft::roscraft_bridge_common AND NOT TARGET roscraft::bridge::common)
+  add_library(roscraft::bridge::common ALIAS roscraft::roscraft_bridge_common)
+endif()
 if(TARGET roscraft_bridge_common::roscraft_bridge_common AND NOT TARGET roscraft::bridge::common)
   add_library(roscraft::bridge::common ALIAS roscraft_bridge_common::roscraft_bridge_common)
 endif()
+if(TARGET roscraft::roscraft_bridge_fbs AND NOT TARGET roscraft::bridge::fbs)
+  add_library(roscraft::bridge::fbs ALIAS roscraft::roscraft_bridge_fbs)
+endif()
+if(TARGET roscraft_bridge_common::roscraft_bridge_fbs AND NOT TARGET roscraft::bridge::fbs)
+  add_library(roscraft::bridge::fbs ALIAS roscraft_bridge_common::roscraft_bridge_fbs)
+endif()
+
+find_package(roscraft_core REQUIRED)
+if(TARGET roscraft::roscraft_core AND NOT TARGET roscraft::core)
+  add_library(roscraft::core ALIAS roscraft::roscraft_core)
+endif()
+if(TARGET roscraft_core::roscraft_core AND NOT TARGET roscraft::core)
+  add_library(roscraft::core ALIAS roscraft_core::roscraft_core)
+endif()
 
 find_package(ament_cmake REQUIRED)
-find_package(rclcpp REQUIRED)
 
 find_package(JNI REQUIRED)
 
 set(ROSCRAFT_BRIDGE_JNI_HEADERS
     include/roscraft/bridge/jni/bridge.hpp
     include/roscraft/bridge/jni/config.hpp
+    include/roscraft/bridge/jni/env_guard.hpp
+    include/roscraft/bridge/jni/native_methods.hpp
+
+    include/roscraft/bridge/jni/command/callback.hpp
+    include/roscraft/bridge/jni/command/handler.hpp
+    include/roscraft/bridge/jni/command/handler_registry.hpp
+    include/roscraft/bridge/jni/command/handlers.hpp
 )
 
 set(ROSCRAFT_BRIDGE_JNI_SOURCES
     src/bridge.cpp
+    src/env_guard.cpp
+    src/native_methods.cpp
 )
 
 set(ROSCRAFT_BRIDGE_JNI_ALL_FILES
@@ -165,34 +183,27 @@ target_compile_definitions(roscraft_bridge_jni PRIVATE
     ROSCRAFT_BRIDGE_JNI_BUILD_SHARED
 )
 
-find_package(JNI)
 if(TARGET JNI::JNI)
   target_link_libraries(roscraft_bridge_jni PRIVATE JNI::JNI)
 else()
   target_link_libraries(roscraft_bridge_jni PRIVATE ${JNI_LIBRARIES})
 endif()
 
-roscraft_require_dependency(argparse)
-roscraft_require_dependency(Taskflow)
 roscraft_require_dependency(FlatMap)
-roscraft_require_dependency(concurrentqueue)
 
 target_link_libraries(roscraft_bridge_jni
   PUBLIC
       roscraft::bridge::common
+      roscraft::bridge::fbs
+      roscraft::core
+      roscraft::flat_map
   PRIVATE
-      $<BUILD_INTERFACE:roscraft::flat_map>
-      $<BUILD_INTERFACE:roscraft::concurrentqueue>
-      $<BUILD_INTERFACE:roscraft::taskflow::taskflow>
-      roscraft::argparse
       rclcpp::rclcpp
 )
 
 install(TARGETS roscraft_bridge_jni
     EXPORT export_roscraft_bridge_jni
-    ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
-    RUNTIME DESTINATION bin
 )
 
 if(BUILD_TESTING)
@@ -206,7 +217,8 @@ install(DIRECTORY include/
 )
 
 ament_export_dependencies(
-    roscraft_core           # propagate so jni/network don't need to re-find it
+    roscraft_bridge_common
+    roscraft_core
     rclcpp
 )
 ament_export_include_directories(include)

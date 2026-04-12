@@ -5,7 +5,6 @@ include(CMakeFindDependencyMacro)
 find_dependency(roscraft_core REQUIRED)
 
 find_dependency(rclcpp REQUIRED)
-find_dependency(rclcpp_action REQUIRED)
 find_dependency(action_msgs REQUIRED)
 find_dependency(builtin_interfaces REQUIRED)
 find_dependency(geometry_msgs REQUIRED)
@@ -13,6 +12,47 @@ find_dependency(std_msgs REQUIRED)
 
 find_dependency(concurrentqueue REQUIRED)
 find_dependency(Taskflow REQUIRED)
+
+find_package(flatbuffers QUIET CONFIG)
+if(NOT flatbuffers_FOUND)
+  find_package(FlatBuffers QUIET CONFIG)
+endif()
+
+if(NOT TARGET roscraft::flatbuffers)
+  if(TARGET flatbuffers::flatbuffers)
+    add_library(roscraft::flatbuffers INTERFACE IMPORTED GLOBAL)
+    set_property(TARGET roscraft::flatbuffers PROPERTY
+        INTERFACE_LINK_LIBRARIES flatbuffers::flatbuffers)
+  elseif(TARGET flatbuffers::libflatbuffers)
+    add_library(roscraft::flatbuffers INTERFACE IMPORTED GLOBAL)
+    set_property(TARGET roscraft::flatbuffers PROPERTY
+        INTERFACE_LINK_LIBRARIES flatbuffers::libflatbuffers)
+  elseif(TARGET FlatBuffers::FlatBuffers)
+    add_library(roscraft::flatbuffers INTERFACE IMPORTED GLOBAL)
+    set_property(TARGET roscraft::flatbuffers PROPERTY
+        INTERFACE_LINK_LIBRARIES FlatBuffers::FlatBuffers)
+  elseif(TARGET flatbuffers)
+    add_library(roscraft::flatbuffers INTERFACE IMPORTED GLOBAL)
+    set_property(TARGET roscraft::flatbuffers PROPERTY
+        INTERFACE_LINK_LIBRARIES flatbuffers)
+  else()
+    find_path(_roscraft_flatbuffers_include_dir
+        NAMES flatbuffers/flatbuffers.h
+    )
+    if(_roscraft_flatbuffers_include_dir)
+      add_library(roscraft::flatbuffers INTERFACE IMPORTED GLOBAL)
+      set_property(TARGET roscraft::flatbuffers PROPERTY
+          INTERFACE_INCLUDE_DIRECTORIES "${_roscraft_flatbuffers_include_dir}")
+    endif()
+  endif()
+endif()
+
+if(NOT TARGET roscraft::flatbuffers)
+  message(FATAL_ERROR
+      "roscraft_bridge_common requires FlatBuffers headers, but no compatible "
+      "flatbuffers target or include directory was found."
+  )
+endif()
 
 # Ensure roscraft::flat_map target exists before loading export targets.
 # This target is created by the roscraft FlatMap dependency system at build time,

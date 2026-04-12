@@ -12,6 +12,7 @@
 
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -20,6 +21,8 @@
 #include <optional>
 #include <shared_mutex>
 #include <span>
+#include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -46,11 +49,6 @@ public:
       : config_(std::move(config)), io_ctx_(1), socket_(io_ctx_) {}
   ~NetworkBridge() override;
 
-  /// @brief Parse command line arguments for configuration.
-  /// @param argc Argument count
-  /// @param argv Argument values
-  void ParseArgs(int argc, char* argv[]);
-
   /// @brief Initialize the bridge.
   /// @param app Application instance for queue access
   void Init(App& app) override;
@@ -67,9 +65,9 @@ public:
   /// @param app Application instance
   void Tick(App& app) override;
 
-  /// @brief Set network configuration.
-  /// @param config New configuration
-  void SetConfig(BridgeConfig config) noexcept { config_ = config; }
+  /// @brief Get number of registered clients.
+  /// @return Client count
+  [[nodiscard]] size_t ClientCount() const;
 
   /// @brief Get current bridge status.
   /// @return Current status
@@ -112,26 +110,22 @@ private:
 
   /// @brief Add client endpoint to registered clients.
   /// @param client Client endpoint to add
-  void AddClient(const asio::ip::udp::endpoint& client);
+  void AddClient(const asio::ip::udp::endpoint& client,
+                 std::chrono::steady_clock::time_point now);
+
+  /// @brief Update last-seen timestamp for a client.
+  /// @param client Client endpoint
+  /// @param now Current steady clock time
+  void MarkClientSeen(const asio::ip::udp::endpoint& client,
+                      std::chrono::steady_clock::time_point now);
 
   /// @brief Remove client endpoint from registered clients.
   /// @param client Client endpoint to remove
   void RemoveClient(const asio::ip::udp::endpoint& client);
 
-  /// @brief Iterate over all registered clients with read lock.
-  /// @tparam Fn Callable type `void(const asio::ip::udp::endpoint&)`
-  /// @param fn Function to call for each client
-  template <typename Fn>
-    requires std::invocable<Fn, const asio::ip::udp::endpoint&>
-  void ForEachClient(const Fn& fn) const;
-
-  /// @brief Get number of registered clients.
-  /// @return Client count
-  [[nodiscard]] size_t ClientCount() const;
-
-  // ---- Application reference ------------------------------------------------
-
-  std::optional<std::reference_wrapper<App>> app_;
+  /// @brief Remove inactive clients based on timeout.
+  /// @param now Current steady clock time
+  void PruneInactiveClients(std::chrono::steady_clock::time_point now);
 
   // ---- Configuration --------------------------------------------------------
 
@@ -157,6 +151,11 @@ private:
 
   mutable std::shared_mutex clients_mutex_;
   std::unordered_set<asio::ip::udp::endpoint> clients_;
+  std::unordered_map<asio::ip::udp::endpoint,
+                     std::chrono::steady_clock::time_point>
+      clients_last_seen_;
+
+  static constexpr auto kClientInactivityTimeout = std::chrono::seconds(30);
 
   // ---- Receive-side resources ----------------------------------------------
 
@@ -178,25 +177,6 @@ inline NetworkBridge::~NetworkBridge() {
 inline void NetworkBridge::Reload(App& app) {
   Destroy(app);
   Init(app);
-}
-
-inline void NetworkBridge::AddClient(const asio::ip::udp::endpoint& client) {
-  std::scoped_lock lock(clients_mutex_);
-  clients_.insert(client);
-}
-
-inline void NetworkBridge::RemoveClient(const asio::ip::udp::endpoint& client) {
-  std::scoped_lock lock(clients_mutex_);
-  clients_.erase(client);
-}
-
-template <typename Fn>
-  requires std::invocable<Fn, const asio::ip::udp::endpoint&>
-inline void NetworkBridge::ForEachClient(const Fn& fn) const {
-  std::shared_lock lock(clients_mutex_);
-  for (const auto& client : clients_) {
-    fn(client);
-  }
 }
 
 inline size_t NetworkBridge::ClientCount() const {

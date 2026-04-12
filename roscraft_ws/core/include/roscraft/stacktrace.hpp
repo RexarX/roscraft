@@ -92,6 +92,15 @@ public:
   [[nodiscard]] static Stacktrace Capture(const StacktraceConfig& config = {});
 
   /**
+   * @brief Captures stacktrace from the current exception using
+   * `boost::stacktrace::from_current_exception()`.
+   * @param config Capture and formatting configuration
+   * @return Captured stacktrace object from current exception
+   */
+  [[nodiscard]] static Stacktrace FromCurrentException(
+      const StacktraceConfig& config = {});
+
+  /**
    * @brief Converts stacktrace to a formatted string.
    * @param include_header Whether to include `Stack trace:` header
    * @return Formatted stacktrace string

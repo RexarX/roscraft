@@ -14,10 +14,12 @@ struct AppConfig {
   int argc = 0;           ///< Number of command line arguments
   char** argv = nullptr;  ///< Command line arguments
 
-  /// @brief Returns command-line argument count.
+  /// @brief Gets the number of command line arguments.
+  /// @return The number of command line arguments
   [[nodiscard]] constexpr int Argc() const noexcept { return argc; }
 
-  /// @brief Returns command-line argument vector.
+  /// @brief Gets the command-line arguments.
+  /// @return Command-line arguments
   [[nodiscard]] constexpr char** Argv() const noexcept { return argv; }
 
   /// @brief Creates an `AppConfig` from a bridge
@@ -66,6 +68,12 @@ struct AppConfig {
     return config;
   }
 
+  /// @brief Creates an `AppConfig` from a bridge and command line arguments
+  /// @tparam T The bridge type
+  /// @param argc Number of command line arguments
+  /// @param argv Command line arguments
+  /// @param args Arguments to forward to the bridge constructor
+  /// @return The `AppConfig` created from the bridge and command line arguments
   template <BridgeTrait T, typename... Args>
     requires std::constructible_from<T, Args...>
   [[nodiscard]] static constexpr AppConfig From(int argc, char* argv[],

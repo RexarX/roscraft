@@ -23,7 +23,7 @@
 namespace roscraft::bridge {
 
 // ============================================================================
-// Incoming commands  (mod → ROS)
+// Incoming commands  (mod -> ROS)
 // ============================================================================
 
 /// @brief Query all topics / services / actions visible in the ROS2 graph.
@@ -68,21 +68,8 @@ struct QueryPlayersCmd {
 };
 
 // ============================================================================
-// Outgoing commands  (ROS → mod)
+// Outgoing commands  (ROS -> mod)
 // ============================================================================
-
-/// @brief Instruct the mod to place a block in the Minecraft world.
-struct PlaceBlockCmd {
-  static constexpr std::string_view kName = "PlaceBlockCmd";
-
-  int32_t x = 0;
-  int32_t y = 0;
-  int32_t z = 0;
-  std::pmr::string block_id;  ///< e.g. "minecraft:stone"
-
-  PlaceBlockCmd() : PlaceBlockCmd(std::pmr::get_default_resource()) {}
-  explicit PlaceBlockCmd(std::pmr::memory_resource* mr) : block_id(mr) {}
-};
 
 /// @brief Response to QueryGraphCmd — full snapshot of the ROS2 graph.
 struct GraphSnapshotCmd {

@@ -9,10 +9,6 @@
 #include <roscraft/bridge/network/transport.hpp>
 #include <roscraft/generated/bridge_packets_generated.hpp>
 
-#include <argparse/argparse.hpp>
-
-#include <glaze/toml.hpp>
-
 #include <asio/co_spawn.hpp>
 #include <asio/detached.hpp>
 #include <asio/ip/udp.hpp>
@@ -25,68 +21,51 @@
 
 #include <atomic>
 #include <cstddef>
-#include <cstdint>
-#include <exception>
+#include <format>
 #include <memory_resource>
+#include <mutex>
 #include <shared_mutex>
 #include <string>
-#include <unordered_set>
 #include <vector>
+
+static std::string EndpointToString(const asio::ip::udp::endpoint& ep) {
+  return std::format("{}:{}", ep.address().to_string(), ep.port());
+}
 
 namespace roscraft::bridge::network {
 
-void NetworkBridge::ParseArgs(int argc, char* argv[]) {
-  if (argc < 2) [[unlikely]] {
-    return;
-  }
-
-  argparse::ArgumentParser parser("roscraft_bridge_network");
-  parser.add_argument("-h", "--host")
-      .default_value(IpAddress("127.0.0.1"))
-      .help("Host ip address");
-  parser.add_argument("-p", "--port")
-      .default_value(uint16_t{7401})
-      .scan<'u', uint16_t>()
-      .help("Port number");
-  parser.add_argument("--allow-multiple-connections")
-      .flag()
-      .help("Allow multiple client connections");
-
-  try {
-    parser.parse_args(argc, argv);
-    config_.host = parser.get<std::string>("--host");
-    config_.port = parser.get<uint16_t>("--port");
-    config_.allow_multiple_connections =
-        parser.get<bool>("--allow-multiple-connections");
-  } catch (const std::exception& e) {
-    RCLCPP_WARN(rclcpp::get_logger("NetworkBridge"),
-                "Failed to parse command line arguments: %s", e.what());
-  }
-}
-
 void NetworkBridge::Init(App& app) {
-  app_.emplace(app);
+  ROSCRAFT_ASSERT(&app == &App::Instance(),
+                  "NetworkBridge::Init requires App::Instance()!");
   status_.store(BridgeStatus::kInitializing, std::memory_order_release);
+
+  RCLCPP_INFO(rclcpp::get_logger("NetworkBridge"),
+              "Initializing network bridge...");
 
   InitCommandHandlerRegistry();
 
   InitAsio();
 
   status_.store(BridgeStatus::kReady, std::memory_order_release);
-  RCLCPP_INFO(rclcpp::get_logger("NetworkBridge"), "Listening on udp://%s:%u",
-              config_.host.CStr(), config_.port);
+  RCLCPP_INFO(
+      rclcpp::get_logger("NetworkBridge"),
+      "Network bridge initialized successfully\nListening on udp://%s:%u",
+      config_.host.CStr(), config_.port);
 }
 
 void NetworkBridge::Destroy(App& /*app*/) {
   status_.store(BridgeStatus::kShuttingDown, std::memory_order_release);
+
+  RCLCPP_INFO(rclcpp::get_logger("NetworkBridge"),
+              "Destroying network bridge...");
+
   DestroyAsio();
 
   {
     std::scoped_lock lock(clients_mutex_);
     clients_.clear();
+    clients_last_seen_.clear();
   }
-
-  app_.reset();
 
   status_.store(BridgeStatus::kUninitialized, std::memory_order_release);
 }
@@ -99,12 +78,15 @@ void NetworkBridge::Tick(App& /*app*/) {
   io_ctx_.restart();
   io_ctx_.poll();
 
+  PruneInactiveClients(std::chrono::steady_clock::now());
+
   DrainAndSendAll();
 }
 
 void NetworkBridge::InitCommandHandlerRegistry() {
-  ROSCRAFT_ASSERT(app_.has_value(), "App reference is not set!");
-  auto& app = app_->get();
+  ROSCRAFT_ASSERT(Status() == BridgeStatus::kInitializing,
+                  "NetworkBridge is not initialized!");
+  auto& app = App::Instance();
   auto& in = app.IncomingQueue();
   auto& out = app.OutgoingQueue();
 
@@ -141,9 +123,10 @@ void NetworkBridge::DestroyAsio() {
 }
 
 auto NetworkBridge::ReceiveLoop() -> asio::awaitable<void> {
-  ROSCRAFT_ASSERT(app_.has_value(), "App reference is not set!");
-  auto& app = app_->get();
+  ROSCRAFT_ASSERT(Status() == BridgeStatus::kReady,
+                  "NetworkBridge is not initialized!");
 
+  auto& app = App::Instance();
   while (!app.IsShutdownRequested()) {
     std::error_code ec;
     asio::ip::udp::endpoint sender;
@@ -160,6 +143,8 @@ auto NetworkBridge::ReceiveLoop() -> asio::awaitable<void> {
       continue;
     }
 
+    const auto now = std::chrono::steady_clock::now();
+
     // Manage client connections with minimal locking
     if (config_.allow_multiple_connections) {
       // Multi-client mode: use read-modify-write pattern
@@ -167,10 +152,11 @@ auto NetworkBridge::ReceiveLoop() -> asio::awaitable<void> {
       if (clients_.contains(sender)) {
         // Already registered, skip write lock
         lock.unlock();
+        MarkClientSeen(sender, now);
       } else {
         // Need to add new client - upgrade to unique lock
         lock.unlock();
-        AddClient(sender);
+        AddClient(sender, now);
       }
 
     } else {
@@ -180,15 +166,21 @@ auto NetworkBridge::ReceiveLoop() -> asio::awaitable<void> {
       if (clients_.empty()) {
         // Need to register first client
         lock.unlock();
-        AddClient(sender);
+        AddClient(sender, now);
       } else {
         // Check if sender is the registered client
         const auto& registered = *clients_.begin();
         lock.unlock();
         if (sender != registered) {
           // Ignore packets from unknown clients in single-client mode
+          RCLCPP_DEBUG(
+              rclcpp::get_logger("NetworkBridge"),
+              "Ignoring packet from non-active client %s; active client is %s",
+              EndpointToString(sender).c_str(),
+              EndpointToString(registered).c_str());
           continue;
         }
+        MarkClientSeen(sender, now);
       }
     }
 
@@ -197,8 +189,10 @@ auto NetworkBridge::ReceiveLoop() -> asio::awaitable<void> {
 }
 
 void NetworkBridge::DrainAndSendAll() {
-  ROSCRAFT_ASSERT(app_.has_value(), "App reference is not set!");
-  auto& app = app_->get();
+  ROSCRAFT_ASSERT(Status() == BridgeStatus::kReady,
+                  "NetworkBridge is not initialized!");
+
+  auto& app = App::Instance();
 
   // Thread-local FlatBufferBuilder avoids per-message heap allocation.
   // Safe here because DrainAndSendAll always runs on the single ASIO thread.
@@ -214,9 +208,7 @@ void NetworkBridge::DrainAndSendAll() {
     return;
   }
 
-  UdpTransport transport(socket_,
-                         std::span<const asio::ip::udp::endpoint>(
-                             clients_snapshot.data(), clients_snapshot.size()));
+  UdpTransport transport(socket_, clients_snapshot);
   registry_.DrainAndSendAll<DrainAndSendHandlerTypes>(app.OutgoingQueue(),
                                                       transport, fbb);
 }
@@ -230,8 +222,8 @@ auto NetworkBridge::BuildClientSnapshot() const
 void NetworkBridge::HandleDatagram(
     std::span<const uint8_t> data, const asio::ip::udp::endpoint& from,
     std::pmr::memory_resource& pending_allocator) {
-  ROSCRAFT_ASSERT(app_.has_value(), "App reference is not set!");
-  auto& app = app_->get();
+  ROSCRAFT_ASSERT(Status() == BridgeStatus::kReady,
+                  "NetworkBridge is not initialized!");
 
   flatbuffers::Verifier verifier(data.data(), data.size());
   if (!fbs::VerifyBridgePacketBuffer(verifier)) [[unlikely]] {
@@ -241,9 +233,75 @@ void NetworkBridge::HandleDatagram(
     return;
   }
 
+  auto& app = App::Instance();
+
   // Dispatch to appropriate handler using arena for transient allocations
   DispatchReceive(registry_, app.IncomingQueue(),
                   *fbs::GetBridgePacket(data.data()), pending_allocator);
+}
+
+void NetworkBridge::AddClient(const asio::ip::udp::endpoint& client,
+                              std::chrono::steady_clock::time_point now) {
+  std::scoped_lock lock(clients_mutex_);
+
+  const bool inserted = clients_.insert(client).second;
+  clients_last_seen_[client] = now;
+
+  if (inserted) {
+    RCLCPP_INFO(rclcpp::get_logger("NetworkBridge"),
+                "Client connected: %s (active clients: %zu)",
+                EndpointToString(client).c_str(), clients_.size());
+  }
+}
+
+void NetworkBridge::MarkClientSeen(const asio::ip::udp::endpoint& client,
+                                   std::chrono::steady_clock::time_point now) {
+  std::scoped_lock lock(clients_mutex_);
+  if (clients_.contains(client)) {
+    clients_last_seen_[client] = now;
+  }
+}
+
+void NetworkBridge::RemoveClient(const asio::ip::udp::endpoint& client) {
+  std::scoped_lock lock(clients_mutex_);
+
+  const size_t erased = clients_.erase(client);
+  clients_last_seen_.erase(client);
+
+  if (erased > 0) {
+    RCLCPP_INFO(rclcpp::get_logger("NetworkBridge"),
+                "Client disconnected: %s (active clients: %zu)",
+                EndpointToString(client).c_str(), clients_.size());
+  }
+}
+
+void NetworkBridge::PruneInactiveClients(
+    std::chrono::steady_clock::time_point now) {
+  std::vector<asio::ip::udp::endpoint> stale_clients;
+
+  {
+    std::scoped_lock lock(clients_mutex_);
+    for (auto it = clients_last_seen_.begin();
+         it != clients_last_seen_.end();) {
+      if (now - it->second > kClientInactivityTimeout) {
+        stale_clients.push_back(it->first);
+        clients_.erase(it->first);
+        it = clients_last_seen_.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+
+  for (const auto& client : stale_clients) {
+    RCLCPP_INFO(
+        rclcpp::get_logger("NetworkBridge"),
+        "Client timed out after %llds of inactivity: %s (active clients: %zu)",
+        static_cast<long long>(std::chrono::duration_cast<std::chrono::seconds>(
+                                   kClientInactivityTimeout)
+                                   .count()),
+        EndpointToString(client).c_str(), ClientCount());
+  }
 }
 
 }  // namespace roscraft::bridge::network

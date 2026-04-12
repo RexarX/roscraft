@@ -14,11 +14,15 @@
 #include <algorithm>
 #include <atomic>
 #include <concepts>
+#include <condition_variable>
 #include <cstdint>
+#include <exception>
 #include <functional>
 #include <future>
 #include <memory>
 #include <memory_resource>
+#include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>

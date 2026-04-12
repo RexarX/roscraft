@@ -1,0 +1,14 @@
+pluginManagement {
+    repositories {
+        maven {
+            name = 'Fabric'
+            url = 'https://maven.fabricmc.net/'
+        }
+        maven {
+            name = 'Spotless'
+            url = 'https://plugins.gradle.org/m2/'
+        }
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}

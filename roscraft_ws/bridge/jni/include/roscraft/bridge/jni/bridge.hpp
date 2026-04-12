@@ -1,35 +1,40 @@
 #pragma once
 
-#include <roscraft/bridge/assert.hpp>
 #include <roscraft/bridge/bridge.hpp>
+#include <roscraft/bridge/jni/command/callback.hpp>
+#include <roscraft/bridge/jni/command/handler_registry.hpp>
 #include <roscraft/bridge/jni/config.hpp>
 
+#include <flatbuffers/flatbuffers.h>
+
+#include <jni.h>
+
 #include <atomic>
+#include <span>
 
 namespace roscraft::bridge::jni {
 
-class JNIBridge final : public Bridge {
+class JniBridge final : public Bridge {
 public:
-  /// @brief Construct a new `JNIBridge` object.
-  /// @warning Triggers assertion if config is invalid.
-  /// @param config JNI bridge configuration
-  explicit JNIBridge(BridgeConfig config = {});
-  ~JNIBridge() override;
+  explicit JniBridge(BridgeConfig config = {}) noexcept;
+  ~JniBridge() override;
 
-  /// @brief Parse command line arguments.
-  /// @param argc Argument count
-  /// @param argv Argument values
-  void ParseArgs(int argc, char* argv[]);
+  JniBridge(const JniBridge&) = delete;
+  JniBridge(JniBridge&&) = delete;
 
-  /// @brief Initialize the JNI bridge.
+  JniBridge& operator=(const JniBridge&) = delete;
+  JniBridge& operator=(JniBridge&&) = delete;
+
+  /// @brief Initializes the bridge.
+  /// @warning Triggers assertion if bridge is already initialized.
   /// @param app Application instance
   void Init(App& app) override;
 
-  /// @brief Destroy the JNI bridge.
+  /// @brief Destroys the bridge and releases resources.
   /// @param app Application instance
   void Destroy(App& app) override;
 
-  /// @brief Reloads the JNI bridge.
+  /// @brief Reloads bridge state.
   /// @param app Application instance
   void Reload(App& app) override;
 
@@ -37,37 +42,43 @@ public:
   /// @param app Application instance
   void Tick(App& app) override;
 
-  /// @brief Set the JNI bridge configuration.
-  /// @param config JNI bridge configuration
-  void SetConfig(BridgeConfig config) noexcept { config_ = config; }
+  /// @brief Registers Java callback target object.
+  /// @warning Triggers assertion if `env` or `callback_obj` is null.
+  /// @param env JNI environment
+  /// @param callback_obj Java callback object
+  void RegisterCallback(JNIEnv* env, jobject callback_obj) noexcept {
+    callback_.Init(env, callback_obj);
+  }
 
-  /// @brief Get the current bridge status.
-  /// @return Bridge status
+  /// @brief Dispatches one incoming FlatBuffers packet.
+  /// @param packet Serialized packet bytes
+  void ReceivePacket(std::span<const uint8_t> packet);
+
+  /// @brief Gets the current bridge status.
+  /// @return Current bridge status
   [[nodiscard]] BridgeStatus Status() const noexcept override {
     return status_.load(std::memory_order_relaxed);
   }
 
-  /// @brief Get the JNI bridge configuration.
-  /// @return Const reference to the JNI bridge configuration
+  /// @brief Gets the current bridge configuration.
+  /// @return Current bridge configuration
   [[nodiscard]] const BridgeConfig& Config() const noexcept { return config_; }
 
 private:
-  BridgeConfig config_;
+  void InitCommandHandlerRegistry();
 
+  BridgeConfig config_;
   std::atomic<BridgeStatus> status_{BridgeStatus::kUninitialized};
+
+  BridgeCallback callback_;
+  CommandHandlerRegistry registry_;
 };
 
-inline JNIBridge::JNIBridge(BridgeConfig config) : config_(config) {
-  ROSCRAFT_ASSERT(config.Valid(), "Config is invalid!");
+inline JniBridge::JniBridge(BridgeConfig config) noexcept : config_(config) {
+  ROSCRAFT_ASSERT(config.Valid(), "BridgeConfig is invalid!");
 }
 
-inline JNIBridge::~JNIBridge() {
-  if (Status() == BridgeStatus::kUninitialized) {
-    return;
-  }
-}
-
-inline void JNIBridge::Reload(App& app) {
+inline void JniBridge::Reload(App& app) {
   Destroy(app);
   Init(app);
 }

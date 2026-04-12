@@ -3,7 +3,13 @@
 #include <roscraft/bridge/assert.hpp>
 #include <roscraft/bridge/command/command.hpp>
 
+#if __has_include(<concurrentqueue.h>)
 #include <concurrentqueue.h>
+#elif __has_include(<moodycamel/concurrentqueue.h>)
+#include <moodycamel/concurrentqueue.h>
+#else
+#error "Missing moodycamel concurrentqueue header"
+#endif
 #include <version>
 
 #if defined(__cpp_lib_flat_map) && __cpp_lib_flat_map >= 202207L

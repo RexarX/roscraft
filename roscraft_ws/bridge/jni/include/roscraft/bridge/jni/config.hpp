@@ -1,11 +1,11 @@
 #pragma once
 
-struct JavaVM_;
+#include <jni.h>
 
 namespace roscraft::bridge::jni {
 
 struct BridgeConfig {
-  JavaVM_* jvm = nullptr;  /// JVM instance
+  JavaVM* jvm = nullptr;  ///< JVM instance
 
   /// @brief Checks if the bridge configuration is valid.
   /// @return `true` if the configuration is valid, `false` otherwise.

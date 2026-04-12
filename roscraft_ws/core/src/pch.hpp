@@ -25,6 +25,6 @@
 
 #ifdef ROSCRAFT_USE_STL_STACKTRACE
 #include <stacktrace>
-#else
-#include <boost/stacktrace.hpp>
 #endif
+
+#include <boost/stacktrace.hpp>

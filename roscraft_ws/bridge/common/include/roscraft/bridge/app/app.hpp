@@ -19,6 +19,7 @@
 #include <memory>
 #include <memory_resource>
 #include <mutex>
+#include <optional>
 #include <vector>
 
 namespace roscraft::bridge {
@@ -48,8 +49,16 @@ enum class AppState : uint8_t {
 /// - Frame advancing should be called from a single "tick" thread
 class App {
 public:
-  App() = default;
-  ~App() { Shutdown(); }
+  /// @brief Gets the singleton application instance.
+  /// @return Singleton `App` instance
+  [[nodiscard]] static App& Instance() noexcept;
+
+  ~App();
+  App(const App&) = delete;
+  App(App&&) = delete;
+
+  App& operator=(const App&) = delete;
+  App& operator=(App&&) = delete;
 
   /// @brief Configures the `App` with the given configuration.
   /// @warning Triggers assertion if:
@@ -233,8 +242,11 @@ public:
   }
 
 private:
+  App() = default;
+
   void InitROS(int argc, char* argv[]);
   void SpinROS();
+  void CleanUpROS();
   void ShutdownROS();
   void UnregisterAllNodes();
 
@@ -255,28 +267,38 @@ private:
 
   std::atomic<AppState> state_{AppState::kUninitialized};
   std::atomic<bool> shutdown_requested_{false};
-  std::future<void> ros_spin_task_;
 
   std::mutex shutdown_mutex_;
   std::condition_variable shutdown_cv_;
 
   std::vector<rclcpp::node_interfaces::NodeBaseInterface::SharedPtr> nodes_;
-  rclcpp::executors::StaticSingleThreadedExecutor ros_executor_;
+  std::optional<rclcpp::executors::StaticSingleThreadedExecutor> ros_executor_;
+  std::future<void> ros_spin_task_;
+
   tf::Executor executor_;
 };
 
+inline auto App::Instance() noexcept -> App& {
+  static App instance;
+  return instance;
+}
+
+inline App::~App() {
+  Shutdown();
+}
+
 inline void App::AddNode(
     rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node) {
-  ROSCRAFT_ASSERT(State() == AppState::kUninitialized,
-                  "App is already initialized!");
+  ROSCRAFT_ASSERT(ros_executor_.has_value(),
+                  "ROS executor is not initialized!");
   ROSCRAFT_ASSERT(node != nullptr, "Node base interface is null!");
   nodes_.push_back(node);
-  ros_executor_.add_node(node);
+  ros_executor_->add_node(node);
 }
 
 inline void App::AddNode(const std::shared_ptr<rclcpp::Node>& node) {
-  ROSCRAFT_ASSERT(State() == AppState::kUninitialized,
-                  "App is already initialized!");
+  ROSCRAFT_ASSERT(ros_executor_.has_value(),
+                  "ROS executor is not initialized!");
   ROSCRAFT_ASSERT(node != nullptr, "Node is null!");
   AddNode(node->get_node_base_interface());
 }

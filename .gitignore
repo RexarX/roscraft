@@ -84,6 +84,9 @@ generated/
 .vscode/
 .zed/
 .cache/
+.project
+.settings/
+.classpath
 
 # Agents
 .opencode/

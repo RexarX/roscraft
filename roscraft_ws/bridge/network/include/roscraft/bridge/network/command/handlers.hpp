@@ -8,6 +8,8 @@
 #include <roscraft/bridge/network/transport.hpp>
 #include <roscraft/generated/bridge_packets_generated.hpp>
 
+#include <rclcpp/logging.hpp>
+
 #include <flatbuffers/flatbuffers.h>
 
 #include <concepts>
@@ -74,13 +76,17 @@ inline void GraphHandler::DrainAndSend(CommandQueue& out,
                                        flatbuffers::FlatBufferBuilder& fbb) {
   auto& storage = out.TypedStorage<GraphSnapshotCmd>();
 
+  std::vector<flatbuffers::Offset<flatbuffers::String>> topics;
+  std::vector<flatbuffers::Offset<flatbuffers::String>> services;
+  std::vector<flatbuffers::Offset<flatbuffers::String>> actions;
+
   GraphSnapshotCmd cmd;
   while (storage.Dequeue(out_consumer, cmd)) {
     fbb.Clear();
 
-    std::vector<flatbuffers::Offset<flatbuffers::String>> topics;
-    std::vector<flatbuffers::Offset<flatbuffers::String>> services;
-    std::vector<flatbuffers::Offset<flatbuffers::String>> actions;
+    topics.clear();
+    services.clear();
+    actions.clear();
     topics.reserve(cmd.topics.size());
     services.reserve(cmd.services.size());
     actions.reserve(cmd.actions.size());
@@ -229,12 +235,15 @@ inline void PlayerListHandler::DrainAndSend(
     flatbuffers::FlatBufferBuilder& fbb) {
   auto& storage = out.TypedStorage<PlayerListCmd>();
 
+  std::vector<flatbuffers::Offset<fbs::PlayerEntry>> entries;
+
   PlayerListCmd cmd;
   while (storage.Dequeue(out_consumer, cmd)) {
     fbb.Clear();
 
-    std::vector<flatbuffers::Offset<fbs::PlayerEntry>> entries;
+    entries.clear();
     entries.reserve(cmd.players.size());
+
     for (const auto& player : cmd.players) {
       entries.push_back(fbs::CreatePlayerEntry(
           fbb, fbb.CreateString(player.name), player.x, player.y, player.z));
