@@ -506,7 +506,7 @@ constexpr void MultiTypeMap<Storage, Allocator>::Clear(
 
 template <typename Storage, typename Allocator>
 constexpr void MultiTypeMap<Storage, Allocator>::ClearAll() noexcept {
-  for (auto& [_, storage] : storage_) {
+  for (auto&& [_, storage] : storage_) {
     if constexpr (requires { storage.Clear(); }) {
       storage.Clear();
     } else if constexpr (requires { storage.clear(); }) {
@@ -600,7 +600,7 @@ template <typename Storage, typename Allocator>
 template <typename OtherStorage, typename OtherAllocator>
 constexpr void MultiTypeMap<Storage, Allocator>::Merge(
     MultiTypeMap<OtherStorage, OtherAllocator>&& other) {
-  for (auto& [index, other_storage] : other.storage_) {
+  for (auto&& [index, other_storage] : other.storage_) {
     if (const auto it = storage_.find(index); it != storage_.end()) {
       // Existing key: call Merge or merge on Storage if available.
       if constexpr (requires { it->second.Merge(std::move(other_storage)); }) {
@@ -671,7 +671,7 @@ template <typename Storage, typename Allocator>
 constexpr auto MultiTypeMap<Storage, Allocator>::Size() const noexcept
     -> size_type {
   size_type total = 0;
-  for (const auto& [_, storage] : storage_) {
+  for (auto&& [_, storage] : storage_) {
     if constexpr (requires { storage.Size(); }) {
       total += storage.Size();
     } else if constexpr (requires { storage.size(); }) {

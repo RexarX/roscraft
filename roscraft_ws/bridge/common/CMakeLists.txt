@@ -285,10 +285,17 @@ target_link_libraries(roscraft_bridge_fbs INTERFACE
     roscraft::flatbuffers
 )
 
-install(TARGETS roscraft_bridge_fbs
-    EXPORT export_roscraft_bridge_common
-    FILE_SET HEADERS DESTINATION include
-)
+if(TARGET _roscraft_flatbuffers_all)
+  install(TARGETS roscraft_bridge_fbs _roscraft_flatbuffers_all
+      EXPORT export_roscraft_bridge_common
+      FILE_SET HEADERS DESTINATION include
+  )
+else()
+  install(TARGETS roscraft_bridge_fbs
+      EXPORT export_roscraft_bridge_common
+      FILE_SET HEADERS DESTINATION include
+  )
+endif()
 
 add_custom_target(roscraft_bridge_fbs_generate ALL
     DEPENDS ${ROSCRAFT_FBS_GENERATED_HEADERS}

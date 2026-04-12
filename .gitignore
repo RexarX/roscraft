@@ -73,6 +73,10 @@ __pycache__/
 # Gradle
 .gradle/
 build/
+bin/
+gradle-wrapper.jar
+gradlew
+gradlew.bat
 
 # Flat buffers
 generated/
