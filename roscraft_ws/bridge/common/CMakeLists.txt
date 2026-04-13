@@ -228,6 +228,7 @@ set(FLATC_FLAGS
     --filename-ext "hpp"
 )
 
+set(FLATC_EXECUTABLE "")
 if(TARGET flatbuffers::flatc)
   get_target_property(FLATC_EXECUTABLE flatbuffers::flatc IMPORTED_LOCATION)
   if(NOT FLATC_EXECUTABLE)
@@ -244,6 +245,16 @@ if(TARGET flatbuffers::flatc)
   endif()
 endif()
 if(NOT FLATC_EXECUTABLE)
+  if(TARGET flatc)
+    set(FLATC_EXECUTABLE "$<TARGET_FILE:flatc>")
+  endif()
+endif()
+if(NOT FLATC_EXECUTABLE)
+  if(EXISTS "${ROSCRAFT_WS_DIR}/install/roscraft_bridge_common/bin/flatc")
+    set(FLATC_EXECUTABLE "${ROSCRAFT_WS_DIR}/install/roscraft_bridge_common/bin/flatc")
+  endif()
+endif()
+if(NOT FLATC_EXECUTABLE)
   find_program(FLATC_EXECUTABLE flatc REQUIRED)
 endif()
 
@@ -252,6 +263,12 @@ foreach(_schema ${ROSCRAFT_FBS_SCHEMAS})
   get_filename_component(_schema_name "${_schema}" NAME_WE)
   set(_generated_header ${ROSCRAFT_GENERATED_DIR}/include/roscraft/generated/${_schema_name}_generated.hpp)
   set(_output_dir ${ROSCRAFT_GENERATED_DIR}/include/roscraft/generated)
+  set(_flatc_depends "${_schema}")
+  if(TARGET flatbuffers::flatc)
+    list(APPEND _flatc_depends flatbuffers::flatc)
+  elseif(TARGET flatc)
+    list(APPEND _flatc_depends flatc)
+  endif()
 
   add_custom_command(
         OUTPUT  "${_generated_header}"
@@ -259,7 +276,7 @@ foreach(_schema ${ROSCRAFT_FBS_SCHEMAS})
                 ${FLATC_FLAGS}
                 -o "${_output_dir}"
                 "${_schema}"
-        DEPENDS "${_schema}"
+        DEPENDS ${_flatc_depends}
         COMMENT "Compiling Flatbuffers schema: ${_schema_name}.fbs → ${_schema_name}.hpp"
         VERBATIM
   )
@@ -285,17 +302,10 @@ target_link_libraries(roscraft_bridge_fbs INTERFACE
     roscraft::flatbuffers
 )
 
-if(TARGET _roscraft_flatbuffers_all)
-  install(TARGETS roscraft_bridge_fbs _roscraft_flatbuffers_all
-      EXPORT export_roscraft_bridge_common
-      FILE_SET HEADERS DESTINATION include
-  )
-else()
-  install(TARGETS roscraft_bridge_fbs
-      EXPORT export_roscraft_bridge_common
-      FILE_SET HEADERS DESTINATION include
-  )
-endif()
+install(TARGETS roscraft_bridge_fbs
+    EXPORT export_roscraft_bridge_common
+    FILE_SET HEADERS DESTINATION include
+)
 
 add_custom_target(roscraft_bridge_fbs_generate ALL
     DEPENDS ${ROSCRAFT_FBS_GENERATED_HEADERS}

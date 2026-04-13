@@ -20,6 +20,8 @@ void App::Init(AppConfig config) {
   ROSCRAFT_ASSERT(State() == AppState::kUninitialized,
                   "App is already initialized!");
 
+  shutdown_requested_.store(false, std::memory_order_release);
+
   RCLCPP_INFO(rclcpp::get_logger("App"), "Initializing application...");
 
   RegisterAllCommandTypes();
@@ -100,7 +102,6 @@ void App::SpinROS() {
     RequestShutdown();
   } catch (...) {
     const auto st = roscraft::Stacktrace::FromCurrentException();
-
     RCLCPP_ERROR(rclcpp::get_logger("App"),
                  "Unknown exception in ROS spin!\n%s", st.ToString().c_str());
     RequestShutdown();
@@ -125,6 +126,12 @@ void App::ShutdownROS() {
   }
 }
 
+void App::RegisterAllNodes() {
+  AddNode(std::make_shared<GraphNode>(IncomingQueue(), OutgoingQueue(),
+                                      Executor()));
+  AddNode(std::make_shared<TopicRelayNode>(IncomingQueue(), OutgoingQueue()));
+}
+
 void App::UnregisterAllNodes() {
   for (auto& node : nodes_) {
     if (node != nullptr) [[likely]] {
@@ -132,6 +139,7 @@ void App::UnregisterAllNodes() {
     }
   }
   nodes_.clear();
+  owned_nodes_.clear();
   ros_executor_.reset();
 }
 
@@ -146,12 +154,6 @@ void App::RegisterAllCommandTypes() {
   outgoing_queue_.Register<GraphSnapshotCmd>();
   outgoing_queue_.Register<TopicPayloadCmd>();
   outgoing_queue_.Register<PlayerListCmd>();
-}
-
-void App::RegisterAllNodes() {
-  AddNode(std::make_shared<GraphNode>(IncomingQueue(), OutgoingQueue(),
-                                      Executor()));
-  AddNode(std::make_shared<TopicRelayNode>(IncomingQueue(), OutgoingQueue()));
 }
 
 }  // namespace roscraft::bridge

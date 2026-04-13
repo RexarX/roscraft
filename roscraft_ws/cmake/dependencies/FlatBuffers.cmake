@@ -30,6 +30,8 @@ roscraft_dep_begin(
     CPM_VERSION 25.12.19
     CPM_GITHUB_REPOSITORY google/flatbuffers
     CPM_GIT_TAG v25.12.19-2026-02-06-03fffb2
+    CPM_OPTIONS
+        "FLATBUFFERS_BUILD_TESTS OFF"
 )
 roscraft_dep_end()
 

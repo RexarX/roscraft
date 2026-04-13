@@ -2,6 +2,18 @@ roscraft_require_dependency(doctest)
 
 set(ROSCRAFT_BRIDGE_COMMON_TEST_SOURCES
     main.cpp
+
+    bridge.cpp
+
+    app/app.cpp
+    app/config.cpp
+
+    command/command.cpp
+    command/commands.cpp
+    command/queue.cpp
+
+    nodes/graph.cpp
+    nodes/topic_relay.cpp
 )
 
 add_executable(roscraft_bridge_common_tests ${ROSCRAFT_BRIDGE_COMMON_TEST_SOURCES})
@@ -22,3 +34,8 @@ target_link_libraries(roscraft_bridge_common_tests PRIVATE
 )
 
 add_test(NAME roscraft_bridge_common_tests COMMAND roscraft_bridge_common_tests)
+
+set_tests_properties(roscraft_bridge_common_tests PROPERTIES
+    ENVIRONMENT
+        "ASAN_OPTIONS=new_delete_type_mismatch=0;LSAN_OPTIONS=suppressions=${CMAKE_CURRENT_SOURCE_DIR}/lsan.supp"
+)

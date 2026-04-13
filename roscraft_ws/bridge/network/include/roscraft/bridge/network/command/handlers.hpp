@@ -103,15 +103,19 @@ inline void GraphHandler::DrainAndSend(CommandQueue& out,
       actions.push_back(fbb.CreateString(action));
     }
 
+    const auto topics_offset = fbb.CreateVector(topics);
+    const auto services_offset = fbb.CreateVector(services);
+    const auto actions_offset = fbb.CreateVector(actions);
+
     fbs::GraphSnapshotPacketBuilder builder(fbb);
     builder.add_request_id(cmd.request_id);
-    builder.add_topics(fbb.CreateVector(topics));
-    builder.add_services(fbb.CreateVector(services));
-    builder.add_actions(fbb.CreateVector(actions));
+    builder.add_topics(topics_offset);
+    builder.add_services(services_offset);
+    builder.add_actions(actions_offset);
     const auto inner = builder.Finish();
     const auto root = fbs::CreateBridgePacket(
         fbb, fbs::PacketPayload::GraphSnapshotPacket, inner.Union());
-    fbb.Finish(root);
+    fbs::FinishBridgePacketBuffer(fbb, root);
 
     SendFbb(transport, fbb);
   }
@@ -249,13 +253,15 @@ inline void PlayerListHandler::DrainAndSend(
           fbb, fbb.CreateString(player.name), player.x, player.y, player.z));
     }
 
+    const auto players_offset = fbb.CreateVector(entries);
+
     fbs::PlayerListPacketBuilder builder(fbb);
     builder.add_request_id(cmd.request_id);
-    builder.add_players(fbb.CreateVector(entries));
+    builder.add_players(players_offset);
     const auto inner = builder.Finish();
     const auto root = fbs::CreateBridgePacket(
         fbb, fbs::PacketPayload::PlayerListPacket, inner.Union());
-    fbb.Finish(root);
+    fbs::FinishBridgePacketBuffer(fbb, root);
 
     SendFbb(transport, fbb);
   }
@@ -285,15 +291,19 @@ inline void TopicPayloadHandler::DrainAndSend(
   while (storage.Dequeue(out_consumer, cmd)) {
     fbb.Clear();
 
+    const auto topic_name_offset = fbb.CreateString(cmd.topic_name);
+    const auto message_type_offset = fbb.CreateString(cmd.message_type);
+    const auto payload_offset =
+        fbb.CreateVector(cmd.payload.data(), cmd.payload.size());
+
     fbs::TopicPayloadPacketBuilder builder(fbb);
-    builder.add_topic_name(fbb.CreateString(cmd.topic_name));
-    builder.add_message_type(fbb.CreateString(cmd.message_type));
-    builder.add_payload(
-        fbb.CreateVector(cmd.payload.data(), cmd.payload.size()));
+    builder.add_topic_name(topic_name_offset);
+    builder.add_message_type(message_type_offset);
+    builder.add_payload(payload_offset);
     const auto inner = builder.Finish();
     const auto root = fbs::CreateBridgePacket(
         fbb, fbs::PacketPayload::TopicPayloadPacket, inner.Union());
-    fbb.Finish(root);
+    fbs::FinishBridgePacketBuffer(fbb, root);
 
     SendFbb(transport, fbb);
   }

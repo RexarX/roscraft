@@ -61,7 +61,8 @@ void GraphNode::RefreshSnapshot() {
                            pending_actions->end());
   }
 
-  current_snapshot_index_.store(PendingSnapshotIndex(), std::memory_order_release);
+  current_snapshot_index_.store(PendingSnapshotIndex(),
+                                std::memory_order_release);
 }
 
 void GraphNode::DrainAndRespond() {

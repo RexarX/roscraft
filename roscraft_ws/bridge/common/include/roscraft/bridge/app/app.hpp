@@ -131,8 +131,8 @@ public:
 
   /// @brief Returns current frame arena (const).
   /// @return Current frame arena (const)
-  [[nodiscard]] auto CurrentFrameArena() const noexcept
-      -> const memory::ArenaAllocator& {
+  [[nodiscard]] const memory::ArenaAllocator& CurrentFrameArena()
+      const noexcept {
     return allocator_.Arena(CurrentFrameIndex());
   }
 
@@ -248,10 +248,11 @@ private:
   void SpinROS();
   void CleanUpROS();
   void ShutdownROS();
+
+  void RegisterAllNodes();
   void UnregisterAllNodes();
 
   void RegisterAllCommandTypes();
-  void RegisterAllNodes();
 
   std::unique_ptr<Bridge> bridge_;
 
@@ -272,13 +273,14 @@ private:
   std::condition_variable shutdown_cv_;
 
   std::vector<rclcpp::node_interfaces::NodeBaseInterface::SharedPtr> nodes_;
+  std::vector<std::shared_ptr<rclcpp::Node>> owned_nodes_;
   std::optional<rclcpp::executors::StaticSingleThreadedExecutor> ros_executor_;
   std::future<void> ros_spin_task_;
 
   tf::Executor executor_;
 };
 
-inline auto App::Instance() noexcept -> App& {
+inline App& App::Instance() noexcept {
   static App instance;
   return instance;
 }
@@ -300,6 +302,11 @@ inline void App::AddNode(const std::shared_ptr<rclcpp::Node>& node) {
   ROSCRAFT_ASSERT(ros_executor_.has_value(),
                   "ROS executor is not initialized!");
   ROSCRAFT_ASSERT(node != nullptr, "Node is null!");
+
+  // Keep strong ownership of the concrete node for App lifetime.
+  // The NodeBaseInterface handle alone does not retain the full node object.
+  owned_nodes_.push_back(node);
+
   AddNode(node->get_node_base_interface());
 }
 

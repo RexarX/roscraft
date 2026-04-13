@@ -1,5 +1,16 @@
+roscraft_require_dependency(doctest)
+
 set(ROSCRAFT_BRIDGE_NETWORK_TEST_SOURCES
     main.cpp
+
+    config.cpp
+    transport.cpp
+    bridge.cpp
+    runner.cpp
+
+    command/handler.cpp
+    command/handler_registry.cpp
+    command/handlers.cpp
 )
 
 add_executable(roscraft_bridge_network_tests ${ROSCRAFT_BRIDGE_NETWORK_TEST_SOURCES})
@@ -15,6 +26,7 @@ roscraft_target_enable_lto(roscraft_bridge_network_tests)
 roscraft_target_enable_sanitizers(roscraft_bridge_network_tests)
 
 target_link_libraries(roscraft_bridge_network_tests PRIVATE
+    roscraft::bridge::network
     roscraft::doctest::doctest
 )
 

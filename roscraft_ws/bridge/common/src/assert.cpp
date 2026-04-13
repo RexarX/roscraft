@@ -25,8 +25,8 @@ void LoggerAssertionHandler(std::string_view condition,
   } else {
     RCLCPP_FATAL(rclcpp::get_logger("roscraft_bridge"),
                  "Assertion failed: %s | %s\n  File: %s:%u\n  Function: %s",
-                 condition.data(), message.data(), loc.file_name(),
-                 loc.line(), loc.function_name());
+                 condition.data(), message.data(), loc.file_name(), loc.line(),
+                 loc.function_name());
   }
 }
 
