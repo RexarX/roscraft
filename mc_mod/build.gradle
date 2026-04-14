@@ -1,7 +1,7 @@
 plugins {
     id 'fabric-loom' version '1.12-SNAPSHOT'
     id 'maven-publish'
-    id 'com.diffplug.spotless' version '6.25.+'
+    id 'com.diffplug.spotless' version '7.0.+'
 }
 
 java {
@@ -329,7 +329,7 @@ spotless {
 
         // AOSP style = 4-space indent (matches existing code).
         // Drop .aosp() to use the standard Google 2-space style.
-        googleJavaFormat("1.22.0").aosp().reflowLongStrings().skipJavadocFormatting()
+        googleJavaFormat("1.35.0").aosp().reflowLongStrings().skipJavadocFormatting()
 
         removeUnusedImports()
         lineEndings "UNIX"

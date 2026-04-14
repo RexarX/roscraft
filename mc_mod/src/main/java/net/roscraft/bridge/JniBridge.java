@@ -24,7 +24,7 @@ import roscraft.bridge.fbs.TopicPayloadPacket;
 public final class JniBridge extends RoscraftBridge {
 
     static {
-        System.loadLibrary("roscraft_bridge_jni");
+        NativeLoader.ensureLoaded();
     }
 
     private final FlatBufferBuilder fbb = new FlatBufferBuilder(512);

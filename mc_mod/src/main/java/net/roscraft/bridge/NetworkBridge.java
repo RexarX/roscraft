@@ -277,7 +277,7 @@ public final class NetworkBridge extends RoscraftBridge {
             case PacketPayload.GraphSnapshotPacket -> handleGraphSnapshot(packet);
             case PacketPayload.TopicPayloadPacket -> handleTopicPayload(packet);
             case PacketPayload.PlayerListPacket -> handlePlayerList(packet);
-                // Outgoing-only packets arriving unexpectedly are silently ignored.
+            // Outgoing-only packets arriving unexpectedly are silently ignored.
             default -> {}
         }
     }

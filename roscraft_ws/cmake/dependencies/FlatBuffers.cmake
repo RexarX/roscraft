@@ -56,6 +56,9 @@ if(NOT TARGET roscraft::flatbuffers::flatbuffers)
   if(TARGET flatbuffers::flatbuffers)
     add_library(roscraft::flatbuffers::flatbuffers ALIAS flatbuffers::flatbuffers)
     roscraft_dep_log(SUCCESS "FlatBuffers configured (flatbuffers::flatbuffers)")
+  elseif(TARGET flatbuffers::flatbuffers_shared)
+    add_library(roscraft::flatbuffers::flatbuffers ALIAS flatbuffers::flatbuffers_shared)
+    roscraft_dep_log(SUCCESS "FlatBuffers configured (flatbuffers::flatbuffers_shared)")
   elseif(TARGET flatbuffers::libflatbuffers)
     add_library(roscraft::flatbuffers::flatbuffers ALIAS flatbuffers::libflatbuffers)
     roscraft_dep_log(SUCCESS "FlatBuffers configured (flatbuffers::libflatbuffers)")
@@ -84,16 +87,45 @@ else()
   roscraft_dep_log(SUCCESS "FlatBuffers configured (roscraft::flatbuffers::flatbuffers)")
 endif()
 
-# Create roscraft::flatbuffers convenience target that brings in all FlatBuffers targets
-if(NOT TARGET _roscraft_flatbuffers_all)
-  add_library(_roscraft_flatbuffers_all INTERFACE)
-  if(TARGET roscraft::flatbuffers::flatbuffers)
-    target_link_libraries(_roscraft_flatbuffers_all INTERFACE roscraft::flatbuffers::flatbuffers)
-  endif()
-endif()
-
+# Create roscraft::flatbuffers convenience target that brings in all FlatBuffers targets.
+# When the underlying library is IMPORTED (from a system package), we must create
+# roscraft::flatbuffers as IMPORTED GLOBAL too — otherwise CMake requires it to be in
+# an export set whenever a target that links to it is installed with EXPORT.
 if(NOT TARGET roscraft::flatbuffers)
-  add_library(roscraft::flatbuffers ALIAS _roscraft_flatbuffers_all)
+  if(TARGET roscraft::flatbuffers::flatbuffers)
+    get_target_property(_roscraft_fb_aliased roscraft::flatbuffers::flatbuffers ALIASED_TARGET)
+    if(_roscraft_fb_aliased)
+      set(_roscraft_fb_lib_target "${_roscraft_fb_aliased}")
+    else()
+      set(_roscraft_fb_lib_target "roscraft::flatbuffers::flatbuffers")
+    endif()
+    get_target_property(_roscraft_fb_is_imported "${_roscraft_fb_lib_target}" IMPORTED)
+  else()
+    set(_roscraft_fb_is_imported FALSE)
+  endif()
+
+  if(_roscraft_fb_is_imported)
+    # System flatbuffers (IMPORTED): avoid creating a local INTERFACE target that
+    # would need to be in an export set.  IMPORTED GLOBAL targets are exempt.
+    add_library(roscraft::flatbuffers INTERFACE IMPORTED GLOBAL)
+    if(TARGET roscraft::flatbuffers::flatbuffers)
+      target_link_libraries(roscraft::flatbuffers INTERFACE roscraft::flatbuffers::flatbuffers)
+    endif()
+  else()
+    # CPM / source build: _roscraft_flatbuffers_all is safe because the
+    # underlying targets participate in flatbuffers' own export set.
+    if(NOT TARGET _roscraft_flatbuffers_all)
+      add_library(_roscraft_flatbuffers_all INTERFACE)
+      if(TARGET roscraft::flatbuffers::flatbuffers)
+        target_link_libraries(_roscraft_flatbuffers_all INTERFACE roscraft::flatbuffers::flatbuffers)
+      endif()
+    endif()
+    add_library(roscraft::flatbuffers ALIAS _roscraft_flatbuffers_all)
+  endif()
+
+  unset(_roscraft_fb_aliased)
+  unset(_roscraft_fb_lib_target)
+  unset(_roscraft_fb_is_imported)
 endif()
 
 unset(_flatbuffers_detected_version)

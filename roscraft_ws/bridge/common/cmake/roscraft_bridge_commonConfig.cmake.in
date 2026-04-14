@@ -23,6 +23,10 @@ if(NOT TARGET roscraft::flatbuffers)
     add_library(roscraft::flatbuffers INTERFACE IMPORTED GLOBAL)
     set_property(TARGET roscraft::flatbuffers PROPERTY
         INTERFACE_LINK_LIBRARIES flatbuffers::flatbuffers)
+  elseif(TARGET flatbuffers::flatbuffers_shared)
+    add_library(roscraft::flatbuffers INTERFACE IMPORTED GLOBAL)
+    set_property(TARGET roscraft::flatbuffers PROPERTY
+        INTERFACE_LINK_LIBRARIES flatbuffers::flatbuffers_shared)
   elseif(TARGET flatbuffers::libflatbuffers)
     add_library(roscraft::flatbuffers INTERFACE IMPORTED GLOBAL)
     set_property(TARGET roscraft::flatbuffers PROPERTY
