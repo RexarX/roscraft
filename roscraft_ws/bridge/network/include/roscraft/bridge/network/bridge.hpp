@@ -40,7 +40,7 @@ namespace roscraft::bridge::network {
 /// Thread Safety:
 /// - ReceiveLoop runs on ASIO io_context thread
 /// - clients_ protected by shared_mutex for read/write separation
-/// - GraphNode and TopicRelayNode run on ROS spin thread
+/// - bridge nodes run on ROS spin thread
 class NetworkBridge final : public Bridge {
 public:
   /// @brief Construct a new NetworkBridge.

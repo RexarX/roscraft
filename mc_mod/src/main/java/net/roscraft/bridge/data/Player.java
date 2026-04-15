@@ -11,8 +11,8 @@ import java.util.Objects;
  * @param z World Z coordinate.
  */
 public record Player(String name, float x, float y, float z) {
-    /** Canonical constructor — null-check on {@code name}. */
-    public Player {
-        Objects.requireNonNull(name, "name must not be null");
-    }
+  /** Canonical constructor — null-check on {@code name}. */
+  public Player {
+    Objects.requireNonNull(name, "name must not be null");
+  }
 }

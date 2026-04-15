@@ -28,7 +28,7 @@ struct StringHash {
   }
 
   /**
-   * @brief Hashes a std::string.
+   * @brief Hashes a `std::string`.
    * @param str String to hash
    * @return Hash value
    */
@@ -67,7 +67,7 @@ struct StringEqual {
   }
 
   /**
-   * @brief Compares std::string with std::string_view.
+   * @brief Compares `std::string` with `std::string_view`.
    * @param lhs Left-hand side string
    * @param rhs Right-hand side string view
    * @return True if strings are equal, false otherwise
@@ -78,7 +78,7 @@ struct StringEqual {
   }
 
   /**
-   * @brief Compares std::string_view with std::string.
+   * @brief Compares `std::string_view` with `std::string`.
    * @param lhs Left-hand side string view
    * @param rhs Right-hand side string
    * @return True if strings are equal, false otherwise
@@ -89,7 +89,7 @@ struct StringEqual {
   }
 
   /**
-   * @brief Compares two std::string objects.
+   * @brief Compares two `std::string` objects.
    * @param lhs Left-hand side string
    * @param rhs Right-hand side string
    * @return True if strings are equal, false otherwise
@@ -100,7 +100,7 @@ struct StringEqual {
   }
 
   /**
-   * @brief Compares std::string with C-style string.
+   * @brief Compares `std::string` with C-style string.
    * @param lhs Left-hand side string
    * @param rhs Right-hand side C-style string
    * @return True if strings are equal, false otherwise
@@ -111,7 +111,7 @@ struct StringEqual {
   }
 
   /**
-   * @brief Compares C-style string with std::string_view.
+   * @brief Compares C-style string with `std::string_view`.
    * @param lhs Left-hand side C-style string
    * @param rhs Right-hand side string view
    * @return True if strings are equal, false otherwise
@@ -122,7 +122,7 @@ struct StringEqual {
   }
 
   /**
-   * @brief Compares C-style string with std::string.
+   * @brief Compares C-style string with `std::string`.
    * @param lhs Left-hand side C-style string
    * @param rhs Right-hand side string
    * @return True if strings are equal, false otherwise
@@ -133,7 +133,7 @@ struct StringEqual {
   }
 
   /**
-   * @brief Compares std::string_view with C-style string.
+   * @brief Compares `std::string_view` with C-style string.
    * @param lhs Left-hand side string view
    * @param rhs Right-hand side C-style string
    * @return True if strings are equal, false otherwise

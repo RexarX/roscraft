@@ -7,7 +7,7 @@
 #include <roscraft/bridge/command/queue.hpp>
 #include <roscraft/memory/frame_allocator.hpp>
 
-#include <rclcpp/executors/static_single_threaded_executor.hpp>
+#include <rclcpp/executors/multi_threaded_executor.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 #include <taskflow/taskflow.hpp>
@@ -89,7 +89,7 @@ public:
   /// @brief Adds a node to the internal ROS executor.
   /// @warning Triggers assertion if called after `App` is initialized.
   /// @param node The node to add
-  void AddNode(const std::shared_ptr<rclcpp::Node>& node);
+  void AddNode(std::shared_ptr<rclcpp::Node> node);
 
   /// @brief Swaps frames: pending becomes current, current is reset.
   /// @details Should be called at the end of each processing cycle.
@@ -274,7 +274,7 @@ private:
 
   std::vector<rclcpp::node_interfaces::NodeBaseInterface::SharedPtr> nodes_;
   std::vector<std::shared_ptr<rclcpp::Node>> owned_nodes_;
-  std::optional<rclcpp::executors::StaticSingleThreadedExecutor> ros_executor_;
+  std::optional<rclcpp::executors::MultiThreadedExecutor> ros_executor_;
   std::future<void> ros_spin_task_;
 
   tf::Executor executor_;
@@ -298,16 +298,14 @@ inline void App::AddNode(
   ros_executor_->add_node(node);
 }
 
-inline void App::AddNode(const std::shared_ptr<rclcpp::Node>& node) {
+inline void App::AddNode(std::shared_ptr<rclcpp::Node> node) {
   ROSCRAFT_ASSERT(ros_executor_.has_value(),
                   "ROS executor is not initialized!");
   ROSCRAFT_ASSERT(node != nullptr, "Node is null!");
 
-  // Keep strong ownership of the concrete node for App lifetime.
-  // The NodeBaseInterface handle alone does not retain the full node object.
-  owned_nodes_.push_back(node);
-
-  AddNode(node->get_node_base_interface());
+  auto base_interface = node->get_node_base_interface();
+  owned_nodes_.push_back(std::move(node));
+  AddNode(base_interface);
 }
 
 inline void App::RequestShutdown() noexcept {

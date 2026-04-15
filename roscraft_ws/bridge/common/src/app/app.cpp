@@ -3,8 +3,13 @@
 #include <roscraft/bridge/app/app.hpp>
 #include <roscraft/bridge/app/config.hpp>
 #include <roscraft/bridge/assert.hpp>
-#include <roscraft/bridge/nodes/graph.hpp>
+#include <roscraft/bridge/nodes/graph_cache.hpp>
+#include <roscraft/bridge/nodes/interface.hpp>
+#include <roscraft/bridge/nodes/node_info.hpp>
+#include <roscraft/bridge/nodes/service_info.hpp>
+#include <roscraft/bridge/nodes/topic_info.hpp>
 #include <roscraft/bridge/nodes/topic_relay.hpp>
+#include <roscraft/bridge/nodes/topic_stats.hpp>
 #include <roscraft/stacktrace.hpp>
 
 #include <rclcpp/logging.hpp>
@@ -127,9 +132,14 @@ void App::ShutdownROS() {
 }
 
 void App::RegisterAllNodes() {
-  AddNode(std::make_shared<GraphNode>(IncomingQueue(), OutgoingQueue(),
-                                      Executor()));
+  AddNode(std::make_shared<GraphCacheNode>(IncomingQueue(), OutgoingQueue(),
+                                           Executor()));
+  AddNode(std::make_shared<NodeInfoNode>(IncomingQueue(), OutgoingQueue()));
+  AddNode(std::make_shared<TopicInfoNode>(IncomingQueue(), OutgoingQueue()));
+  AddNode(std::make_shared<ServiceInfoNode>(IncomingQueue(), OutgoingQueue()));
+  AddNode(std::make_shared<InterfaceNode>(IncomingQueue(), OutgoingQueue()));
   AddNode(std::make_shared<TopicRelayNode>(IncomingQueue(), OutgoingQueue()));
+  AddNode(std::make_shared<TopicStatsNode>(IncomingQueue(), OutgoingQueue()));
 }
 
 void App::UnregisterAllNodes() {
@@ -146,14 +156,29 @@ void App::UnregisterAllNodes() {
 void App::RegisterAllCommandTypes() {
   // Incoming (mod -> ROS)
   incoming_queue_.Register<QueryGraphCmd>();
+  incoming_queue_.Register<NodeInfoCmd>();
+  incoming_queue_.Register<TopicInfoCmd>();
+  incoming_queue_.Register<ServiceInfoCmd>();
+  incoming_queue_.Register<InterfaceListCmd>();
+  incoming_queue_.Register<InterfaceShowCmd>();
   incoming_queue_.Register<SubscribeTopicCmd>();
   incoming_queue_.Register<PublishMessageCmd>();
   incoming_queue_.Register<QueryPlayersCmd>();
+  incoming_queue_.Register<TopicHzCmd>();
+  incoming_queue_.Register<TopicBwCmd>();
 
   // Outgoing (ROS -> mod)
   outgoing_queue_.Register<GraphSnapshotCmd>();
+  outgoing_queue_.Register<NodeInfoResponseCmd>();
+  outgoing_queue_.Register<TopicInfoResponseCmd>();
+  outgoing_queue_.Register<ServiceInfoResponseCmd>();
+  outgoing_queue_.Register<InterfaceListResponseCmd>();
+  outgoing_queue_.Register<InterfaceShowResponseCmd>();
   outgoing_queue_.Register<TopicPayloadCmd>();
+  outgoing_queue_.Register<TopicHzResponseCmd>();
+  outgoing_queue_.Register<TopicBwResponseCmd>();
   outgoing_queue_.Register<PlayerListCmd>();
+  outgoing_queue_.Register<ErrorCmd>();
 }
 
 }  // namespace roscraft::bridge

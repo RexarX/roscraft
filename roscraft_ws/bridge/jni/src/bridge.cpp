@@ -76,7 +76,8 @@ void JniBridge::Tick(App& /*app*/) {
     return;
   }
 
-  thread_local flatbuffers::FlatBufferBuilder fbb(4096);
+  constexpr size_t kFbbBufferSize = 4096;
+  thread_local flatbuffers::FlatBufferBuilder fbb(kFbbBufferSize);
 
   auto& app = App::Instance();
   registry_.DrainAndDeliverAll<DrainAndDeliverHandlerTypes>(
@@ -115,10 +116,18 @@ void JniBridge::InitCommandHandlerRegistry() {
   auto& out = app.OutgoingQueue();
 
   registry_.AddHandler(GraphHandler::From(in, out));
+  registry_.AddHandler(NodeInfoHandler::From(in, out));
+  registry_.AddHandler(TopicInfoHandler::From(in, out));
+  registry_.AddHandler(ServiceInfoHandler::From(in, out));
+  registry_.AddHandler(InterfaceListHandler::From(in, out));
+  registry_.AddHandler(InterfaceShowHandler::From(in, out));
   registry_.AddHandler(SubscribeTopicHandler::From(in));
   registry_.AddHandler(PublishMessageHandler::From(in));
+  registry_.AddHandler(TopicHzHandler::From(in, out));
+  registry_.AddHandler(TopicBwHandler::From(in, out));
   registry_.AddHandler(PlayerListHandler::From(in, out));
   registry_.AddHandler(TopicPayloadHandler::From(out));
+  registry_.AddHandler(ErrorHandler::From(out));
 }
 
 }  // namespace roscraft::bridge::jni

@@ -110,16 +110,31 @@ TEST_SUITE("bridge::App") {
     CHECK_EQ(app.GetBridge<DummyBridge>().Marker(), 7);
 
     CHECK(app.IncomingQueue().IsRegistered<QueryGraphCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<NodeInfoCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<TopicInfoCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<ServiceInfoCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<InterfaceListCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<InterfaceShowCmd>());
     CHECK(app.IncomingQueue().IsRegistered<SubscribeTopicCmd>());
     CHECK(app.IncomingQueue().IsRegistered<PublishMessageCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<TopicHzCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<TopicBwCmd>());
     CHECK(app.IncomingQueue().IsRegistered<QueryPlayersCmd>());
 
     CHECK(app.OutgoingQueue().IsRegistered<GraphSnapshotCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<NodeInfoResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<TopicInfoResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<ServiceInfoResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<InterfaceListResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<InterfaceShowResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<TopicHzResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<TopicBwResponseCmd>());
     CHECK(app.OutgoingQueue().IsRegistered<TopicPayloadCmd>());
     CHECK(app.OutgoingQueue().IsRegistered<PlayerListCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<ErrorCmd>());
 
-    CHECK_EQ(app.IncomingQueue().TypeCount(), 4U);
-    CHECK_EQ(app.OutgoingQueue().TypeCount(), 3U);
+    CHECK_EQ(app.IncomingQueue().TypeCount(), 11);
+    CHECK_EQ(app.OutgoingQueue().TypeCount(), 11);
   }
 
   TEST_CASE("bridge::App::Shutdown") {
@@ -131,9 +146,9 @@ TEST_SUITE("bridge::App") {
 
     CHECK_EQ(app.State(), AppState::kUninitialized);
     CHECK_EQ(DummyBridge::destroy_count, 1);
-    CHECK_EQ(app.CurrentFrameIndex(), 0U);
-    CHECK_EQ(app.IncomingQueue().CommandCount(), 0U);
-    CHECK_EQ(app.OutgoingQueue().CommandCount(), 0U);
+    CHECK_EQ(app.CurrentFrameIndex(), 0);
+    CHECK_EQ(app.IncomingQueue().CommandCount(), 0);
+    CHECK_EQ(app.OutgoingQueue().CommandCount(), 0);
   }
 
   TEST_CASE("bridge::App::Tick") {

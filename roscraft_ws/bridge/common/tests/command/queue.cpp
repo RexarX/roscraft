@@ -35,15 +35,15 @@ TEST_SUITE("bridge::details::CommandStorage") {
     details::CommandStorage& storage = typed;
 
     CHECK(storage.Empty());
-    CHECK_EQ(storage.SizeApprox(), 0U);
+    CHECK_EQ(storage.SizeApprox(), 0);
 
     typed.Enqueue(TestCmd{.value = 1});
     CHECK_FALSE(storage.Empty());
-    CHECK_EQ(storage.SizeApprox(), 1U);
+    CHECK_EQ(storage.SizeApprox(), 1);
 
     storage.Clear();
     CHECK(storage.Empty());
-    CHECK_EQ(storage.SizeApprox(), 0U);
+    CHECK_EQ(storage.SizeApprox(), 0);
   }
 }
 
@@ -55,7 +55,7 @@ TEST_SUITE("bridge::TypedCommandStorage") {
 
     TypedCommandStorage<TestCmd> storage;
     CHECK(storage.Empty());
-    CHECK_EQ(storage.SizeApprox(), 0U);
+    CHECK_EQ(storage.SizeApprox(), 0);
   }
 
   TEST_CASE("bridge::TypedCommandStorage::operator=") {
@@ -69,7 +69,7 @@ TEST_SUITE("bridge::TypedCommandStorage") {
     target = std::move(source);
 
     CHECK_FALSE(target.Empty());
-    CHECK_EQ(target.Dequeue().value, 7U);
+    CHECK_EQ(target.Dequeue().value, 7);
   }
 
   TEST_CASE("bridge::TypedCommandStorage::Clear") {
@@ -80,7 +80,7 @@ TEST_SUITE("bridge::TypedCommandStorage") {
     storage.Clear();
 
     CHECK(storage.Empty());
-    CHECK_EQ(storage.SizeApprox(), 0U);
+    CHECK_EQ(storage.SizeApprox(), 0);
   }
 
   TEST_CASE("bridge::TypedCommandStorage::Enqueue(const T&)") {
@@ -90,7 +90,7 @@ TEST_SUITE("bridge::TypedCommandStorage") {
     storage.Enqueue(cmd);
 
     CHECK_FALSE(storage.Empty());
-    CHECK_EQ(storage.Dequeue().value, 11U);
+    CHECK_EQ(storage.Dequeue().value, 11);
   }
 
   TEST_CASE("bridge::TypedCommandStorage::Enqueue(T&&)") {
@@ -99,7 +99,7 @@ TEST_SUITE("bridge::TypedCommandStorage") {
     storage.Enqueue(TestCmd{.value = 12});
 
     CHECK_FALSE(storage.Empty());
-    CHECK_EQ(storage.Dequeue().value, 12U);
+    CHECK_EQ(storage.Dequeue().value, 12);
   }
 
   TEST_CASE(
@@ -112,7 +112,7 @@ TEST_SUITE("bridge::TypedCommandStorage") {
     storage.Enqueue(token, cmd);
 
     CHECK_FALSE(storage.Empty());
-    CHECK_EQ(storage.Dequeue().value, 13U);
+    CHECK_EQ(storage.Dequeue().value, 13);
   }
 
   TEST_CASE(
@@ -124,7 +124,7 @@ TEST_SUITE("bridge::TypedCommandStorage") {
     storage.Enqueue(token, TestCmd{.value = 14});
 
     CHECK_FALSE(storage.Empty());
-    CHECK_EQ(storage.Dequeue().value, 14U);
+    CHECK_EQ(storage.Dequeue().value, 14);
   }
 
   TEST_CASE("bridge::TypedCommandStorage::EnqueueBulk(R&&)") {
@@ -133,10 +133,10 @@ TEST_SUITE("bridge::TypedCommandStorage") {
 
     storage.EnqueueBulk(values);
 
-    CHECK_EQ(storage.SizeApprox(), 3U);
-    CHECK_EQ(storage.Dequeue().value, 1U);
-    CHECK_EQ(storage.Dequeue().value, 2U);
-    CHECK_EQ(storage.Dequeue().value, 3U);
+    CHECK_EQ(storage.SizeApprox(), 3);
+    CHECK_EQ(storage.Dequeue().value, 1);
+    CHECK_EQ(storage.Dequeue().value, 2);
+    CHECK_EQ(storage.Dequeue().value, 3);
   }
 
   TEST_CASE(
@@ -148,22 +148,22 @@ TEST_SUITE("bridge::TypedCommandStorage") {
 
     storage.EnqueueBulk(token, values);
 
-    CHECK_EQ(storage.SizeApprox(), 3U);
-    CHECK_EQ(storage.Dequeue().value, 4U);
-    CHECK_EQ(storage.Dequeue().value, 5U);
-    CHECK_EQ(storage.Dequeue().value, 6U);
+    CHECK_EQ(storage.SizeApprox(), 3);
+    CHECK_EQ(storage.Dequeue().value, 4);
+    CHECK_EQ(storage.Dequeue().value, 5);
+    CHECK_EQ(storage.Dequeue().value, 6);
   }
 
   TEST_CASE("bridge::TypedCommandStorage::Dequeue()") {
     SUBCASE("Returns default-constructed value when empty") {
       TypedCommandStorage<TestCmd> storage;
-      CHECK_EQ(storage.Dequeue().value, 0U);
+      CHECK_EQ(storage.Dequeue().value, 0);
     }
 
     SUBCASE("Returns queued value when not empty") {
       TypedCommandStorage<TestCmd> storage;
       storage.Enqueue(TestCmd{.value = 21});
-      CHECK_EQ(storage.Dequeue().value, 21U);
+      CHECK_EQ(storage.Dequeue().value, 21);
     }
   }
 
@@ -172,14 +172,14 @@ TEST_SUITE("bridge::TypedCommandStorage") {
     SUBCASE("Returns default-constructed value when empty") {
       TypedCommandStorage<TestCmd> storage;
       CommandQueueConsumerToken token = storage.MakeConsumerToken();
-      CHECK_EQ(storage.Dequeue(token).value, 0U);
+      CHECK_EQ(storage.Dequeue(token).value, 0);
     }
 
     SUBCASE("Returns queued value when not empty") {
       TypedCommandStorage<TestCmd> storage;
       CommandQueueConsumerToken token = storage.MakeConsumerToken();
       storage.Enqueue(TestCmd{.value = 22});
-      CHECK_EQ(storage.Dequeue(token).value, 22U);
+      CHECK_EQ(storage.Dequeue(token).value, 22);
     }
   }
 
@@ -188,11 +188,11 @@ TEST_SUITE("bridge::TypedCommandStorage") {
 
     TestCmd output{.value = 99};
     CHECK_FALSE(storage.Dequeue(output));
-    CHECK_EQ(output.value, 99U);
+    CHECK_EQ(output.value, 99);
 
     storage.Enqueue(TestCmd{.value = 23});
     CHECK(storage.Dequeue(output));
-    CHECK_EQ(output.value, 23U);
+    CHECK_EQ(output.value, 23);
   }
 
   TEST_CASE(
@@ -203,11 +203,11 @@ TEST_SUITE("bridge::TypedCommandStorage") {
 
     TestCmd output{.value = 88};
     CHECK_FALSE(storage.Dequeue(token, output));
-    CHECK_EQ(output.value, 88U);
+    CHECK_EQ(output.value, 88);
 
     storage.Enqueue(TestCmd{.value = 24});
     CHECK(storage.Dequeue(token, output));
-    CHECK_EQ(output.value, 24U);
+    CHECK_EQ(output.value, 24);
   }
 
   TEST_CASE("bridge::TypedCommandStorage::Into(It, size_t)") {
@@ -219,11 +219,11 @@ TEST_SUITE("bridge::TypedCommandStorage") {
     std::vector<TestCmd> out;
     const size_t moved = storage.Into(std::back_inserter(out), 2);
 
-    CHECK_EQ(moved, 2U);
-    CHECK_EQ(out.size(), 2U);
-    CHECK_EQ(out[0].value, 30U);
-    CHECK_EQ(out[1].value, 31U);
-    CHECK_EQ(storage.Dequeue().value, 32U);
+    CHECK_EQ(moved, 2);
+    CHECK_EQ(out.size(), 2);
+    CHECK_EQ(out[0].value, 30);
+    CHECK_EQ(out[1].value, 31);
+    CHECK_EQ(storage.Dequeue().value, 32);
   }
 
   TEST_CASE(
@@ -237,10 +237,10 @@ TEST_SUITE("bridge::TypedCommandStorage") {
     std::vector<TestCmd> out;
     const size_t moved = storage.Into(token, std::back_inserter(out), 10);
 
-    CHECK_EQ(moved, 2U);
-    CHECK_EQ(out.size(), 2U);
-    CHECK_EQ(out[0].value, 40U);
-    CHECK_EQ(out[1].value, 41U);
+    CHECK_EQ(moved, 2);
+    CHECK_EQ(out.size(), 2);
+    CHECK_EQ(out[0].value, 40);
+    CHECK_EQ(out[1].value, 41);
     CHECK(storage.Empty());
   }
 
@@ -250,7 +250,7 @@ TEST_SUITE("bridge::TypedCommandStorage") {
 
     storage.Enqueue(token, TestCmd{.value = 50});
 
-    CHECK_EQ(storage.Dequeue().value, 50U);
+    CHECK_EQ(storage.Dequeue().value, 50);
   }
 
   TEST_CASE("bridge::TypedCommandStorage::MakeConsumerToken") {
@@ -258,7 +258,7 @@ TEST_SUITE("bridge::TypedCommandStorage") {
     CommandQueueConsumerToken token = storage.MakeConsumerToken();
     storage.Enqueue(TestCmd{.value = 60});
 
-    CHECK_EQ(storage.Dequeue(token).value, 60U);
+    CHECK_EQ(storage.Dequeue(token).value, 60);
   }
 
   TEST_CASE("bridge::TypedCommandStorage::Empty") {
@@ -271,11 +271,11 @@ TEST_SUITE("bridge::TypedCommandStorage") {
 
   TEST_CASE("bridge::TypedCommandStorage::SizeApprox") {
     TypedCommandStorage<TestCmd> storage;
-    CHECK_EQ(storage.SizeApprox(), 0U);
+    CHECK_EQ(storage.SizeApprox(), 0);
 
     storage.Enqueue(TestCmd{.value = 71});
     storage.Enqueue(TestCmd{.value = 72});
-    CHECK_EQ(storage.SizeApprox(), 2U);
+    CHECK_EQ(storage.SizeApprox(), 2);
   }
 }
 
@@ -286,7 +286,7 @@ TEST_SUITE("bridge::CommandQueue") {
     static_assert(std::move_constructible<CommandQueue>);
 
     CommandQueue queue;
-    CHECK_EQ(queue.TypeCount(), 0U);
+    CHECK_EQ(queue.TypeCount(), 0);
     CHECK_FALSE(queue.HasCommands());
   }
 
@@ -303,7 +303,7 @@ TEST_SUITE("bridge::CommandQueue") {
 
     CHECK(target.IsRegistered<TestCmd>());
     CHECK(target.HasCommands<TestCmd>());
-    CHECK_EQ(target.TypedStorage<TestCmd>().Dequeue().value, 81U);
+    CHECK_EQ(target.TypedStorage<TestCmd>().Dequeue().value, 81);
   }
 
   TEST_CASE("bridge::CommandQueue::Register") {
@@ -311,10 +311,10 @@ TEST_SUITE("bridge::CommandQueue") {
 
     queue.Register<TestCmd>();
     CHECK(queue.IsRegistered<TestCmd>());
-    CHECK_EQ(queue.TypeCount(), 1U);
+    CHECK_EQ(queue.TypeCount(), 1);
 
     queue.Register<TestCmd>();
-    CHECK_EQ(queue.TypeCount(), 1U);
+    CHECK_EQ(queue.TypeCount(), 1);
   }
 
   TEST_CASE("bridge::CommandQueue::Clear") {
@@ -329,7 +329,7 @@ TEST_SUITE("bridge::CommandQueue") {
     CHECK(queue.IsRegistered<TestCmd>());
     CHECK(queue.IsRegistered<OtherCmd>());
     CHECK_FALSE(queue.HasCommands());
-    CHECK_EQ(queue.CommandCount(), 0U);
+    CHECK_EQ(queue.CommandCount(), 0);
   }
 
   TEST_CASE("bridge::CommandQueue::Clear<T>") {
@@ -358,7 +358,7 @@ TEST_SUITE("bridge::CommandQueue") {
 
     queue.Reset();
 
-    CHECK_EQ(queue.TypeCount(), 0U);
+    CHECK_EQ(queue.TypeCount(), 0);
     CHECK_FALSE(queue.IsRegistered<TestCmd>());
   }
 
@@ -373,10 +373,10 @@ TEST_SUITE("bridge::CommandQueue") {
 
     CHECK_FALSE(queue.IsRegistered<TestCmd>());
     CHECK(queue.IsRegistered<OtherCmd>());
-    CHECK_EQ(queue.TypeCount(), 1U);
+    CHECK_EQ(queue.TypeCount(), 1);
 
     queue.Reset<TestCmd>();
-    CHECK_EQ(queue.TypeCount(), 1U);
+    CHECK_EQ(queue.TypeCount(), 1);
   }
 
   TEST_CASE("bridge::CommandQueue::Enqueue(T&&)") {
@@ -386,7 +386,7 @@ TEST_SUITE("bridge::CommandQueue") {
     queue.Enqueue(TestCmd{.value = 41});
 
     CHECK(queue.HasCommands<TestCmd>());
-    CHECK_EQ(queue.TypedStorage<TestCmd>().Dequeue().value, 41U);
+    CHECK_EQ(queue.TypedStorage<TestCmd>().Dequeue().value, 41);
   }
 
   TEST_CASE("bridge::CommandQueue::Enqueue(CommandQueueProducerToken&, T&&)") {
@@ -397,7 +397,7 @@ TEST_SUITE("bridge::CommandQueue") {
     queue.Enqueue(token, TestCmd{.value = 42});
 
     CHECK(queue.HasCommands<TestCmd>());
-    CHECK_EQ(queue.TypedStorage<TestCmd>().Dequeue().value, 42U);
+    CHECK_EQ(queue.TypedStorage<TestCmd>().Dequeue().value, 42);
   }
 
   TEST_CASE("bridge::CommandQueue::EnqueueBulk(R&&)") {
@@ -407,10 +407,10 @@ TEST_SUITE("bridge::CommandQueue") {
 
     queue.EnqueueBulk(values);
 
-    CHECK_EQ(queue.CommandCount<TestCmd>(), 3U);
-    CHECK_EQ(queue.TypedStorage<TestCmd>().Dequeue().value, 1U);
-    CHECK_EQ(queue.TypedStorage<TestCmd>().Dequeue().value, 2U);
-    CHECK_EQ(queue.TypedStorage<TestCmd>().Dequeue().value, 3U);
+    CHECK_EQ(queue.CommandCount<TestCmd>(), 3);
+    CHECK_EQ(queue.TypedStorage<TestCmd>().Dequeue().value, 1);
+    CHECK_EQ(queue.TypedStorage<TestCmd>().Dequeue().value, 2);
+    CHECK_EQ(queue.TypedStorage<TestCmd>().Dequeue().value, 3);
   }
 
   TEST_CASE(
@@ -422,9 +422,9 @@ TEST_SUITE("bridge::CommandQueue") {
 
     queue.EnqueueBulk(token, values);
 
-    CHECK_EQ(queue.CommandCount<TestCmd>(), 2U);
-    CHECK_EQ(queue.TypedStorage<TestCmd>().Dequeue().value, 4U);
-    CHECK_EQ(queue.TypedStorage<TestCmd>().Dequeue().value, 5U);
+    CHECK_EQ(queue.CommandCount<TestCmd>(), 2);
+    CHECK_EQ(queue.TypedStorage<TestCmd>().Dequeue().value, 4);
+    CHECK_EQ(queue.TypedStorage<TestCmd>().Dequeue().value, 5);
   }
 
   TEST_CASE("bridge::CommandQueue::MakeProducerToken<T>") {
@@ -443,7 +443,7 @@ TEST_SUITE("bridge::CommandQueue") {
     queue.Enqueue(TestCmd{.value = 52});
 
     CommandQueueConsumerToken token = queue.MakeConsumerToken<TestCmd>();
-    CHECK_EQ(queue.TypedStorage<TestCmd>().Dequeue(token).value, 52U);
+    CHECK_EQ(queue.TypedStorage<TestCmd>().Dequeue(token).value, 52);
   }
 
   TEST_CASE("bridge::CommandQueue::Swap") {
@@ -459,11 +459,11 @@ TEST_SUITE("bridge::CommandQueue") {
 
     CHECK(lhs.IsRegistered<OtherCmd>());
     CHECK_FALSE(lhs.IsRegistered<TestCmd>());
-    CHECK_EQ(lhs.TypedStorage<OtherCmd>().Dequeue().value, 62U);
+    CHECK_EQ(lhs.TypedStorage<OtherCmd>().Dequeue().value, 62);
 
     CHECK(rhs.IsRegistered<TestCmd>());
     CHECK_FALSE(rhs.IsRegistered<OtherCmd>());
-    CHECK_EQ(rhs.TypedStorage<TestCmd>().Dequeue().value, 61U);
+    CHECK_EQ(rhs.TypedStorage<TestCmd>().Dequeue().value, 61);
   }
 
   TEST_CASE("bridge::CommandQueue::swap") {
@@ -478,9 +478,9 @@ TEST_SUITE("bridge::CommandQueue") {
     swap(lhs, rhs);
 
     CHECK(lhs.IsRegistered<OtherCmd>());
-    CHECK_EQ(lhs.TypedStorage<OtherCmd>().Dequeue().value, 72U);
+    CHECK_EQ(lhs.TypedStorage<OtherCmd>().Dequeue().value, 72);
     CHECK(rhs.IsRegistered<TestCmd>());
-    CHECK_EQ(rhs.TypedStorage<TestCmd>().Dequeue().value, 71U);
+    CHECK_EQ(rhs.TypedStorage<TestCmd>().Dequeue().value, 71);
   }
 
   TEST_CASE("bridge::CommandQueue::IsRegistered<T>") {
@@ -523,16 +523,16 @@ TEST_SUITE("bridge::CommandQueue") {
 
   TEST_CASE("bridge::CommandQueue::TypeCount") {
     CommandQueue queue;
-    CHECK_EQ(queue.TypeCount(), 0U);
+    CHECK_EQ(queue.TypeCount(), 0);
 
     queue.Register<TestCmd>();
-    CHECK_EQ(queue.TypeCount(), 1U);
+    CHECK_EQ(queue.TypeCount(), 1);
 
     queue.Register<OtherCmd>();
-    CHECK_EQ(queue.TypeCount(), 2U);
+    CHECK_EQ(queue.TypeCount(), 2);
 
     queue.Reset<TestCmd>();
-    CHECK_EQ(queue.TypeCount(), 1U);
+    CHECK_EQ(queue.TypeCount(), 1);
   }
 
   TEST_CASE("bridge::CommandQueue::CommandCount") {
@@ -540,26 +540,26 @@ TEST_SUITE("bridge::CommandQueue") {
     queue.Register<TestCmd>();
     queue.Register<OtherCmd>();
 
-    CHECK_EQ(queue.CommandCount(), 0U);
+    CHECK_EQ(queue.CommandCount(), 0);
 
     queue.Enqueue(TestCmd{.value = 101});
     queue.Enqueue(TestCmd{.value = 102});
     queue.Enqueue(OtherCmd{.value = 103});
 
-    CHECK_EQ(queue.CommandCount(), 3U);
+    CHECK_EQ(queue.CommandCount(), 3);
   }
 
   TEST_CASE("bridge::CommandQueue::CommandCount<T>") {
     CommandQueue queue;
 
-    CHECK_EQ(queue.CommandCount<TestCmd>(), 0U);
+    CHECK_EQ(queue.CommandCount<TestCmd>(), 0);
 
     queue.Register<TestCmd>();
     queue.Enqueue(TestCmd{.value = 111});
     queue.Enqueue(TestCmd{.value = 112});
 
-    CHECK_EQ(queue.CommandCount<TestCmd>(), 2U);
-    CHECK_EQ(queue.CommandCount<OtherCmd>(), 0U);
+    CHECK_EQ(queue.CommandCount<TestCmd>(), 2);
+    CHECK_EQ(queue.CommandCount<OtherCmd>(), 0);
   }
 
   TEST_CASE("bridge::CommandQueue::TypedStorage") {
@@ -568,7 +568,7 @@ TEST_SUITE("bridge::CommandQueue") {
     queue.Enqueue(TestCmd{.value = 121});
 
     auto& storage = queue.TypedStorage<TestCmd>();
-    CHECK_EQ(storage.Dequeue().value, 121U);
+    CHECK_EQ(storage.Dequeue().value, 121);
 
     const auto& const_queue = queue;
     const auto& const_storage = const_queue.TypedStorage<TestCmd>();

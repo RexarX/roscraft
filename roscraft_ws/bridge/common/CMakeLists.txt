@@ -116,6 +116,7 @@ if(TARGET roscraft::roscraft_core AND NOT TARGET roscraft::core)
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(action_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(geometry_msgs REQUIRED)
@@ -135,8 +136,14 @@ set(ROSCRAFT_BRIDGE_COMMON_HEADERS
     include/roscraft/bridge/command/commands.hpp
     include/roscraft/bridge/command/queue.hpp
 
-    include/roscraft/bridge/nodes/graph.hpp
+    include/roscraft/bridge/nodes/graph_cache.hpp
+    include/roscraft/bridge/nodes/node_info.hpp
+    include/roscraft/bridge/nodes/topic_info.hpp
+    include/roscraft/bridge/nodes/service_info.hpp
+    include/roscraft/bridge/nodes/interface.hpp
+    include/roscraft/bridge/nodes/details/graph_utils.hpp
     include/roscraft/bridge/nodes/topic_relay.hpp
+    include/roscraft/bridge/nodes/topic_stats.hpp
 )
 
 set(ROSCRAFT_BRIDGE_COMMON_SOURCES
@@ -144,8 +151,14 @@ set(ROSCRAFT_BRIDGE_COMMON_SOURCES
 
     src/app/app.cpp
 
-    src/nodes/graph.cpp
+    src/nodes/graph_cache.cpp
+    src/nodes/node_info.cpp
+    src/nodes/topic_info.cpp
+    src/nodes/service_info.cpp
+    src/nodes/interface.cpp
+    src/nodes/details/graph_utils.cpp
     src/nodes/topic_relay.cpp
+    src/nodes/topic_stats.cpp
 )
 
 add_library(roscraft_bridge_common STATIC
@@ -184,6 +197,7 @@ roscraft_require_dependency(Taskflow)
 target_link_libraries(roscraft_bridge_common
     PUBLIC
         roscraft::core
+        ament_index_cpp::ament_index_cpp
         rclcpp::rclcpp
 )
 
@@ -387,6 +401,7 @@ install(DIRECTORY include/
 )
 
 ament_export_dependencies(
+    ament_index_cpp
     roscraft_core
     concurrentqueue
     Taskflow

@@ -323,13 +323,13 @@ static String currentOsClassifier() {
 
 spotless {
     java {
-        // Only format hand-written sources; skip flatc-generated files.
         target "src/**/*.java"
         targetExclude "build/**"
 
-        // AOSP style = 4-space indent (matches existing code).
-        // Drop .aosp() to use the standard Google 2-space style.
-        googleJavaFormat("1.35.0").aosp().reflowLongStrings().skipJavadocFormatting()
+        // optional: you can specify a specific version and/or switch to AOSP/GOOGLE style
+        palantirJavaFormat('2.38.0').style("GOOGLE")
+
+        // eclipse().configFile("eclipse-formatter.xml")
 
         removeUnusedImports()
         lineEndings "UNIX"

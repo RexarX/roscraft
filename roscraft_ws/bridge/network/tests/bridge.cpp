@@ -168,13 +168,28 @@ TEST_SUITE("bridge::network::NetworkBridge") {
     CHECK_EQ(bridge.ClientCount(), 0U);
 
     CHECK(app.IncomingQueue().IsRegistered<QueryGraphCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<NodeInfoCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<TopicInfoCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<ServiceInfoCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<InterfaceListCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<InterfaceShowCmd>());
     CHECK(app.IncomingQueue().IsRegistered<SubscribeTopicCmd>());
     CHECK(app.IncomingQueue().IsRegistered<PublishMessageCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<TopicHzCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<TopicBwCmd>());
     CHECK(app.IncomingQueue().IsRegistered<QueryPlayersCmd>());
 
     CHECK(app.OutgoingQueue().IsRegistered<GraphSnapshotCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<NodeInfoResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<TopicInfoResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<ServiceInfoResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<InterfaceListResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<InterfaceShowResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<TopicHzResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<TopicBwResponseCmd>());
     CHECK(app.OutgoingQueue().IsRegistered<PlayerListCmd>());
     CHECK(app.OutgoingQueue().IsRegistered<TopicPayloadCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<ErrorCmd>());
   }
 
   TEST_CASE("bridge::network::NetworkBridge::Destroy") {
@@ -233,16 +248,34 @@ TEST_SUITE("bridge::network::NetworkBridge") {
       const auto datagram = BuildQueryGraphDatagram(9001U);
       SendDatagram(sender, port, datagram);
 
+      std::optional<std::vector<uint8_t>> response;
+
       TickUntil(app, bridge, [&] {
-        return app.IncomingQueue().HasCommands<QueryGraphCmd>();
+        if (app.IncomingQueue().HasCommands<QueryGraphCmd>()) {
+          return true;
+        }
+        if (!response.has_value()) {
+          response = TryReceiveDatagram(sender);
+        }
+        return response.has_value();
       });
 
       CHECK_EQ(bridge.ClientCount(), 1U);
-      CHECK(app.IncomingQueue().HasCommands<QueryGraphCmd>());
 
-      QueryGraphCmd cmd{};
-      CHECK(app.IncomingQueue().TypedStorage<QueryGraphCmd>().Dequeue(cmd));
-      CHECK_EQ(cmd.request_id, 9001U);
+      if (app.IncomingQueue().HasCommands<QueryGraphCmd>()) {
+        QueryGraphCmd cmd{};
+        CHECK(app.IncomingQueue().TypedStorage<QueryGraphCmd>().Dequeue(cmd));
+        CHECK_EQ(cmd.request_id, 9001U);
+      } else {
+        REQUIRE(response.has_value());
+
+        const auto* packet = fbs::GetBridgePacket(response->data());
+        REQUIRE(packet != nullptr);
+        CHECK_EQ(packet->payload_type(),
+                 fbs::PacketPayload::GraphSnapshotPacket);
+        REQUIRE(packet->payload_as_GraphSnapshotPacket() != nullptr);
+        CHECK_EQ(packet->payload_as_GraphSnapshotPacket()->request_id(), 9001U);
+      }
     }
 
     SUBCASE("Tick drops malformed datagrams without dispatching commands") {
@@ -290,7 +323,12 @@ TEST_SUITE("bridge::network::NetworkBridge") {
 
       GraphSnapshotCmd snapshot(std::pmr::get_default_resource());
       snapshot.request_id = 77U;
-      snapshot.topics.emplace_back("/graph/topic");
+      {
+        auto& t =
+            snapshot.topics.emplace_back(std::pmr::get_default_resource());
+        t.name = "/graph/topic";
+        t.type = "std_msgs/msg/String";
+      }
       app.OutgoingQueue().Enqueue(std::move(snapshot));
 
       bridge.Tick(app);

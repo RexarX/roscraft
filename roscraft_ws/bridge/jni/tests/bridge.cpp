@@ -62,7 +62,13 @@ const fbs::BridgePacket* ParseBridgePacket(const std::vector<uint8_t>& bytes) {
 
 template <typename T>
 auto DequeueOne(CommandQueue& queue) -> std::optional<T> {
-  T value(std::pmr::get_default_resource());
+  T value = [&]() {
+    if constexpr (std::is_constructible_v<T, std::pmr::memory_resource*>) {
+      return T(std::pmr::get_default_resource());
+    } else {
+      return T{};
+    }
+  }();
   if (queue.TypedStorage<T>().Dequeue(value)) {
     return value;
   }
@@ -139,6 +145,30 @@ TEST_SUITE("bridge::jni::JniBridge") {
     auto& bridge = app.GetBridge<JniBridge>();
     CHECK_EQ(bridge.Status(), BridgeStatus::kReady);
     CHECK_EQ(bridge.Config().jvm, fake_vm.Vm());
+
+    CHECK(app.IncomingQueue().IsRegistered<QueryGraphCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<NodeInfoCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<TopicInfoCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<ServiceInfoCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<InterfaceListCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<InterfaceShowCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<SubscribeTopicCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<PublishMessageCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<TopicHzCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<TopicBwCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<QueryPlayersCmd>());
+
+    CHECK(app.OutgoingQueue().IsRegistered<GraphSnapshotCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<NodeInfoResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<TopicInfoResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<ServiceInfoResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<InterfaceListResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<InterfaceShowResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<TopicHzResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<TopicBwResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<PlayerListCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<TopicPayloadCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<ErrorCmd>());
   }
 
   TEST_CASE("bridge::jni::JniBridge::Destroy") {
@@ -211,7 +241,12 @@ TEST_SUITE("bridge::jni::JniBridge") {
 
       GraphSnapshotCmd snapshot(std::pmr::get_default_resource());
       snapshot.request_id = 33U;
-      snapshot.topics.emplace_back("/topic/three");
+      {
+        auto& t =
+            snapshot.topics.emplace_back(std::pmr::get_default_resource());
+        t.name = "/topic/three";
+        t.type = "std_msgs/msg/String";
+      }
       app.OutgoingQueue().Enqueue(std::move(snapshot));
 
       bridge.Tick(app);

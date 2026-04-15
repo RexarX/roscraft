@@ -28,7 +28,8 @@
 #include <string>
 #include <vector>
 
-static std::string EndpointToString(const asio::ip::udp::endpoint& ep) {
+[[nodiscard]] static std::string EndpointToString(
+    const asio::ip::udp::endpoint& ep) {
   return std::format("{}:{}", ep.address().to_string(), ep.port());
 }
 
@@ -91,10 +92,18 @@ void NetworkBridge::InitCommandHandlerRegistry() {
   auto& out = app.OutgoingQueue();
 
   registry_.AddHandler(GraphHandler::From(in, out));
+  registry_.AddHandler(NodeInfoHandler::From(in, out));
+  registry_.AddHandler(TopicInfoHandler::From(in, out));
+  registry_.AddHandler(ServiceInfoHandler::From(in, out));
+  registry_.AddHandler(InterfaceListHandler::From(in, out));
+  registry_.AddHandler(InterfaceShowHandler::From(in, out));
   registry_.AddHandler(SubscribeTopicHandler::From(in));
   registry_.AddHandler(PublishMessageHandler::From(in));
+  registry_.AddHandler(TopicHzHandler::From(in, out));
+  registry_.AddHandler(TopicBwHandler::From(in, out));
   registry_.AddHandler(PlayerListHandler::From(in, out));
   registry_.AddHandler(TopicPayloadHandler::From(out));
+  registry_.AddHandler(ErrorHandler::From(out));
 }
 
 void NetworkBridge::InitAsio() {

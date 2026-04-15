@@ -12,8 +12,13 @@ set(ROSCRAFT_BRIDGE_COMMON_TEST_SOURCES
     command/commands.cpp
     command/queue.cpp
 
-    nodes/graph.cpp
+    nodes/graph_cache.cpp
+    nodes/node_info.cpp
+    nodes/topic_info.cpp
+    nodes/service_info.cpp
+    nodes/interface.cpp
     nodes/topic_relay.cpp
+    nodes/topic_stats.cpp
 )
 
 add_executable(roscraft_bridge_common_tests ${ROSCRAFT_BRIDGE_COMMON_TEST_SOURCES})

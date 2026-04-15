@@ -43,7 +43,13 @@ flatbuffers::FlatBufferBuilder BuildQueryGraphPacket(uint64_t request_id) {
 
 template <typename T>
 auto DequeueOne(CommandQueue& queue) -> std::optional<T> {
-  T value(std::pmr::get_default_resource());
+  T value = [&]() {
+    if constexpr (std::is_constructible_v<T, std::pmr::memory_resource*>) {
+      return T(std::pmr::get_default_resource());
+    } else {
+      return T{};
+    }
+  }();
   if (queue.TypedStorage<T>().Dequeue(value)) {
     return value;
   }
@@ -70,13 +76,36 @@ TEST_SUITE("bridge::jni::native_methods") {
     ScopedAppGuard app_guard;
     auto& app = App::Instance();
 
-    const auto created =
-        Java_net_roscraft_bridge_JniBridge_nativeCreate(fake_env.Env(),
-                                                        nullptr);
+    const auto created = Java_net_roscraft_bridge_JniBridge_nativeCreate(
+        fake_env.Env(), nullptr);
 
     CHECK_EQ(created, JNI_TRUE);
     CHECK_EQ(fake_env.get_java_vm_calls, 1);
     CHECK_EQ(app.State(), AppState::kInitialized);
+
+    CHECK(app.IncomingQueue().IsRegistered<QueryGraphCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<NodeInfoCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<TopicInfoCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<ServiceInfoCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<InterfaceListCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<InterfaceShowCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<SubscribeTopicCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<PublishMessageCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<TopicHzCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<TopicBwCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<QueryPlayersCmd>());
+
+    CHECK(app.OutgoingQueue().IsRegistered<GraphSnapshotCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<NodeInfoResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<TopicInfoResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<ServiceInfoResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<InterfaceListResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<InterfaceShowResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<TopicHzResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<TopicBwResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<PlayerListCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<TopicPayloadCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<ErrorCmd>());
   }
 
   TEST_CASE("Java_net_roscraft_bridge_JniBridge_nativeDestroy") {
@@ -129,7 +158,11 @@ TEST_SUITE("bridge::jni::native_methods") {
 
     GraphSnapshotCmd snapshot(std::pmr::get_default_resource());
     snapshot.request_id = 500U;
-    snapshot.topics.emplace_back("/native/tick");
+    {
+      auto& t = snapshot.topics.emplace_back(std::pmr::get_default_resource());
+      t.name = "/native/tick";
+      t.type = "std_msgs/msg/String";
+    }
     app.OutgoingQueue().Enqueue(std::move(snapshot));
 
     Java_net_roscraft_bridge_JniBridge_nativeTick(fake_env.Env(), nullptr);

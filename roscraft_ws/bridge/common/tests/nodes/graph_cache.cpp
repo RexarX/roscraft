@@ -16,7 +16,7 @@
 #include <ranges>
 
 #define private public
-#include <roscraft/bridge/nodes/graph.hpp>
+#include <roscraft/bridge/nodes/graph_cache.hpp>
 #undef private
 
 using namespace roscraft::bridge;
@@ -53,7 +53,7 @@ void RegisterQueues(CommandQueue& incoming, CommandQueue& outgoing) {
   outgoing.Register<GraphSnapshotCmd>();
 }
 
-GraphSnapshotCmd DequeueSnapshot(CommandQueue& outgoing) {
+auto DequeueSnapshot(CommandQueue& outgoing) -> GraphSnapshotCmd {
   GraphSnapshotCmd snapshot(std::pmr::get_default_resource());
   const bool dequeued =
       outgoing.TypedStorage<GraphSnapshotCmd>().Dequeue(snapshot);
@@ -63,21 +63,21 @@ GraphSnapshotCmd DequeueSnapshot(CommandQueue& outgoing) {
 
 }  // namespace
 
-TEST_SUITE("bridge::GraphNode") {
-  TEST_CASE("bridge::GraphNode::ctor") {
+TEST_SUITE("bridge::GraphCacheNode") {
+  TEST_CASE("bridge::GraphCacheNode::ctor") {
     ScopedRosContext ros_context;
     CommandQueue incoming;
     CommandQueue outgoing;
     RegisterQueues(incoming, outgoing);
     tf::Executor executor;
 
-    GraphNode node(incoming, outgoing, executor);
+    GraphCacheNode node(incoming, outgoing, executor);
 
-    CHECK_EQ(std::string_view(node.get_name()), "roscraft_graph_node");
-    CHECK_LT(node.CurrentSnapshotIndex(), 2U);
+    CHECK_EQ(std::string_view(node.get_name()), "roscraft_graph_cache_node");
+    CHECK_LT(node.CurrentSnapshotIndex(), 2);
   }
 
-  TEST_CASE("bridge::GraphNode::~GraphNode") {
+  TEST_CASE("bridge::GraphCacheNode::~GraphCacheNode") {
     ScopedRosContext ros_context;
     CommandQueue incoming;
     CommandQueue outgoing;
@@ -85,71 +85,74 @@ TEST_SUITE("bridge::GraphNode") {
     tf::Executor executor;
 
     {
-      GraphNode node(incoming, outgoing, executor);
-      CHECK_LT(node.CurrentSnapshotIndex(), 2U);
+      GraphCacheNode node(incoming, outgoing, executor);
+      CHECK_LT(node.CurrentSnapshotIndex(), 2);
     }
 
     CHECK(true);
   }
 
-  TEST_CASE("bridge::GraphNode::RefreshSnapshot") {
+  TEST_CASE("bridge::GraphCacheNode::RefreshSnapshot") {
     ScopedRosContext ros_context;
     CommandQueue incoming;
     CommandQueue outgoing;
     RegisterQueues(incoming, outgoing);
     tf::Executor executor;
-    GraphNode node(incoming, outgoing, executor);
+    GraphCacheNode node(incoming, outgoing, executor);
 
     node.RefreshSnapshot();
 
-    const size_t index = node.CurrentSnapshotIndex();
-    const auto& topics = index == 0U ? node.topics_a_ : node.topics_b_;
-    const auto& services = index == 0U ? node.services_a_ : node.services_b_;
-    const auto& actions = index == 0U ? node.actions_a_ : node.actions_b_;
+    const auto& snapshot = node.CurrentSnapshot();
 
-    CHECK(std::ranges::is_sorted(topics));
-    CHECK(std::ranges::is_sorted(services));
-    CHECK(std::ranges::is_sorted(actions));
+    CHECK(std::ranges::is_sorted(
+        snapshot.topics,
+        [](const auto& a, const auto& b) { return a.name < b.name; }));
+    CHECK(std::ranges::is_sorted(
+        snapshot.services,
+        [](const auto& a, const auto& b) { return a.name < b.name; }));
+    CHECK(std::ranges::is_sorted(
+        snapshot.actions,
+        [](const auto& a, const auto& b) { return a.name < b.name; }));
   }
 
-  TEST_CASE("bridge::GraphNode::DrainAndRespond") {
+  TEST_CASE("bridge::GraphCacheNode::DrainAndRespond") {
     ScopedRosContext ros_context;
     CommandQueue incoming;
     CommandQueue outgoing;
     RegisterQueues(incoming, outgoing);
     tf::Executor executor;
-    GraphNode node(incoming, outgoing, executor);
+    GraphCacheNode node(incoming, outgoing, executor);
 
-    incoming.Enqueue(QueryGraphCmd{.request_id = 11U});
-    incoming.Enqueue(QueryGraphCmd{.request_id = 12U});
+    incoming.Enqueue(QueryGraphCmd{.request_id = 11});
+    incoming.Enqueue(QueryGraphCmd{.request_id = 12});
 
     node.DrainAndRespond();
 
     const auto first = DequeueSnapshot(outgoing);
     const auto second = DequeueSnapshot(outgoing);
 
-    CHECK_EQ(first.request_id, 11U);
-    CHECK_EQ(second.request_id, 12U);
+    CHECK_EQ(first.request_id, 11);
+    CHECK_EQ(second.request_id, 12);
     CHECK_FALSE(outgoing.HasCommands<GraphSnapshotCmd>());
   }
 
-  TEST_CASE("bridge::GraphNode::OnPollTimer") {
+  TEST_CASE("bridge::GraphCacheNode::OnPollTimer") {
     ScopedRosContext ros_context;
     CommandQueue incoming;
     CommandQueue outgoing;
     RegisterQueues(incoming, outgoing);
     tf::Executor executor;
-    GraphNode node(incoming, outgoing, executor);
+    GraphCacheNode node(incoming, outgoing, executor);
 
-    incoming.Enqueue(QueryGraphCmd{.request_id = 21U});
+    incoming.Enqueue(QueryGraphCmd{.request_id = 21});
 
     node.OnPollTimer();
 
     const auto snapshot = DequeueSnapshot(outgoing);
-    CHECK_EQ(snapshot.request_id, 21U);
+    CHECK_EQ(snapshot.request_id, 21);
   }
 
-  TEST_CASE("bridge::GraphNode::OnGraphRefreshPost") {
+  TEST_CASE("bridge::GraphCacheNode::OnGraphRefreshPost") {
     using namespace std::chrono_literals;
 
     ScopedRosContext ros_context;
@@ -157,29 +160,29 @@ TEST_SUITE("bridge::GraphNode") {
     CommandQueue outgoing;
     RegisterQueues(incoming, outgoing);
     tf::Executor executor;
-    GraphNode node(incoming, outgoing, executor);
+    GraphCacheNode node(incoming, outgoing, executor);
 
-    incoming.Enqueue(QueryGraphCmd{.request_id = 31U});
+    incoming.Enqueue(QueryGraphCmd{.request_id = 31});
 
-    node.pending_graph_refresh_ = true;
+    node.pending_graph_refresh_.store(true, std::memory_order_release);
     node.refresh_post_timer_ = node.create_wall_timer(1ns, [] {});
 
     node.OnGraphRefreshPost();
 
-    CHECK_FALSE(node.pending_graph_refresh_);
+    CHECK_FALSE(node.pending_graph_refresh_.load(std::memory_order_acquire));
     CHECK_EQ(node.refresh_post_timer_, nullptr);
 
     const auto snapshot = DequeueSnapshot(outgoing);
-    CHECK_EQ(snapshot.request_id, 31U);
+    CHECK_EQ(snapshot.request_id, 31);
   }
 
-  TEST_CASE("bridge::GraphNode::WatcherTaskFunc") {
+  TEST_CASE("bridge::GraphCacheNode::WatcherTaskFunc") {
     ScopedRosContext ros_context;
     CommandQueue incoming;
     CommandQueue outgoing;
     RegisterQueues(incoming, outgoing);
     tf::Executor executor;
-    GraphNode node(incoming, outgoing, executor);
+    GraphCacheNode node(incoming, outgoing, executor);
 
     node.stop_watcher_.store(true, std::memory_order_release);
     node.WatcherTaskFunc();
@@ -187,33 +190,33 @@ TEST_SUITE("bridge::GraphNode") {
     CHECK(node.stop_watcher_.load(std::memory_order_acquire));
   }
 
-  TEST_CASE("bridge::GraphNode::PendingSnapshotIndex") {
+  TEST_CASE("bridge::GraphCacheNode::PendingSnapshotIndex") {
     ScopedRosContext ros_context;
     CommandQueue incoming;
     CommandQueue outgoing;
     RegisterQueues(incoming, outgoing);
     tf::Executor executor;
-    GraphNode node(incoming, outgoing, executor);
+    GraphCacheNode node(incoming, outgoing, executor);
 
-    node.current_snapshot_index_.store(0U, std::memory_order_release);
-    CHECK_EQ(node.PendingSnapshotIndex(), 1U);
+    node.current_snapshot_index_.store(0, std::memory_order_release);
+    CHECK_EQ(node.PendingSnapshotIndex(), 1);
 
-    node.current_snapshot_index_.store(1U, std::memory_order_release);
-    CHECK_EQ(node.PendingSnapshotIndex(), 0U);
+    node.current_snapshot_index_.store(1, std::memory_order_release);
+    CHECK_EQ(node.PendingSnapshotIndex(), 0);
   }
 
-  TEST_CASE("bridge::GraphNode::CurrentSnapshotIndex") {
+  TEST_CASE("bridge::GraphCacheNode::CurrentSnapshotIndex") {
     ScopedRosContext ros_context;
     CommandQueue incoming;
     CommandQueue outgoing;
     RegisterQueues(incoming, outgoing);
     tf::Executor executor;
-    GraphNode node(incoming, outgoing, executor);
+    GraphCacheNode node(incoming, outgoing, executor);
 
-    node.current_snapshot_index_.store(0U, std::memory_order_release);
-    CHECK_EQ(node.CurrentSnapshotIndex(), 0U);
+    node.current_snapshot_index_.store(0, std::memory_order_release);
+    CHECK_EQ(node.CurrentSnapshotIndex(), 0);
 
-    node.current_snapshot_index_.store(1U, std::memory_order_release);
-    CHECK_EQ(node.CurrentSnapshotIndex(), 1U);
+    node.current_snapshot_index_.store(1, std::memory_order_release);
+    CHECK_EQ(node.CurrentSnapshotIndex(), 1);
   }
 }
