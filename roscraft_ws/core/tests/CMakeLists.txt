@@ -31,6 +31,7 @@ set(ROSCRAFT_CORE_TEST_SOURCES
     utils/filesystem.cpp
     utils/hash.cpp
     utils/macro.cpp
+    utils/random.cpp
     utils/string_hash.cpp
     utils/timer.cpp
     utils/type_info.cpp

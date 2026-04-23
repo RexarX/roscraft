@@ -1,0 +1,45 @@
+namespace roscraft.bridge.fbs;
+
+table ActionInfoPacket {
+  request_id:uint64;
+  action_name:string (required);
+  include_hidden:bool;
+}
+
+table ActionSendGoalPacket {
+  request_id:uint64;
+  action_name:string (required);
+  action_type:string (required);
+  goal_payload:[ubyte];
+  feedback:bool;
+  timeout_seconds:double;
+}
+
+table ActionInfoResponsePacket {
+  request_id:uint64;
+  action_name:string (required);
+  action_type:string;
+  client_count:uint32;
+  server_count:uint32;
+  feedback_publisher_count:uint32;
+  feedback_subscriber_count:uint32;
+  status_publisher_count:uint32;
+  status_subscriber_count:uint32;
+}
+
+table ActionFeedbackPacket {
+  request_id:uint64;
+  action_name:string (required);
+  action_type:string (required);
+  feedback_payload:[ubyte];
+  feedback_text:string;
+}
+
+table ActionResultPacket {
+  request_id:uint64;
+  action_name:string (required);
+  action_type:string (required);
+  success:bool;
+  result_payload:[ubyte];
+  result_text:string;
+}

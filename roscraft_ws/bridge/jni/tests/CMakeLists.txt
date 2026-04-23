@@ -7,11 +7,7 @@ set(ROSCRAFT_BRIDGE_JNI_TEST_SOURCES
     env_guard.cpp
     bridge.cpp
     native_methods.cpp
-
-    command/handler.cpp
-    command/handler_registry.cpp
     command/callback.cpp
-    command/handlers.cpp
 )
 
 add_executable(roscraft_bridge_jni_tests ${ROSCRAFT_BRIDGE_JNI_TEST_SOURCES})

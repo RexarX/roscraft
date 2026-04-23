@@ -1,0 +1,17 @@
+namespace roscraft.bridge.fbs;
+
+table QueryPlayersPacket {
+  request_id:uint64;
+}
+
+table PlayerEntry {
+  name:string (required);
+  x:float;
+  y:float;
+  z:float;
+}
+
+table PlayerListPacket {
+  request_id:uint64;
+  players:[PlayerEntry];
+}

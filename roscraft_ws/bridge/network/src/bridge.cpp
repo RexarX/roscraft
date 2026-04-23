@@ -2,12 +2,11 @@
 
 #include <roscraft/bridge/app/app.hpp>
 #include <roscraft/bridge/assert.hpp>
+#include <roscraft/bridge/command/handlers.hpp>
 #include <roscraft/bridge/network/bridge.hpp>
-#include <roscraft/bridge/network/command/handler_registry.hpp>
-#include <roscraft/bridge/network/command/handlers.hpp>
+#include <roscraft/bridge/network/command/udp_sink.hpp>
 #include <roscraft/bridge/network/config.hpp>
-#include <roscraft/bridge/network/transport.hpp>
-#include <roscraft/generated/bridge_packets_generated.hpp>
+#include <roscraft/generated/bridge_packets.hpp>
 
 #include <asio/co_spawn.hpp>
 #include <asio/detached.hpp>
@@ -42,8 +41,6 @@ void NetworkBridge::Init(App& app) {
 
   RCLCPP_INFO(rclcpp::get_logger("NetworkBridge"),
               "Initializing network bridge...");
-
-  InitCommandHandlerRegistry();
 
   InitAsio();
 
@@ -82,28 +79,6 @@ void NetworkBridge::Tick(App& /*app*/) {
   PruneInactiveClients(std::chrono::steady_clock::now());
 
   DrainAndSendAll();
-}
-
-void NetworkBridge::InitCommandHandlerRegistry() {
-  ROSCRAFT_ASSERT(Status() == BridgeStatus::kInitializing,
-                  "NetworkBridge is not initialized!");
-  auto& app = App::Instance();
-  auto& in = app.IncomingQueue();
-  auto& out = app.OutgoingQueue();
-
-  registry_.AddHandler(GraphHandler::From(in, out));
-  registry_.AddHandler(NodeInfoHandler::From(in, out));
-  registry_.AddHandler(TopicInfoHandler::From(in, out));
-  registry_.AddHandler(ServiceInfoHandler::From(in, out));
-  registry_.AddHandler(InterfaceListHandler::From(in, out));
-  registry_.AddHandler(InterfaceShowHandler::From(in, out));
-  registry_.AddHandler(SubscribeTopicHandler::From(in));
-  registry_.AddHandler(PublishMessageHandler::From(in));
-  registry_.AddHandler(TopicHzHandler::From(in, out));
-  registry_.AddHandler(TopicBwHandler::From(in, out));
-  registry_.AddHandler(PlayerListHandler::From(in, out));
-  registry_.AddHandler(TopicPayloadHandler::From(out));
-  registry_.AddHandler(ErrorHandler::From(out));
 }
 
 void NetworkBridge::InitAsio() {
@@ -218,8 +193,9 @@ void NetworkBridge::DrainAndSendAll() {
   }
 
   UdpTransport transport(socket_, clients_snapshot);
-  registry_.DrainAndSendAll<DrainAndSendHandlerTypes>(app.OutgoingQueue(),
-                                                      transport, fbb);
+  UdpPacketSink sink(transport);
+  app.HandlerRegistry().DrainAndFlushAll<DrainAndFlushHandlerTypes>(
+      app.OutgoingQueue(), sink, fbb);
 }
 
 auto NetworkBridge::BuildClientSnapshot() const
@@ -245,7 +221,7 @@ void NetworkBridge::HandleDatagram(
   auto& app = App::Instance();
 
   // Dispatch to appropriate handler using arena for transient allocations
-  DispatchReceive(registry_, app.IncomingQueue(),
+  DispatchReceive(app.HandlerRegistry(), app.IncomingQueue(),
                   *fbs::GetBridgePacket(data.data()), pending_allocator);
 }
 

@@ -261,6 +261,38 @@ public final class TopicCommands {
     }
   }
 
+  /** Options for `topic delay`. */
+  public record TopicDelayOptions(int window) {
+    public static Builder builder() {
+      return new Builder();
+    }
+
+    public TopicDelayOptions {
+      if (window < 1) {
+        throw new IllegalArgumentException("window must be >= 1");
+      }
+    }
+
+    public String encodeTrackingMetadata() {
+      return "window=" + window;
+    }
+
+    /** Builder for {@link TopicDelayOptions}. */
+    public static final class Builder {
+
+      private int window = 10;
+
+      public Builder window(int window) {
+        this.window = window;
+        return this;
+      }
+
+      public TopicDelayOptions build() {
+        return new TopicDelayOptions(window);
+      }
+    }
+  }
+
   /** Request topic list (backed by graph query). */
   public static CommandResult list(CommandContext ctx, TopicListOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
@@ -293,15 +325,17 @@ public final class TopicCommands {
   /** Subscribe to a topic and stream payloads with echo options. */
   public static CommandResult echo(
       CommandContext ctx, String topicName, String messageType, TopicEchoOptions options) {
-    if (!messageType.contains("/")) {
+    if (messageType != null && !messageType.isBlank() && !messageType.contains("/")) {
       return CommandResult.failure("Invalid message type '" + messageType
           + "'. Expected format: 'package/type'"
           + " (e.g., 'std_msgs/msg/String')");
     }
 
+    String resolvedMessageType = messageType == null ? "" : messageType;
+
     RoscraftBridge bridge = ctx.requireBridge();
     long requestId = bridge.subscribeTopic(
-        topicName, messageType, options.once(), options.timeoutSeconds(), options.raw());
+        topicName, resolvedMessageType, options.once(), options.timeoutSeconds(), options.raw());
 
     StringBuilder suffixBuilder = new StringBuilder();
     if (options.once()) {
@@ -315,7 +349,13 @@ public final class TopicCommands {
     }
 
     return CommandResult.success(
-        "Subscribed to " + topicName + " (" + messageType + ")" + suffixBuilder, requestId);
+        "Subscribed to "
+            + topicName
+            + " ("
+            + (resolvedMessageType.isBlank() ? "auto" : resolvedMessageType)
+            + ")"
+            + suffixBuilder,
+        requestId);
   }
 
   /** Request detailed information for a topic. */
@@ -334,30 +374,41 @@ public final class TopicCommands {
       byte[] payload,
       TopicPublishOptions options) {
     Objects.requireNonNull(payload, "payload must not be null");
-    if (!messageType.contains("/")) {
+    if (!isValidMessageType(messageType)) {
       return CommandResult.failure("Invalid message type '" + messageType
-          + "'. Expected format: 'package/type'"
+          + "'. Expected format: 'package/msg/Type'"
           + " (e.g., 'std_msgs/msg/String')");
     }
 
-    int publishTimes = options.times();
-    if (options.once()) {
-      publishTimes = 1;
-    }
-    if (publishTimes <= 0) {
-      publishTimes = 1;
-    }
-
-    if (publishTimes != 1 || options.rateHz() > 0.0) {
-      return CommandResult.failure(
-          "Repeated topic pub is not implemented yet. Use --once or one-shot publish.");
-    }
-
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId =
-        bridge.publishMessage(topicName, messageType, Arrays.copyOf(payload, payload.length));
+    long requestId = bridge.publishMessage(
+        topicName,
+        messageType,
+        Arrays.copyOf(payload, payload.length),
+        options.once(),
+        options.rateHz(),
+        options.times(),
+        options.qosProfile());
+
+    int requestedTimes = options.times();
+    String repeatText =
+        requestedTimes > 0 ? String.valueOf(requestedTimes) : (options.once() ? "1" : "inf");
+    String rateText = options.rateHz() > 0.0 ? String.valueOf(options.rateHz()) : "default";
+
     return CommandResult.success(
-        "Published to " + topicName + " (" + messageType + ") request #" + requestId + ".",
+        "Published to "
+            + topicName
+            + " ("
+            + messageType
+            + ") request #"
+            + requestId
+            + " [times="
+            + repeatText
+            + ", rate="
+            + rateText
+            + ", qos="
+            + options.qosProfile()
+            + "].",
         requestId);
   }
 
@@ -367,18 +418,28 @@ public final class TopicCommands {
     if (topicName == null || topicName.isBlank()) {
       return CommandResult.failure("Topic name must be non-empty.");
     }
-    if (messageType == null || messageType.isBlank()) {
-      return CommandResult.failure("Message type must be non-empty.");
+    if (messageType != null && !messageType.isBlank() && !messageType.contains("/")) {
+      return CommandResult.failure("Invalid message type '" + messageType
+          + "'. Expected format: 'package/type'"
+          + " (e.g., 'std_msgs/msg/String')");
     }
 
+    String resolvedMessageType = messageType == null ? "" : messageType;
+
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.topicHz(topicName, messageType, options.window());
+    long requestId =
+        bridge.topicHz(topicName, resolvedMessageType, options.window(), options.wallTime());
     return CommandResult.success(
         "Topic hz request #" + requestId
             + " for "
             + topicName
+            + " ("
+            + (resolvedMessageType.isBlank() ? "auto" : resolvedMessageType)
+            + ")"
             + " sent (window="
             + options.window()
+            + ", wall_time="
+            + options.wallTime()
             + ").",
         requestId);
   }
@@ -389,16 +450,55 @@ public final class TopicCommands {
     if (topicName == null || topicName.isBlank()) {
       return CommandResult.failure("Topic name must be non-empty.");
     }
-    if (messageType == null || messageType.isBlank()) {
-      return CommandResult.failure("Message type must be non-empty.");
+    if (messageType != null && !messageType.isBlank() && !messageType.contains("/")) {
+      return CommandResult.failure("Invalid message type '" + messageType
+          + "'. Expected format: 'package/type'"
+          + " (e.g., 'std_msgs/msg/String')");
     }
 
+    String resolvedMessageType = messageType == null ? "" : messageType;
+
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.topicBw(topicName, messageType, options.window());
+    long requestId =
+        bridge.topicBw(topicName, resolvedMessageType, options.window(), options.wallTime());
     return CommandResult.success(
         "Topic bw request #" + requestId
             + " for "
             + topicName
+            + " ("
+            + (resolvedMessageType.isBlank() ? "auto" : resolvedMessageType)
+            + ")"
+            + " sent (window="
+            + options.window()
+            + ", wall_time="
+            + options.wallTime()
+            + ").",
+        requestId);
+  }
+
+  /** Start topic delay measurement (`topic delay`). */
+  public static CommandResult delay(
+      CommandContext ctx, String topicName, String messageType, TopicDelayOptions options) {
+    if (topicName == null || topicName.isBlank()) {
+      return CommandResult.failure("Topic name must be non-empty.");
+    }
+    if (messageType != null && !messageType.isBlank() && !messageType.contains("/")) {
+      return CommandResult.failure("Invalid message type '" + messageType
+          + "'. Expected format: 'package/type'"
+          + " (e.g., 'std_msgs/msg/Header')");
+    }
+
+    String resolvedMessageType = messageType == null ? "" : messageType;
+
+    RoscraftBridge bridge = ctx.requireBridge();
+    long requestId = bridge.topicDelay(topicName, resolvedMessageType, options.window());
+    return CommandResult.success(
+        "Topic delay request #" + requestId
+            + " for "
+            + topicName
+            + " ("
+            + (resolvedMessageType.isBlank() ? "auto" : resolvedMessageType)
+            + ")"
             + " sent (window="
             + options.window()
             + ").",
@@ -410,5 +510,17 @@ public final class TopicCommands {
       return "default";
     }
     return qosProfile.trim();
+  }
+
+  private static boolean isValidMessageType(String messageType) {
+    if (messageType == null || messageType.isBlank()) {
+      return false;
+    }
+
+    String[] parts = messageType.split("/");
+    return parts.length == 3
+        && !parts[0].isBlank()
+        && "msg".equals(parts[1])
+        && !parts[2].isBlank();
   }
 }

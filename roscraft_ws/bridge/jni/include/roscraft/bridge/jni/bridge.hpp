@@ -2,7 +2,6 @@
 
 #include <roscraft/bridge/bridge.hpp>
 #include <roscraft/bridge/jni/command/callback.hpp>
-#include <roscraft/bridge/jni/command/handler_registry.hpp>
 #include <roscraft/bridge/jni/config.hpp>
 
 #include <flatbuffers/flatbuffers.h>
@@ -65,13 +64,10 @@ public:
   [[nodiscard]] const BridgeConfig& Config() const noexcept { return config_; }
 
 private:
-  void InitCommandHandlerRegistry();
-
   BridgeConfig config_;
   std::atomic<BridgeStatus> status_{BridgeStatus::kUninitialized};
 
   BridgeCallback callback_;
-  CommandHandlerRegistry registry_;
 };
 
 inline JniBridge::JniBridge(BridgeConfig config) noexcept : config_(config) {

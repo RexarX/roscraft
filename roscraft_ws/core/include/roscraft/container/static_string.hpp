@@ -787,7 +787,7 @@ public:
 
   /**
    * @brief Accesses character at specified position with bounds checking.
-   * @warning Triggers assertion if pos >= size().
+   * @warning Triggers assertion if `pos >= Size()`.
    * @param pos Position of the character
    * @return Reference to the character
    */
@@ -1427,7 +1427,7 @@ template <size_t OtherCapacity>
 constexpr auto BasicStaticString<StrCapacity, CharT, Traits>::operator<=>(
     const BasicStaticString<OtherCapacity, CharT, Traits>& other) const noexcept
     -> std::strong_ordering {
-  const auto result = View().compare(other.View());
+  const auto result = Compare(other);
   if (result < 0) {
     return std::strong_ordering::less;
   }
@@ -1442,7 +1442,7 @@ template <size_t StrCapacity, typename CharT, typename Traits>
 constexpr auto BasicStaticString<StrCapacity, CharT, Traits>::operator<=>(
     std::basic_string_view<CharT, Traits> other) const noexcept
     -> std::strong_ordering {
-  const auto result = View().compare(other);
+  const auto result = Compare(other);
   if (result < 0) {
     return std::strong_ordering::less;
   }
@@ -1818,7 +1818,7 @@ struct hash<
 };
 
 /**
- * @brief `std::format` support for BasicStaticString.
+ * @brief `std::format` support for `BasicStaticString`.
  * @details Enables formatting `BasicStaticString` using `std::format`
  * by delegating to `std::basic_string_view` formatter.
  * @tparam StrCapacity `StrCapacity` of the string
@@ -1829,7 +1829,7 @@ template <size_t StrCapacity, typename CharT, typename Traits>
 struct formatter<
     roscraft::container::BasicStaticString<StrCapacity, CharT, Traits>>
     : formatter<basic_string_view<CharT, Traits>> {
-  /// @brief Format the BasicStaticString by delegating to
+  /// @brief Format the `BasicStaticString` by delegating to
   /// `std::basic_string_view` formatter.
   auto format(const roscraft::container::BasicStaticString<StrCapacity, CharT,
                                                            Traits>& str,

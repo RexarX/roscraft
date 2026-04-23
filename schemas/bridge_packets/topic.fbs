@@ -1,0 +1,94 @@
+namespace roscraft.bridge.fbs;
+
+table TopicInfoPacket {
+  request_id:uint64;
+  topic_name:string (required);
+}
+
+table TopicSubscribePacket {
+  request_id:uint64;
+  topic_name:string (required);
+  message_type:string (required);
+  once:bool;
+  timeout_seconds:double;
+  raw:bool;
+}
+
+table TopicPublishMessagePacket {
+  request_id:uint64;
+  topic_name:string (required);
+  message_type:string (required);
+  payload:[ubyte];
+  once:bool;
+  rate_hz:double;
+  times:uint32;
+  qos_profile:string;
+}
+
+table TopicHzPacket {
+  request_id:uint64;
+  topic_name:string (required);
+  message_type:string (required);
+  window:uint32;
+  wall_time:bool;
+}
+
+table TopicBwPacket {
+  request_id:uint64;
+  topic_name:string (required);
+  message_type:string (required);
+  window:uint32;
+  wall_time:bool;
+}
+
+table TopicInfoResponsePacket {
+  request_id:uint64;
+  topic_name:string (required);
+  message_type:string;
+  publisher_count:uint32;
+  subscriber_count:uint32;
+  publisher_nodes:[string];
+  subscriber_nodes:[string];
+}
+
+table TopicPayloadPacket {
+  request_id:uint64;
+  topic_name:string (required);
+  message_type:string (required);
+  raw:bool;
+  payload:[ubyte];
+}
+
+table TopicHzResponsePacket {
+  request_id:uint64;
+  topic_name:string (required);
+  frequency:double;
+  window:uint32;
+  message_count:uint32;
+}
+
+table TopicBwResponsePacket {
+  request_id:uint64;
+  topic_name:string (required);
+  bytes_per_second:double;
+  window:uint32;
+  message_count:uint32;
+  total_bytes:uint64;
+}
+
+table TopicDelayPacket {
+  request_id:uint64;
+  topic_name:string (required);
+  message_type:string;
+  window:uint32;
+}
+
+table TopicDelayResponsePacket {
+  request_id:uint64;
+  topic_name:string (required);
+  average_delay:double;
+  min_delay:double;
+  max_delay:double;
+  window:uint32;
+  message_count:uint32;
+}

@@ -1,0 +1,18 @@
+include "graph.fbs";
+
+namespace roscraft.bridge.fbs;
+
+table NodeInfoPacket {
+  request_id:uint64;
+  node_name:string (required);
+  include_hidden:bool;
+}
+
+table NodeInfoResponsePacket {
+  request_id:uint64;
+  node_name:string (required);
+  publishers:[TopicEntry];
+  subscribers:[TopicEntry];
+  services:[ServiceEntry];
+  found:bool;
+}

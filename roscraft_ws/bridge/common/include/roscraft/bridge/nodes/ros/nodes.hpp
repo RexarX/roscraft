@@ -1,0 +1,19 @@
+#pragma once
+
+#include <roscraft/bridge/nodes/ros/action/info.hpp>
+#include <roscraft/bridge/nodes/ros/action/send_goal.hpp>
+#include <roscraft/bridge/nodes/ros/graph/cache.hpp>
+#include <roscraft/bridge/nodes/ros/interface/list.hpp>
+#include <roscraft/bridge/nodes/ros/interface/show.hpp>
+#include <roscraft/bridge/nodes/ros/node/info.hpp>
+#include <roscraft/bridge/nodes/ros/param/describe.hpp>
+#include <roscraft/bridge/nodes/ros/param/dump.hpp>
+#include <roscraft/bridge/nodes/ros/param/get.hpp>
+#include <roscraft/bridge/nodes/ros/param/list.hpp>
+#include <roscraft/bridge/nodes/ros/param/load.hpp>
+#include <roscraft/bridge/nodes/ros/param/set.hpp>
+#include <roscraft/bridge/nodes/ros/service/call.hpp>
+#include <roscraft/bridge/nodes/ros/service/info.hpp>
+#include <roscraft/bridge/nodes/ros/topic/info.hpp>
+#include <roscraft/bridge/nodes/ros/topic/relay.hpp>
+#include <roscraft/bridge/nodes/ros/topic/stats.hpp>

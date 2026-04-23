@@ -4,10 +4,13 @@ include(CMakeFindDependencyMacro)
 
 find_dependency(roscraft_core REQUIRED)
 
+find_dependency(ament_index_cpp REQUIRED)
 find_dependency(rclcpp REQUIRED)
+find_dependency(rclcpp_action REQUIRED)
 find_dependency(action_msgs REQUIRED)
 find_dependency(builtin_interfaces REQUIRED)
 find_dependency(geometry_msgs REQUIRED)
+find_dependency(std_srvs REQUIRED)
 find_dependency(std_msgs REQUIRED)
 
 find_dependency(concurrentqueue REQUIRED)

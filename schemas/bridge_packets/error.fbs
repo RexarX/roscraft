@@ -1,0 +1,10 @@
+namespace roscraft.bridge.fbs;
+
+/// Sent when an incoming command fails (e.g. invalid message type on
+/// subscribe). The request_id echoes the one from the originating command
+/// so the mod can correlate the error with the user request.
+table ErrorPacket {
+  request_id:uint64;
+  error_code:string (required);
+  error_message:string (required);
+}

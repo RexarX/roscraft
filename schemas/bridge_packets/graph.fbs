@@ -1,0 +1,39 @@
+namespace roscraft.bridge.fbs;
+
+/// A topic name and its associated message type (e.g. "geometry_msgs/msg/Twist").
+table TopicEntry {
+  name:string (required);
+  type:string (required);
+}
+
+/// A service name and its associated service type (e.g. "std_srvs/srv/Empty").
+table ServiceEntry {
+  name:string (required);
+  type:string (required);
+}
+
+/// An action name and its associated action type (e.g. "turtlesim/action/RotateAbsolute").
+table ActionEntry {
+  name:string (required);
+  type:string (required);
+}
+
+/// A ROS2 node name (e.g. "/turtlesim").
+table NodeEntry {
+  name:string (required);
+}
+
+table QueryGraphPacket {
+  request_id:uint64;
+}
+
+/// Graph snapshot with typed entries for topics, services, actions, and nodes.
+/// Replaces the former flat string lists with structured entries that include
+/// the message/service/action type alongside the name.
+table GraphSnapshotPacket {
+  request_id:uint64;
+  nodes:[NodeEntry];
+  topics:[TopicEntry];
+  services:[ServiceEntry];
+  actions:[ActionEntry];
+}

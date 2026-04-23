@@ -1,0 +1,27 @@
+namespace roscraft.bridge.fbs;
+
+table InterfaceListPacket {
+  request_id:uint64;
+  include_messages:bool = true;
+  include_services:bool = true;
+  include_actions:bool = true;
+}
+
+table InterfaceShowPacket {
+  request_id:uint64;
+  interface_type:string (required);
+}
+
+table InterfaceListResponsePacket {
+  request_id:uint64;
+  messages:[string];
+  services:[string];
+  actions:[string];
+}
+
+table InterfaceShowResponsePacket {
+  request_id:uint64;
+  interface_type:string (required);
+  definition:string;
+  found:bool;
+}

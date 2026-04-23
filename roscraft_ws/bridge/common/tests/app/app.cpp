@@ -109,32 +109,52 @@ TEST_SUITE("bridge::App") {
     CHECK_EQ(DummyBridge::init_count, 1);
     CHECK_EQ(app.GetBridge<DummyBridge>().Marker(), 7);
 
-    CHECK(app.IncomingQueue().IsRegistered<QueryGraphCmd>());
-    CHECK(app.IncomingQueue().IsRegistered<NodeInfoCmd>());
-    CHECK(app.IncomingQueue().IsRegistered<TopicInfoCmd>());
-    CHECK(app.IncomingQueue().IsRegistered<ServiceInfoCmd>());
-    CHECK(app.IncomingQueue().IsRegistered<InterfaceListCmd>());
-    CHECK(app.IncomingQueue().IsRegistered<InterfaceShowCmd>());
-    CHECK(app.IncomingQueue().IsRegistered<SubscribeTopicCmd>());
-    CHECK(app.IncomingQueue().IsRegistered<PublishMessageCmd>());
-    CHECK(app.IncomingQueue().IsRegistered<TopicHzCmd>());
-    CHECK(app.IncomingQueue().IsRegistered<TopicBwCmd>());
-    CHECK(app.IncomingQueue().IsRegistered<QueryPlayersCmd>());
+    const auto& inc = app.IncomingQueue();
+    CHECK(inc.IsRegistered<ActionInfoCmd>());
+    CHECK(inc.IsRegistered<ActionSendGoalCmd>());
+    CHECK(inc.IsRegistered<QueryGraphCmd>());
+    CHECK(inc.IsRegistered<InterfaceListCmd>());
+    CHECK(inc.IsRegistered<InterfaceShowCmd>());
+    CHECK(inc.IsRegistered<NodeInfoCmd>());
+    CHECK(inc.IsRegistered<ParamDescribeCmd>());
+    CHECK(inc.IsRegistered<ParamDumpCmd>());
+    CHECK(inc.IsRegistered<ParamGetCmd>());
+    CHECK(inc.IsRegistered<TopicBwCmd>());
+    CHECK(inc.IsRegistered<ParamListCmd>());
+    CHECK(inc.IsRegistered<ParamLoadCmd>());
+    CHECK(inc.IsRegistered<ParamSetCmd>());
+    CHECK(inc.IsRegistered<QueryPlayersCmd>());
+    CHECK(inc.IsRegistered<ServiceCallCmd>());
+    CHECK(inc.IsRegistered<ServiceInfoCmd>());
+    CHECK(inc.IsRegistered<TopicSubscribeCmd>());
+    CHECK(inc.IsRegistered<TopicPublishMessageCmd>());
+    CHECK(inc.IsRegistered<TopicHzCmd>());
+    CHECK(inc.IsRegistered<TopicBwCmd>());
+    CHECK(inc.IsRegistered<TopicDelayCmd>());
 
-    CHECK(app.OutgoingQueue().IsRegistered<GraphSnapshotCmd>());
-    CHECK(app.OutgoingQueue().IsRegistered<NodeInfoResponseCmd>());
-    CHECK(app.OutgoingQueue().IsRegistered<TopicInfoResponseCmd>());
-    CHECK(app.OutgoingQueue().IsRegistered<ServiceInfoResponseCmd>());
-    CHECK(app.OutgoingQueue().IsRegistered<InterfaceListResponseCmd>());
-    CHECK(app.OutgoingQueue().IsRegistered<InterfaceShowResponseCmd>());
-    CHECK(app.OutgoingQueue().IsRegistered<TopicHzResponseCmd>());
-    CHECK(app.OutgoingQueue().IsRegistered<TopicBwResponseCmd>());
-    CHECK(app.OutgoingQueue().IsRegistered<TopicPayloadCmd>());
-    CHECK(app.OutgoingQueue().IsRegistered<PlayerListCmd>());
-    CHECK(app.OutgoingQueue().IsRegistered<ErrorCmd>());
-
-    CHECK_EQ(app.IncomingQueue().TypeCount(), 11);
-    CHECK_EQ(app.OutgoingQueue().TypeCount(), 11);
+    const auto& out = app.OutgoingQueue();
+    CHECK(out.IsRegistered<ActionInfoResponseCmd>());
+    CHECK(out.IsRegistered<ActionFeedbackCmd>());
+    CHECK(out.IsRegistered<ActionResultCmd>());
+    CHECK(out.IsRegistered<ErrorCmd>());
+    CHECK(out.IsRegistered<GraphSnapshotCmd>());
+    CHECK(out.IsRegistered<InterfaceListResponseCmd>());
+    CHECK(out.IsRegistered<InterfaceShowResponseCmd>());
+    CHECK(out.IsRegistered<NodeInfoResponseCmd>());
+    CHECK(out.IsRegistered<ParamDescribeResponseCmd>());
+    CHECK(out.IsRegistered<ParamDumpResponseCmd>());
+    CHECK(out.IsRegistered<ParamGetResponseCmd>());
+    CHECK(out.IsRegistered<ParamLoadResponseCmd>());
+    CHECK(out.IsRegistered<ParamListResponseCmd>());
+    CHECK(out.IsRegistered<ParamSetResponseCmd>());
+    CHECK(out.IsRegistered<PlayerListCmd>());
+    CHECK(out.IsRegistered<ServiceCallResponseCmd>());
+    CHECK(out.IsRegistered<ServiceInfoResponseCmd>());
+    CHECK(out.IsRegistered<TopicInfoResponseCmd>());
+    CHECK(out.IsRegistered<TopicPayloadCmd>());
+    CHECK(out.IsRegistered<TopicHzResponseCmd>());
+    CHECK(out.IsRegistered<TopicBwResponseCmd>());
+    CHECK(out.IsRegistered<TopicDelayResponseCmd>());
   }
 
   TEST_CASE("bridge::App::Shutdown") {

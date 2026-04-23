@@ -41,6 +41,14 @@ _IGNORED_DIRS = {
     "out",
 }
 
+# Directories excluded by default when no explicit --exclude flags are given.
+DEFAULT_EXCLUDED_DIRS: tuple[str, ...] = (
+    "build",
+    "install",
+    "generated",
+    ".cpm_cache",
+)
+
 
 class _AnsiColor:
     RESET = "\033[0m"
@@ -92,36 +100,129 @@ def find_upward_file(filename: str, start_dir: Path) -> Path | None:
     return None
 
 
+def resolve_exclusions(
+    raw_excludes: Sequence[str] | None,
+    root_dir: Path,
+) -> list[Path]:
+    """Resolve *raw_excludes* to absolute paths.
+
+    When *raw_excludes* is ``None`` or empty the default exclusion list
+    (``DEFAULT_EXCLUDED_DIRS``) is used instead.  Each name in that list is
+    only added if a matching directory actually exists directly under
+    *root_dir*, so the defaults never produce spurious warnings.
+    """
+    if not raw_excludes:
+        defaults: list[Path] = []
+        for name in DEFAULT_EXCLUDED_DIRS:
+            candidate = (root_dir / name).resolve()
+            if candidate.exists():
+                defaults.append(candidate)
+        return defaults
+
+    resolved: list[Path] = []
+    for raw in raw_excludes:
+        path = Path(raw)
+        if not path.is_absolute():
+            path = (root_dir / path).resolve()
+        else:
+            path = path.resolve()
+        if not path.exists():
+            warn(f"Exclude path does not exist (ignored): {path}")
+            continue
+        resolved.append(path)
+    return resolved
+
+
+def validate_no_overlap(
+    explicit_files: Sequence[str],
+    exclusions: Sequence[Path],
+    root_dir: Path,
+) -> bool:
+    """Return *True* when there is no overlap between *explicit_files* and
+    *exclusions*.  Emits an error and returns *False* for every conflict found.
+    """
+    if not explicit_files or not exclusions:
+        return True
+
+    exclusion_set = set(exclusions)
+    ok = True
+    for raw in explicit_files:
+        path = Path(raw)
+        if not path.is_absolute():
+            path = (root_dir / path).resolve()
+        else:
+            path = path.resolve()
+
+        # Direct match.
+        if path in exclusion_set:
+            error(f"Path appears in both positional files and --exclude: {path}")
+            ok = False
+            continue
+
+        # The explicit path is a child of an excluded directory.
+        for excl in exclusion_set:
+            if is_relative_to(path, excl):
+                error(f"Path '{path}' is inside excluded directory '{excl}'")
+                ok = False
+                break
+
+    return ok
+
+
+def _is_excluded(path: Path, exclusions: Sequence[Path]) -> bool:
+    """Return *True* when *path* matches or lives inside an excluded path."""
+    for excl in exclusions:
+        if path == excl or is_relative_to(path, excl):
+            return True
+    return False
+
+
 def _is_cpp_file(path: Path) -> bool:
     return path.suffix.lower() in _CPP_EXTENSIONS
 
 
-def _walk_cpp_files(root_dir: Path) -> list[Path]:
+def _walk_cpp_files(
+    root_dir: Path,
+    exclusions: Sequence[Path] = (),
+) -> list[Path]:
     files: list[Path] = []
     for current, dir_names, file_names in os.walk(root_dir):
+        current_path = Path(current).resolve()
+
+        # Prune excluded directories before descending.
         dir_names[:] = [
             name
             for name in dir_names
-            if name not in _IGNORED_DIRS and not name.startswith(".")
+            if name not in _IGNORED_DIRS
+            and not name.startswith(".")
+            and not _is_excluded(current_path / name, exclusions)
         ]
-        current_path = Path(current)
+
         for file_name in file_names:
-            candidate = current_path / file_name
-            if _is_cpp_file(candidate):
-                files.append(candidate.resolve())
+            candidate = (current_path / file_name).resolve()
+            if _is_cpp_file(candidate) and not _is_excluded(candidate, exclusions):
+                files.append(candidate)
     files.sort()
     return files
 
 
-def collect_cpp_files(paths: Sequence[str], root_dir: Path) -> list[Path]:
+def collect_cpp_files(
+    paths: Sequence[str],
+    root_dir: Path,
+    exclusions: Sequence[Path] = (),
+) -> list[Path]:
     if not paths:
-        return _walk_cpp_files(root_dir)
+        return _walk_cpp_files(root_dir, exclusions)
 
     files: list[Path] = []
     for raw_path in paths:
         path = Path(raw_path)
         if not path.is_absolute():
             path = (root_dir / path).resolve()
+
+        if _is_excluded(path, exclusions):
+            warn(f"Skipping excluded path: {path}")
+            continue
 
         if path.is_file():
             if _is_cpp_file(path):
@@ -131,7 +232,7 @@ def collect_cpp_files(paths: Sequence[str], root_dir: Path) -> list[Path]:
             continue
 
         if path.is_dir():
-            files.extend(_walk_cpp_files(path))
+            files.extend(_walk_cpp_files(path, exclusions))
             continue
 
         warn(f"Skipping missing path: {path}")

@@ -159,7 +159,8 @@ tasks.register("generateFlatBuffers", Exec) {
         logger.lifecycle("[roscraft] flatc --java -o {} {}", flatcOutputDir.get().asFile, schemaFile)
     }
 
-    commandLine flatcBin, "--java",
+    commandLine flatcBin, "--java", "--gen-all",
+                "-I", schemaFile.parentFile.absolutePath,
                 "-o", flatcOutputDir.get().asFile.absolutePath,
                 schemaFile.absolutePath
 }
@@ -183,10 +184,13 @@ tasks.named("sourcesJar")        { dependsOn("generateFlatBuffers") }
 //   1. -PnativeLibDir=<dir>                   explicit override
 //   2. <cmake_build_dir>/lib/                 single-config default
 //   3. <cmake_build_dir>/install/lib/         legacy install layout
-//   4. <cmake_build_dir>/Release/lib/         multi-config Release
-//   5. <cmake_build_dir>/RelWithDebInfo/lib/  multi-config RelWithDebInfo
-//   6. <cmake_build_dir>/roscraft_bridge_jni/lib/
-//   7. <cmake_build_dir>/../install/roscraft_bridge_jni/lib/
+//   4. <cmake_build_dir>/<build_type>/lib/    multi-config (debug/relwithdebinfo/release)
+//   5. <cmake_build_dir>/roscraft_bridge_jni/lib/
+//   6. <cmake_build_dir>/../install/roscraft_bridge_jni/lib/
+//
+// When cmakeBuildDir points to the workspace root (roscraft_ws) and multiple
+// build-type directories exist with the library, the user is prompted to choose
+// unless cmakeBuildType is explicitly set.
 
 def nativeLibNames = [
     "libroscraft_bridge_jni.so",    // Linux
@@ -195,6 +199,53 @@ def nativeLibNames = [
 ]
 
 def forceNetworkOnly = project.findProperty("forceNetworkOnly")?.toString()?.toBoolean() ?: false
+
+def cmakeBuildType = project.findProperty("cmakeBuildType")?.toString() ?: null
+
+def findNativeLibs = { File baseDir ->
+    def results = []
+    def searchBases = []
+
+    if (baseDir.name == "roscraft_ws" || baseDir.name == "build") {
+        for (def bt : ["debug", "relwithdebinfo", "release"]) {
+            def btDir = new File(baseDir, "build/${bt}")
+            if (btDir.exists()) searchBases.add([base: btDir, buildType: bt])
+        }
+    }
+    if (searchBases.isEmpty()) searchBases.add([base: baseDir, buildType: baseDir.name])
+
+    for (def entry : searchBases) {
+        def base = entry.base
+        def btName = entry.buildType
+        def candidates = [
+            new File(base, "lib"),
+            new File(base, "install/lib"),
+        ]
+        if (btName in ["debug", "relwithdebinfo", "release"]) {
+            candidates.add(new File(base, "${btName}/lib"))
+        } else {
+            candidates.addAll([
+                new File(base, "Release/lib"),
+                new File(base, "RelWithDebInfo/lib"),
+                new File(base, "Debug/lib"),
+            ])
+        }
+        if (base.name == "build") {
+            candidates.add(new File(base, "roscraft_bridge_jni/lib"))
+        } else {
+            candidates.add(new File(base, "install/roscraft_bridge_jni/lib"))
+            candidates.add(new File(base, "roscraft_bridge_jni/lib"))
+        }
+
+        for (def c : candidates.unique()) {
+            if (!c.exists()) continue
+            if (nativeLibNames.any { new File(c, it).exists() }) {
+                results.add([dir: c, buildType: btName])
+            }
+        }
+    }
+    return results
+}
 
 def resolveNativeLibDir = {
     if (forceNetworkOnly) {
@@ -209,48 +260,50 @@ def resolveNativeLibDir = {
         return d
     }
 
-    def cmakeBuildDir = (
+    def cmakeBuildDirProp = (
         project.findProperty("cmakeBuildDir")
             ?: project.findProperty("cmake_build_dir")
             ?: "../roscraft_ws/build"
     ).toString()
-    def base = file(cmakeBuildDir)
 
-    def installBase = base.parentFile != null
-        ? new File(base.parentFile, "install/roscraft_bridge_jni/lib")
-        : null
-
-    def candidates = [
-        new File(base, "lib"),
-        new File(base, "install/lib"),
-        new File(base, "Release/lib"),
-        new File(base, "RelWithDebInfo/lib"),
-        installBase,
-    ].findAll { it != null }
-
-    if (base.name == "build") {
-        candidates.add(new File(base, "roscraft_bridge_jni/lib"))
-    } else {
-        candidates.add(new File(base, "install/roscraft_bridge_jni/lib"))
-        candidates.add(new File(base, "roscraft_bridge_jni/lib"))
+    if (cmakeBuildType != null) {
+        def specificDir = file("${cmakeBuildDirProp}/${cmakeBuildType}")
+        if (specificDir.exists()) {
+            logger.lifecycle("[roscraft] Native lib: using {} (cmakeBuildType={})", specificDir, cmakeBuildType)
+            return specificDir
+        }
+        def baseDir = file(cmakeBuildDirProp)
+        def found = findNativeLibs(baseDir).find { it.buildType == cmakeBuildType }?.dir
+        if (found != null) return found
+        logger.lifecycle("[roscraft] cmakeBuildType={} but lib not found there, falling back", cmakeBuildType)
     }
 
-    for (def c : candidates.unique()) {
-        if (!c.exists()) {
-            continue
+    def base = file(cmakeBuildDirProp)
+    def foundLibs = findNativeLibs(base)
+
+    if (foundLibs.isEmpty()) {
+        logger.lifecycle(
+            "[roscraft] Native lib not found — mod will start in network-only mode.\n" +
+            "  Build/install the C++ bridge first, then re-run Gradle.\n" +
+            "  Override build dir: ./gradlew build -PcmakeBuildDir=<cmake-build-dir>\n" +
+            "  Override lib dir:   ./gradlew build -PnativeLibDir=<lib-dir>\n" +
+            "  Force network-only: ./gradlew build -PforceNetworkOnly=true")
+        return null
+    }
+
+    if (foundLibs.size() > 1) {
+        logger.warn("[roscraft] Multiple native lib directories found:")
+        foundLibs.each { lib ->
+            logger.warn("  [{}] {}", lib.buildType, lib.dir)
         }
-        if (nativeLibNames.any { new File(c, it).exists() }) {
-            logger.lifecycle("[roscraft] Native lib: found in {}", c)
-            return c
+        logger.warn("  To select a specific build type, use: ./gradlew build -PcmakeBuildType=<debug|relwithdebinfo|release>")
+        logger.warn("  Or specify exact lib dir: ./gradlew build -PnativeLibDir=<lib-dir>")
+        if (cmakeBuildType == null) {
+            logger.lifecycle("[roscraft] Using first match ({}). Set cmakeBuildType to disambiguate.", foundLibs[0].dir)
         }
     }
-    logger.lifecycle(
-        "[roscraft] Native lib not found — mod will start in network-only mode.\n" +
-        "  Build/install the C++ bridge first, then re-run Gradle.\n" +
-        "  Override build dir: ./gradlew build -PcmakeBuildDir=<cmake-build-dir>\n" +
-        "  Override lib dir:   ./gradlew build -PnativeLibDir=<lib-dir>\n" +
-        "  Force network-only: ./gradlew build -PforceNetworkOnly=true")
-    return null
+
+    return foundLibs[0].dir
 }
 
 def discoveredNativeDir = resolveNativeLibDir()

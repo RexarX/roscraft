@@ -203,14 +203,14 @@ public abstract class RoscraftBridge implements AutoCloseable {
   }
 
   /**
-   * Publish a raw CDR-serialized message onto a ROS2 topic.
+   * Publish a ROS2 topic message from UTF-8 YAML payload text bytes.
    *
    * @param topicName
    *            Destination topic.
    * @param messageType
    *            ROS message type string.
    * @param payload
-   *            Raw CDR bytes — copied internally before this method returns.
+   *            UTF-8 YAML payload bytes — copied internally before this method returns.
    * @return The request ID associated with this publish.
    * @throws NullPointerException
    *             if any argument is {@code null}.
@@ -218,14 +218,141 @@ public abstract class RoscraftBridge implements AutoCloseable {
   public abstract long publishMessage(String topicName, String messageType, byte[] payload);
 
   /**
+   * Publish with `ros2 topic pub` style options.
+   *
+   * <p>
+   * Default implementation falls back to one-shot publish and ignores extended
+   * options. Implementations that support these options should override this
+   * method.
+   */
+  public long publishMessage(
+      String topicName,
+      String messageType,
+      byte[] payload,
+      boolean once,
+      double rateHz,
+      int times,
+      String qosProfile) {
+    return publishMessage(topicName, messageType, payload);
+  }
+
+  /**
    * Request topic frequency (hz) measurement.
    */
   public abstract long topicHz(String topicName, String messageType, int window);
 
   /**
+   * Request topic frequency (hz) measurement with wall-time option.
+   *
+   * <p>
+   * Default implementation falls back to {@link #topicHz(String, String, int)}.
+   */
+  public long topicHz(String topicName, String messageType, int window, boolean wallTime) {
+    return topicHz(topicName, messageType, window);
+  }
+
+  /**
    * Request topic bandwidth (bw) measurement.
    */
   public abstract long topicBw(String topicName, String messageType, int window);
+
+  /**
+   * Request topic bandwidth (bw) measurement with wall-time option.
+   *
+   * <p>
+   * Default implementation falls back to {@link #topicBw(String, String, int)}.
+   */
+  public long topicBw(String topicName, String messageType, int window, boolean wallTime) {
+    return topicBw(topicName, messageType, window);
+  }
+
+  /**
+   * Request topic delay measurement.
+   */
+  public long topicDelay(String topicName, String messageType, int window) {
+    return queryGraph();
+  }
+
+  /**
+   * Request service-call execution.
+   */
+  public long serviceCall(
+      String serviceName,
+      String serviceType,
+      byte[] payload,
+      double timeoutSeconds,
+      int repeatCount,
+      double rateHz) {
+    return queryGraph();
+  }
+
+  /**
+   * Request parameter list for a node.
+   */
+  public long paramList(
+      String nodeName,
+      String[] prefixes,
+      int depth,
+      boolean includeTypes,
+      String filterRegex,
+      double timeoutSeconds) {
+    return queryGraph();
+  }
+
+  /**
+   * Request one parameter value.
+   */
+  public long paramGet(String nodeName, String paramName, boolean hideType, double timeoutSeconds) {
+    return queryGraph();
+  }
+
+  /**
+   * Request setting one parameter value.
+   */
+  public long paramSet(String nodeName, String paramName, String valueText, double timeoutSeconds) {
+    return queryGraph();
+  }
+
+  /**
+   * Request parameter descriptor details.
+   */
+  public long paramDescribe(String nodeName, String paramName, double timeoutSeconds) {
+    return queryGraph();
+  }
+
+  /**
+   * Request parameter dump as YAML text.
+   */
+  public long paramDump(String nodeName, String[] prefixes, double timeoutSeconds) {
+    return queryGraph();
+  }
+
+  /**
+   * Request parameter load from YAML text.
+   */
+  public long paramLoad(
+      String nodeName, String yamlText, double timeoutSeconds, boolean useWildcard) {
+    return queryGraph();
+  }
+
+  /**
+   * Request action endpoint statistics.
+   */
+  public long actionInfo(String actionName, boolean includeHidden) {
+    return queryGraph();
+  }
+
+  /**
+   * Request sending an action goal.
+   */
+  public long actionSendGoal(
+      String actionName,
+      String actionType,
+      byte[] goalPayload,
+      boolean feedback,
+      double timeoutSeconds) {
+    return queryGraph();
+  }
 
   /**
    * Request the current list of connected players.

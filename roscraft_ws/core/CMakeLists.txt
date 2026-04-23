@@ -11,13 +11,13 @@ project(roscraft_core
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   if(MSVC OR CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
     find_program(LLVM_LIB_EXECUTABLE
-            NAMES llvm-lib llvm-lib.exe
-            HINTS
-                "$ENV{VCINSTALLDIR}/Tools/Llvm/x64/bin"
-                "$ENV{VCINSTALLDIR}/Tools/Llvm/bin"
-                "C:/Program Files/LLVM/bin"
-                "C:/Program Files (x86)/LLVM/bin"
-        )
+        NAMES llvm-lib llvm-lib.exe
+        HINTS
+            "$ENV{VCINSTALLDIR}/Tools/Llvm/x64/bin"
+            "$ENV{VCINSTALLDIR}/Tools/Llvm/bin"
+            "C:/Program Files/LLVM/bin"
+            "C:/Program Files (x86)/LLVM/bin"
+    )
     find_program(MSVC_LIB_EXECUTABLE NAMES lib lib.exe)
 
     if(LLVM_LIB_EXECUTABLE)
@@ -53,9 +53,10 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(DEVELOPER_MODE "Enable developer-focused build features" ${PROJECT_IS_TOP_LEVEL})
+option(DEVELOPER_MODE "Enable developer-focused build features" OFF)
+option(ROSCRAFT_CORE_BUILD_TESTS "Build roscraft core tests" OFF)
 if(NOT DEFINED BUILD_TESTING)
-  set(BUILD_TESTING ${PROJECT_IS_TOP_LEVEL} CACHE BOOL "Build tests")
+  set(BUILD_TESTING ${ROSCRAFT_CORE_BUILD_TESTS} CACHE BOOL "Build tests")
 endif()
 option(ROSCRAFT_CORE_ENABLE_UNITY_BUILD "Enable Unity/Jumbo builds" OFF)
 option(ROSCRAFT_CORE_ENABLE_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
@@ -137,6 +138,7 @@ set(ROSCRAFT_CORE_HEADERS
     include/roscraft/utils/filesystem.hpp
     include/roscraft/utils/hash.hpp
     include/roscraft/utils/macro.hpp
+    include/roscraft/utils/random.hpp
     include/roscraft/utils/string_hash.hpp
     include/roscraft/utils/timer.hpp
     include/roscraft/utils/type_info.hpp
@@ -188,24 +190,23 @@ target_link_libraries(roscraft_core PUBLIC
 # Platform-specific stacktrace backend
 if(ROSCRAFT_USE_STL_STACKTRACE)
   message(STATUS "roscraft_core: Using C++23 STL stacktrace for Capture()")
-  target_link_libraries(roscraft_core
-    PUBLIC
+  target_link_libraries(roscraft_core PUBLIC
       $<BUILD_INTERFACE:roscraft::stl_stacktrace>
   )
 endif()
 
 if(UNIX AND NOT APPLE)
   execute_process(
-            COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=libbacktrace.a
-            OUTPUT_VARIABLE BACKTRACE_LIBRARY_FROM_COMPILER
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-            ERROR_QUIET
+      COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=libbacktrace.a
+      OUTPUT_VARIABLE BACKTRACE_LIBRARY_FROM_COMPILER
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      ERROR_QUIET
   )
 
   set(BACKTRACE_LIBRARY "")
   if(BACKTRACE_LIBRARY_FROM_COMPILER
-              AND NOT BACKTRACE_LIBRARY_FROM_COMPILER STREQUAL "libbacktrace.a"
-              AND EXISTS "${BACKTRACE_LIBRARY_FROM_COMPILER}")
+        AND NOT BACKTRACE_LIBRARY_FROM_COMPILER STREQUAL "libbacktrace.a"
+        AND EXISTS "${BACKTRACE_LIBRARY_FROM_COMPILER}")
     set(BACKTRACE_LIBRARY "${BACKTRACE_LIBRARY_FROM_COMPILER}")
   else()
     find_library(BACKTRACE_LIBRARY NAMES backtrace libbacktrace)
@@ -233,7 +234,7 @@ if(UNIX AND NOT APPLE)
   endif()
 
   target_link_options(roscraft_core INTERFACE
-              $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-rdynamic>
+      $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-rdynamic>
   )
 elseif(APPLE)
   target_compile_definitions(roscraft_core PRIVATE BOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED)

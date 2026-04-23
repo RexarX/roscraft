@@ -182,12 +182,17 @@ public final class ServiceCommands {
           + " (e.g., 'std_srvs/srv/Empty')");
     }
 
-    if (options.repeatCount() > 1 || options.rateHz() > 0.0) {
-      return CommandResult.failure("Repeated service call is not implemented yet.");
-    }
-
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.queryGraph();
+    long requestId = bridge.serviceCall(
+        serviceName,
+        serviceType,
+        Arrays.copyOf(payload, payload.length),
+        options.timeoutSeconds(),
+        options.repeatCount(),
+        options.rateHz());
+
+    String repeats = options.repeatCount() > 0 ? String.valueOf(options.repeatCount()) : "1";
+    String rate = options.rateHz() > 0.0 ? String.valueOf(options.rateHz()) : "default";
     return CommandResult.success(
         "Service call request #" + requestId
             + " for "
@@ -195,6 +200,13 @@ public final class ServiceCommands {
             + " ("
             + serviceType
             + ") sent."
+            + " [repeat="
+            + repeats
+            + ", rate="
+            + rate
+            + ", timeout="
+            + options.timeoutSeconds()
+            + "s]"
             + " Request preview="
             + Arrays.toString(Arrays.copyOf(payload, Math.min(payload.length, 8))),
         requestId);

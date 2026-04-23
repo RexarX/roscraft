@@ -53,9 +53,10 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(DEVELOPER_MODE "Enable developer-focused build features" ${PROJECT_IS_TOP_LEVEL})
+option(DEVELOPER_MODE "Enable developer-focused build features" OFF)
+option(ROSCRAFT_BRIDGE_NETWORK_BUILD_TESTS "Build roscraft bridge network tests" OFF)
 if(NOT DEFINED BUILD_TESTING)
-  set(BUILD_TESTING ${PROJECT_IS_TOP_LEVEL} CACHE BOOL "Build tests")
+  set(BUILD_TESTING ${ROSCRAFT_BRIDGE_NETWORK_BUILD_TESTS} CACHE BOOL "Build tests")
 endif()
 option(ROSCRAFT_BRIDGE_NETWORK_ENABLE_UNITY_BUILD "Enable Unity/Jumbo builds" OFF)
 option(ROSCRAFT_BRIDGE_ENABLE_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
@@ -140,11 +141,8 @@ set(ROSCRAFT_BRIDGE_NETWORK_HEADERS
     include/roscraft/bridge/network/bridge.hpp
     include/roscraft/bridge/network/config.hpp
     include/roscraft/bridge/network/runner.hpp
-    include/roscraft/bridge/network/transport.hpp
-
-    include/roscraft/bridge/network/command/handler.hpp
-    include/roscraft/bridge/network/command/handler_registry.hpp
-    include/roscraft/bridge/network/command/handlers.hpp
+    include/roscraft/bridge/network/udp_transport.hpp
+    include/roscraft/bridge/network/command/udp_sink.hpp
 )
 
 set(ROSCRAFT_BRIDGE_NETWORK_SOURCES

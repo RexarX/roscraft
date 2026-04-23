@@ -1,0 +1,53 @@
+#pragma once
+
+#include <roscraft/bridge/command/queue.hpp>
+
+#include <rclcpp/node.hpp>
+#include <rclcpp/timer.hpp>
+
+#include <functional>
+#include <memory_resource>
+
+namespace roscraft::bridge {
+
+/// @brief Serves `ActionInfoCmd` requests.
+class ActionInfoNode final : public rclcpp::Node {
+public:
+  /// @brief Construct action-info service node.
+  /// @param incoming Incoming command queue
+  /// @param outgoing Outgoing command queue
+  /// @param allocator The memory resource for command allocation (default:
+  /// `std::pmr::get_default_resource()`)
+  ActionInfoNode(
+      CommandQueue& incoming, CommandQueue& outgoing,
+      std::pmr::memory_resource* allocator = std::pmr::get_default_resource());
+
+  ActionInfoNode(CommandQueue& incoming, CommandQueue& outgoing,
+                 std::nullptr_t) = delete;
+
+  ActionInfoNode(const ActionInfoNode&) = delete;
+  ActionInfoNode(ActionInfoNode&&) = delete;
+  ~ActionInfoNode() override = default;
+
+  ActionInfoNode& operator=(const ActionInfoNode&) = delete;
+  ActionInfoNode& operator=(ActionInfoNode&&) = delete;
+
+private:
+  /// @brief Drain pending `ActionInfoCmd` commands.
+  void DrainActionInfoCommands();
+
+  /// @brief Periodic callback.
+  void OnPollTimer();
+
+  std::reference_wrapper<CommandQueue> incoming_;
+  std::reference_wrapper<CommandQueue> outgoing_;
+
+  CommandQueueConsumerToken action_info_consumer_;
+  CommandQueueProducerToken action_info_response_producer_;
+
+  rclcpp::TimerBase::SharedPtr poll_timer_;
+
+  std::pmr::memory_resource* allocator_ = std::pmr::get_default_resource();
+};
+
+}  // namespace roscraft::bridge

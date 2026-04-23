@@ -53,9 +53,10 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(DEVELOPER_MODE "Enable developer-focused build features" ${PROJECT_IS_TOP_LEVEL})
+option(DEVELOPER_MODE "Enable developer-focused build features" OFF)
+option(ROSCRAFT_BRIDGE_COMMON_BUILD_TESTS "Build roscraft bridge common tests" OFF)
 if(NOT DEFINED BUILD_TESTING)
-  set(BUILD_TESTING ${PROJECT_IS_TOP_LEVEL} CACHE BOOL "Build tests")
+  set(BUILD_TESTING ${ROSCRAFT_BRIDGE_COMMON_BUILD_TESTS} CACHE BOOL "Build tests")
 endif()
 option(ROSCRAFT_BRIDGE_COMMON_ENABLE_UNITY_BUILD "Enable Unity/Jumbo builds" OFF)
 option(ROSCRAFT_BRIDGE_COMMON_ENABLE_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
@@ -106,6 +107,7 @@ roscraft_print_sanitizer_status()
 
 roscraft_require_dependency(FlatMap)
 roscraft_require_dependency(FlatBuffers)
+roscraft_require_dependency(glaze)
 
 # Find roscraft_core — installed by core's package into the colcon workspace.
 # The roscraft::core imported target becomes available after this call.
@@ -121,7 +123,9 @@ find_package(action_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(std_msgs REQUIRED)
 
 # common bridge configuration
@@ -136,14 +140,46 @@ set(ROSCRAFT_BRIDGE_COMMON_HEADERS
     include/roscraft/bridge/command/commands.hpp
     include/roscraft/bridge/command/queue.hpp
 
-    include/roscraft/bridge/nodes/graph_cache.hpp
-    include/roscraft/bridge/nodes/node_info.hpp
-    include/roscraft/bridge/nodes/topic_info.hpp
-    include/roscraft/bridge/nodes/service_info.hpp
-    include/roscraft/bridge/nodes/interface.hpp
-    include/roscraft/bridge/nodes/details/graph_utils.hpp
-    include/roscraft/bridge/nodes/topic_relay.hpp
-    include/roscraft/bridge/nodes/topic_stats.hpp
+    include/roscraft/bridge/command/types/action.hpp
+    include/roscraft/bridge/command/types/common.hpp
+    include/roscraft/bridge/command/types/error.hpp
+    include/roscraft/bridge/command/types/graph.hpp
+    include/roscraft/bridge/command/types/interface.hpp
+    include/roscraft/bridge/command/types/node.hpp
+    include/roscraft/bridge/command/types/param.hpp
+    include/roscraft/bridge/command/types/player.hpp
+    include/roscraft/bridge/command/types/service.hpp
+    include/roscraft/bridge/command/types/topic.hpp
+
+    include/roscraft/bridge/nodes/ros/common.hpp
+    include/roscraft/bridge/nodes/ros/nodes.hpp
+
+    include/roscraft/bridge/nodes/ros/action/info.hpp
+    include/roscraft/bridge/nodes/ros/action/send_goal.hpp
+
+    include/roscraft/bridge/nodes/ros/graph/cache.hpp
+
+    include/roscraft/bridge/nodes/ros/interface/list.hpp
+    include/roscraft/bridge/nodes/ros/interface/show.hpp
+
+    include/roscraft/bridge/nodes/ros/node/info.hpp
+
+    include/roscraft/bridge/nodes/ros/param/describe.hpp
+    include/roscraft/bridge/nodes/ros/param/dump.hpp
+    include/roscraft/bridge/nodes/ros/param/get.hpp
+    include/roscraft/bridge/nodes/ros/param/list.hpp
+    include/roscraft/bridge/nodes/ros/param/load.hpp
+    include/roscraft/bridge/nodes/ros/param/set.hpp
+
+    include/roscraft/bridge/nodes/ros/service/call.hpp
+    include/roscraft/bridge/nodes/ros/service/info.hpp
+
+    include/roscraft/bridge/nodes/ros/topic/info.hpp
+    include/roscraft/bridge/nodes/ros/topic/relay.hpp
+    include/roscraft/bridge/nodes/ros/topic/stats.hpp
+
+    include/roscraft/bridge/nodes/ros/details/graph_utils.hpp
+    include/roscraft/bridge/nodes/ros/details/introspection_codec.hpp
 )
 
 set(ROSCRAFT_BRIDGE_COMMON_SOURCES
@@ -151,14 +187,32 @@ set(ROSCRAFT_BRIDGE_COMMON_SOURCES
 
     src/app/app.cpp
 
-    src/nodes/graph_cache.cpp
-    src/nodes/node_info.cpp
-    src/nodes/topic_info.cpp
-    src/nodes/service_info.cpp
-    src/nodes/interface.cpp
-    src/nodes/details/graph_utils.cpp
-    src/nodes/topic_relay.cpp
-    src/nodes/topic_stats.cpp
+    src/nodes/ros/action/info.cpp
+    src/nodes/ros/action/send_goal.cpp
+
+    src/nodes/ros/graph/cache.cpp
+
+    src/nodes/ros/interface/list.cpp
+    src/nodes/ros/interface/show.cpp
+
+    src/nodes/ros/node/info.cpp
+
+    src/nodes/ros/param/describe.cpp
+    src/nodes/ros/param/dump.cpp
+    src/nodes/ros/param/get.cpp
+    src/nodes/ros/param/list.cpp
+    src/nodes/ros/param/load.cpp
+    src/nodes/ros/param/set.cpp
+
+    src/nodes/ros/service/call.cpp
+    src/nodes/ros/service/info.cpp
+
+    src/nodes/ros/topic/info.cpp
+    src/nodes/ros/topic/relay.cpp
+    src/nodes/ros/topic/stats.cpp
+
+    src/nodes/ros/details/graph_utils.cpp
+    src/nodes/ros/details/introspection_codec.cpp
 )
 
 add_library(roscraft_bridge_common STATIC
@@ -197,34 +251,41 @@ roscraft_require_dependency(Taskflow)
 target_link_libraries(roscraft_bridge_common
     PUBLIC
         roscraft::core
-        ament_index_cpp::ament_index_cpp
         rclcpp::rclcpp
+    PRIVATE
+      $<BUILD_INTERFACE:roscraft::glaze::glaze>
+      ament_index_cpp::ament_index_cpp
+      action_msgs::action_msgs__rosidl_typesupport_cpp
+      geometry_msgs::geometry_msgs__rosidl_typesupport_cpp
+      std_srvs::std_srvs__rosidl_typesupport_cpp
+      std_msgs::std_msgs__rosidl_typesupport_cpp
+      unique_identifier_msgs::unique_identifier_msgs__rosidl_typesupport_cpp
 )
 
 if(TARGET roscraft::flat_map)
   target_link_libraries(roscraft_bridge_common PUBLIC
-        $<BUILD_INTERFACE:roscraft::flat_map>
-        $<INSTALL_INTERFACE:roscraft::flat_map>
-    )
+      $<BUILD_INTERFACE:roscraft::flat_map>
+      $<INSTALL_INTERFACE:roscraft::flat_map>
+  )
   if(roscraft_USE_STL_FLAT_MAP)
     target_compile_definitions(roscraft_bridge_common PUBLIC
-            $<INSTALL_INTERFACE:roscraft_USE_STL_FLAT_MAP>
-        )
+        $<INSTALL_INTERFACE:roscraft_USE_STL_FLAT_MAP>
+    )
   endif()
 endif()
 
 if(TARGET concurrentqueue::concurrentqueue OR TARGET concurrentqueue)
   target_link_libraries(roscraft_bridge_common PUBLIC
-        $<BUILD_INTERFACE:roscraft::concurrentqueue>
-        $<INSTALL_INTERFACE:concurrentqueue::concurrentqueue>
-    )
+      $<BUILD_INTERFACE:roscraft::concurrentqueue>
+      $<INSTALL_INTERFACE:concurrentqueue::concurrentqueue>
+  )
 endif()
 
 if(TARGET Taskflow::Taskflow OR TARGET Taskflow)
   target_link_libraries(roscraft_bridge_common PUBLIC
-        $<BUILD_INTERFACE:roscraft::taskflow::taskflow>
-        $<INSTALL_INTERFACE:Taskflow::Taskflow>
-    )
+      $<BUILD_INTERFACE:roscraft::taskflow::taskflow>
+      $<INSTALL_INTERFACE:Taskflow::Taskflow>
+  )
 endif()
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -232,6 +293,16 @@ endif()
 # ─────────────────────────────────────────────────────────────────────────────
 set(ROSCRAFT_FBS_SCHEMAS
     ${ROSCRAFT_ROOT_DIR}/schemas/bridge_packets.fbs
+    ${ROSCRAFT_ROOT_DIR}/schemas/bridge_packets/common.fbs
+    ${ROSCRAFT_ROOT_DIR}/schemas/bridge_packets/graph.fbs
+    ${ROSCRAFT_ROOT_DIR}/schemas/bridge_packets/node.fbs
+    ${ROSCRAFT_ROOT_DIR}/schemas/bridge_packets/topic.fbs
+    ${ROSCRAFT_ROOT_DIR}/schemas/bridge_packets/service.fbs
+    ${ROSCRAFT_ROOT_DIR}/schemas/bridge_packets/interface.fbs
+    ${ROSCRAFT_ROOT_DIR}/schemas/bridge_packets/param.fbs
+    ${ROSCRAFT_ROOT_DIR}/schemas/bridge_packets/action.fbs
+    ${ROSCRAFT_ROOT_DIR}/schemas/bridge_packets/player.fbs
+    ${ROSCRAFT_ROOT_DIR}/schemas/bridge_packets/error.fbs
 )
 
 set(FLATC_FLAGS
@@ -272,31 +343,59 @@ if(NOT FLATC_EXECUTABLE)
   find_program(FLATC_EXECUTABLE flatc REQUIRED)
 endif()
 
-set(ROSCRAFT_FBS_GENERATED_HEADERS "")
-foreach(_schema ${ROSCRAFT_FBS_SCHEMAS})
-  get_filename_component(_schema_name "${_schema}" NAME_WE)
-  set(_generated_header ${ROSCRAFT_GENERATED_DIR}/include/roscraft/generated/${_schema_name}_generated.hpp)
-  set(_output_dir ${ROSCRAFT_GENERATED_DIR}/include/roscraft/generated)
-  set(_flatc_depends "${_schema}")
-  if(TARGET flatbuffers::flatc)
-    list(APPEND _flatc_depends flatbuffers::flatc)
-  elseif(TARGET flatc)
-    list(APPEND _flatc_depends flatc)
-  endif()
+set(ROSCRAFT_FBS_GENERATED_HEADER_DIR
+    ${ROSCRAFT_GENERATED_DIR}/include/roscraft/generated
+)
+set(ROSCRAFT_FBS_GENERATED_HEADER
+    ${ROSCRAFT_FBS_GENERATED_HEADER_DIR}/bridge_packets.hpp
+)
+set(ROSCRAFT_FBS_GENERATED_HEADER_WITH_SUFFIX
+    ${ROSCRAFT_FBS_GENERATED_HEADER_DIR}/bridge_packets_generated.hpp
+)
+set(ROSCRAFT_FBS_GENERATED_AUX_HEADERS
+    ${ROSCRAFT_FBS_GENERATED_HEADER_DIR}/action_generated.hpp
+    ${ROSCRAFT_FBS_GENERATED_HEADER_DIR}/common_generated.hpp
+    ${ROSCRAFT_FBS_GENERATED_HEADER_DIR}/error_generated.hpp
+    ${ROSCRAFT_FBS_GENERATED_HEADER_DIR}/graph_generated.hpp
+    ${ROSCRAFT_FBS_GENERATED_HEADER_DIR}/interface_generated.hpp
+    ${ROSCRAFT_FBS_GENERATED_HEADER_DIR}/node_generated.hpp
+    ${ROSCRAFT_FBS_GENERATED_HEADER_DIR}/param_generated.hpp
+    ${ROSCRAFT_FBS_GENERATED_HEADER_DIR}/player_generated.hpp
+    ${ROSCRAFT_FBS_GENERATED_HEADER_DIR}/service_generated.hpp
+    ${ROSCRAFT_FBS_GENERATED_HEADER_DIR}/topic_generated.hpp
+)
+set(ROSCRAFT_FBS_GENERATED_OUTPUTS
+    ${ROSCRAFT_FBS_GENERATED_HEADER}
+    ${ROSCRAFT_FBS_GENERATED_HEADER_WITH_SUFFIX}
+    ${ROSCRAFT_FBS_GENERATED_AUX_HEADERS}
+)
+set(ROSCRAFT_FBS_GENERATED_HEADERS
+    ${ROSCRAFT_FBS_GENERATED_HEADER}
+    ${ROSCRAFT_FBS_GENERATED_AUX_HEADERS}
+)
 
-  add_custom_command(
-        OUTPUT  "${_generated_header}"
-        COMMAND "${FLATC_EXECUTABLE}"
-                ${FLATC_FLAGS}
-                -o "${_output_dir}"
-                "${_schema}"
-        DEPENDS ${_flatc_depends}
-        COMMENT "Compiling Flatbuffers schema: ${_schema_name}.fbs → ${_schema_name}.hpp"
-        VERBATIM
-  )
+set(_flatc_depends ${ROSCRAFT_FBS_SCHEMAS})
+if(TARGET flatbuffers::flatc)
+  list(APPEND _flatc_depends flatbuffers::flatc)
+elseif(TARGET flatc)
+  list(APPEND _flatc_depends flatc)
+endif()
 
-  list(APPEND ROSCRAFT_FBS_GENERATED_HEADERS "${_generated_header}")
-endforeach()
+add_custom_command(
+      OUTPUT ${ROSCRAFT_FBS_GENERATED_OUTPUTS}
+      COMMAND ${CMAKE_COMMAND} -E make_directory "${ROSCRAFT_FBS_GENERATED_HEADER_DIR}"
+      COMMAND "${FLATC_EXECUTABLE}"
+              ${FLATC_FLAGS}
+              -I "${ROSCRAFT_ROOT_DIR}/schemas"
+              -o "${ROSCRAFT_FBS_GENERATED_HEADER_DIR}"
+              ${ROSCRAFT_FBS_SCHEMAS}
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              "${ROSCRAFT_FBS_GENERATED_HEADER_WITH_SUFFIX}"
+              "${ROSCRAFT_FBS_GENERATED_HEADER}"
+      DEPENDS ${_flatc_depends}
+      COMMENT "Compiling Flatbuffers schemas"
+      VERBATIM
+)
 
 add_library(roscraft_bridge_fbs INTERFACE)
 add_library(roscraft::bridge::fbs ALIAS roscraft_bridge_fbs)
@@ -343,22 +442,22 @@ list(APPEND ROSCRAFT_BRIDGE_COMMON_INTERFACE_FILES
 
 if(ROSCRAFT_BRIDGE_COMMON_INTERFACE_FILES)
   rosidl_generate_interfaces(roscraft_bridge_common
-        ${ROSCRAFT_BRIDGE_COMMON_INTERFACE_FILES}
-        DEPENDENCIES
-            action_msgs
-            builtin_interfaces
-            geometry_msgs
-            std_msgs
-        ADD_LINTER_TESTS
-    )
+      ${ROSCRAFT_BRIDGE_COMMON_INTERFACE_FILES}
+      DEPENDENCIES
+          action_msgs
+          builtin_interfaces
+          geometry_msgs
+          std_msgs
+      ADD_LINTER_TESTS
+  )
 
   rosidl_get_typesupport_target(ROSCRAFT_BRIDGE_COMMON_CPP_TYPESUPPORT_TARGET
-        roscraft_bridge_common
-        rosidl_typesupport_cpp
-    )
+      roscraft_bridge_common
+      rosidl_typesupport_cpp
+  )
   target_link_libraries(roscraft_bridge_common PRIVATE
-        ${ROSCRAFT_BRIDGE_COMMON_CPP_TYPESUPPORT_TARGET}
-    )
+      ${ROSCRAFT_BRIDGE_COMMON_CPP_TYPESUPPORT_TARGET}
+  )
 endif()
 
 install(TARGETS roscraft_bridge_common
@@ -409,6 +508,8 @@ ament_export_dependencies(
     builtin_interfaces
     geometry_msgs
     rclcpp
+    rclcpp_action
+    std_srvs
     std_msgs
 )
 ament_export_include_directories(include)

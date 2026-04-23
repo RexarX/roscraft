@@ -32,6 +32,17 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Only check formatting; do not modify files.",
     )
+    parser.add_argument(
+        "-e",
+        "--exclude",
+        action="append",
+        dest="excludes",
+        metavar="PATH",
+        help=(
+            "File or directory to exclude. Can be used multiple times. "
+            f"Defaults to: {', '.join(common.DEFAULT_EXCLUDED_DIRS)}"
+        ),
+    )
     return parser
 
 
@@ -78,7 +89,11 @@ def main() -> int:
     if args.config and config_path is None:
         return 2
 
-    files = common.collect_cpp_files(args.files, root_dir)
+    exclusions = common.resolve_exclusions(args.excludes, root_dir)
+    if not common.validate_no_overlap(args.files, exclusions, root_dir):
+        return 2
+
+    files = common.collect_cpp_files(args.files, root_dir, exclusions)
     if not files:
         common.warn("No C/C++ files found")
         return 0
@@ -86,6 +101,8 @@ def main() -> int:
     common.info(f"Found {len(files)} file(s)")
     if config_path:
         common.info(f"Using config: {config_path}")
+    if exclusions:
+        common.info(f"Excluding: {', '.join(str(e) for e in exclusions)}")
 
     failed = False
     for file_path in files:

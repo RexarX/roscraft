@@ -3,7 +3,7 @@
 #include <roscraft/bridge/app/config.hpp>
 #include <roscraft/bridge/assert.hpp>
 #include <roscraft/bridge/bridge.hpp>
-#include <roscraft/bridge/command/commands.hpp>
+#include <roscraft/bridge/command/handler_registry.hpp>
 #include <roscraft/bridge/command/queue.hpp>
 #include <roscraft/memory/frame_allocator.hpp>
 
@@ -219,6 +219,18 @@ public:
     return outgoing_queue_;
   }
 
+  /// @brief Gets the command handler registry.
+  /// @return Reference to the command handler registry
+  [[nodiscard]] CommandHandlerRegistry& HandlerRegistry() noexcept {
+    return handler_registry_;
+  }
+
+  /// @brief Gets the command handler registry (const).
+  /// @return Const reference to the command handler registry
+  [[nodiscard]] const CommandHandlerRegistry& HandlerRegistry() const noexcept {
+    return handler_registry_;
+  }
+
   /// @brief Gets the double frame allocator.
   /// @return Reference to the double frame allocator
   [[nodiscard]] memory::DoubleFrameAllocator& Allocator() noexcept {
@@ -253,11 +265,13 @@ private:
   void UnregisterAllNodes();
 
   void RegisterAllCommandTypes();
+  void RegisterAllCommandHandlers();
 
   std::unique_ptr<Bridge> bridge_;
 
   CommandQueue incoming_queue_;
   CommandQueue outgoing_queue_;
+  CommandHandlerRegistry handler_registry_;
 
   /// Double frame allocator for lock-free producer-consumer patterns.
   /// Frame 0: current (being consumed)

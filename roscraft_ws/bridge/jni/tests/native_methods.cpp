@@ -89,10 +89,12 @@ TEST_SUITE("bridge::jni::native_methods") {
     CHECK(app.IncomingQueue().IsRegistered<ServiceInfoCmd>());
     CHECK(app.IncomingQueue().IsRegistered<InterfaceListCmd>());
     CHECK(app.IncomingQueue().IsRegistered<InterfaceShowCmd>());
-    CHECK(app.IncomingQueue().IsRegistered<SubscribeTopicCmd>());
-    CHECK(app.IncomingQueue().IsRegistered<PublishMessageCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<TopicSubscribeCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<TopicPublishMessageCmd>());
     CHECK(app.IncomingQueue().IsRegistered<TopicHzCmd>());
     CHECK(app.IncomingQueue().IsRegistered<TopicBwCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<TopicDelayCmd>());
+    CHECK(app.IncomingQueue().IsRegistered<ParamLoadCmd>());
     CHECK(app.IncomingQueue().IsRegistered<QueryPlayersCmd>());
 
     CHECK(app.OutgoingQueue().IsRegistered<GraphSnapshotCmd>());
@@ -103,6 +105,8 @@ TEST_SUITE("bridge::jni::native_methods") {
     CHECK(app.OutgoingQueue().IsRegistered<InterfaceShowResponseCmd>());
     CHECK(app.OutgoingQueue().IsRegistered<TopicHzResponseCmd>());
     CHECK(app.OutgoingQueue().IsRegistered<TopicBwResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<TopicDelayResponseCmd>());
+    CHECK(app.OutgoingQueue().IsRegistered<ParamLoadResponseCmd>());
     CHECK(app.OutgoingQueue().IsRegistered<PlayerListCmd>());
     CHECK(app.OutgoingQueue().IsRegistered<TopicPayloadCmd>());
     CHECK(app.OutgoingQueue().IsRegistered<ErrorCmd>());

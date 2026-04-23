@@ -1,13 +1,24 @@
 package net.roscraft.bridge;
 
+import net.roscraft.bridge.data.ActionFeedback;
+import net.roscraft.bridge.data.ActionInfoResponse;
+import net.roscraft.bridge.data.ActionResult;
 import net.roscraft.bridge.data.BridgeError;
 import net.roscraft.bridge.data.GraphSnapshot;
 import net.roscraft.bridge.data.InterfaceListResponse;
 import net.roscraft.bridge.data.InterfaceShowResponse;
 import net.roscraft.bridge.data.NodeInfoResponse;
+import net.roscraft.bridge.data.ParamDescribeResponse;
+import net.roscraft.bridge.data.ParamDumpResponse;
+import net.roscraft.bridge.data.ParamGetResponse;
+import net.roscraft.bridge.data.ParamListResponse;
+import net.roscraft.bridge.data.ParamLoadResponse;
+import net.roscraft.bridge.data.ParamSetResponse;
 import net.roscraft.bridge.data.PlayerList;
+import net.roscraft.bridge.data.ServiceCallResponse;
 import net.roscraft.bridge.data.ServiceInfoResponse;
 import net.roscraft.bridge.data.TopicBwResponse;
+import net.roscraft.bridge.data.TopicDelayResponse;
 import net.roscraft.bridge.data.TopicHzResponse;
 import net.roscraft.bridge.data.TopicInfoResponse;
 import net.roscraft.bridge.data.TopicPayload;
@@ -42,10 +53,10 @@ public interface BridgeCallback {
   default void onNodeInfoResponse(NodeInfoResponse response) {}
 
   /**
-   * Called when a raw CDR message is forwarded from a subscribed topic.
+   * Called when a serialized ROS2 message is forwarded from a subscribed topic.
    *
    * @param payload
-   *            Topic name, message type and raw CDR bytes.
+   *            Topic name, message type and serialized payload bytes.
    */
   default void onTopicPayload(TopicPayload payload) {}
 
@@ -92,6 +103,28 @@ public interface BridgeCallback {
   default void onTopicHzResponse(TopicHzResponse response) {}
 
   default void onTopicBwResponse(TopicBwResponse response) {}
+
+  default void onTopicDelayResponse(TopicDelayResponse response) {}
+
+  default void onServiceCallResponse(ServiceCallResponse response) {}
+
+  default void onParamListResponse(ParamListResponse response) {}
+
+  default void onParamGetResponse(ParamGetResponse response) {}
+
+  default void onParamSetResponse(ParamSetResponse response) {}
+
+  default void onParamDescribeResponse(ParamDescribeResponse response) {}
+
+  default void onParamDumpResponse(ParamDumpResponse response) {}
+
+  default void onParamLoadResponse(ParamLoadResponse response) {}
+
+  default void onActionInfoResponse(ActionInfoResponse response) {}
+
+  default void onActionFeedback(ActionFeedback feedback) {}
+
+  default void onActionResult(ActionResult result) {}
 
   /**
    * Called when an error occurs on the ROS bridge.

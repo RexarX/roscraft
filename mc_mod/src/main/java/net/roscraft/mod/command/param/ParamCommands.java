@@ -1,5 +1,9 @@
 package net.roscraft.mod.command.param;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.util.Objects;
 import net.roscraft.bridge.RoscraftBridge;
 import net.roscraft.mod.command.CommandContext;
@@ -7,6 +11,8 @@ import net.roscraft.mod.command.CommandResult;
 
 /** Bridge-agnostic logic for `/ros param ...` commands. */
 public final class ParamCommands {
+
+  private static final double DEFAULT_TIMEOUT_SECONDS = 0.0;
 
   private ParamCommands() {}
 
@@ -247,9 +253,78 @@ public final class ParamCommands {
     }
   }
 
+  /** Options for `param load`. */
+  public record ParamLoadOptions(
+      String nodeName, String parameterFile, double timeoutSeconds, boolean useWildcard) {
+    public static Builder builder() {
+      return new Builder();
+    }
+
+    public ParamLoadOptions {
+      Objects.requireNonNull(nodeName, "nodeName must not be null");
+      Objects.requireNonNull(parameterFile, "parameterFile must not be null");
+      if (parameterFile.isBlank()) {
+        throw new IllegalArgumentException("parameterFile must not be blank");
+      }
+      if (timeoutSeconds < 0.0) {
+        throw new IllegalArgumentException("timeoutSeconds must be >= 0.0");
+      }
+    }
+
+    public String encodeTrackingMetadata() {
+      return "node="
+          + nodeName
+          + ";timeout_seconds="
+          + timeoutSeconds
+          + ";use_wildcard="
+          + (useWildcard ? "1" : "0")
+          + ";parameter_file="
+          + parameterFile;
+    }
+
+    /** Builder for {@link ParamLoadOptions}. */
+    public static final class Builder {
+
+      private String nodeName = "";
+      private String parameterFile = "";
+      private double timeoutSeconds;
+      private boolean useWildcard = true;
+
+      public Builder nodeName(String nodeName) {
+        this.nodeName = nodeName;
+        return this;
+      }
+
+      public Builder parameterFile(String parameterFile) {
+        this.parameterFile = parameterFile;
+        return this;
+      }
+
+      public Builder timeoutSeconds(double timeoutSeconds) {
+        this.timeoutSeconds = timeoutSeconds;
+        return this;
+      }
+
+      public Builder useWildcard(boolean useWildcard) {
+        this.useWildcard = useWildcard;
+        return this;
+      }
+
+      public ParamLoadOptions build() {
+        return new ParamLoadOptions(nodeName, parameterFile, timeoutSeconds, useWildcard);
+      }
+    }
+  }
+
   public static CommandResult list(CommandContext ctx, ParamListOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.queryGraph();
+    long requestId = bridge.paramList(
+        options.nodeName(),
+        options.prefixes(),
+        Math.toIntExact(options.depth()),
+        options.includeTypes(),
+        options.filterRegex(),
+        DEFAULT_TIMEOUT_SECONDS);
     return CommandResult.success(
         "Param list request #" + requestId + " for node '" + options.nodeName() + "' sent.",
         requestId);
@@ -257,7 +332,8 @@ public final class ParamCommands {
 
   public static CommandResult get(CommandContext ctx, ParamGetOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.queryGraph();
+    long requestId = bridge.paramGet(
+        options.nodeName(), options.paramName(), options.hideType(), DEFAULT_TIMEOUT_SECONDS);
     return CommandResult.success(
         "Param get request #" + requestId
             + " for "
@@ -270,7 +346,8 @@ public final class ParamCommands {
 
   public static CommandResult set(CommandContext ctx, ParamSetOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.queryGraph();
+    long requestId = bridge.paramSet(
+        options.nodeName(), options.paramName(), options.valueText(), options.timeoutSeconds());
     return CommandResult.success(
         "Param set request #" + requestId
             + " for "
@@ -283,7 +360,8 @@ public final class ParamCommands {
 
   public static CommandResult describe(CommandContext ctx, ParamDescribeOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.queryGraph();
+    long requestId =
+        bridge.paramDescribe(options.nodeName(), options.paramName(), DEFAULT_TIMEOUT_SECONDS);
     return CommandResult.success(
         "Param describe request #" + requestId
             + " for "
@@ -296,9 +374,49 @@ public final class ParamCommands {
 
   public static CommandResult dump(CommandContext ctx, ParamDumpOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.queryGraph();
+    long requestId =
+        bridge.paramDump(options.nodeName(), options.prefixes(), DEFAULT_TIMEOUT_SECONDS);
     return CommandResult.success(
         "Param dump request #" + requestId + " for node '" + options.nodeName() + "' sent.",
+        requestId);
+  }
+
+  public static CommandResult load(CommandContext ctx, ParamLoadOptions options) {
+    RoscraftBridge bridge = ctx.requireBridge();
+
+    final Path parameterFilePath;
+    try {
+      parameterFilePath = Path.of(options.parameterFile());
+    } catch (InvalidPathException ex) {
+      return CommandResult.failure(
+          "Param load failed: invalid parameter file path '" + options.parameterFile() + "'.");
+    }
+
+    final String yamlText;
+    try {
+      yamlText = Files.readString(parameterFilePath);
+    } catch (IOException ex) {
+      return CommandResult.failure("Param load failed: unable to read parameter file '"
+          + options.parameterFile()
+          + "': "
+          + ex.getMessage());
+    }
+
+    if (yamlText.isBlank()) {
+      return CommandResult.failure(
+          "Param load failed: parameter file '" + options.parameterFile() + "' is empty.");
+    }
+
+    long requestId = bridge.paramLoad(
+        options.nodeName(), yamlText, options.timeoutSeconds(), options.useWildcard());
+    return CommandResult.success(
+        "Param load request #"
+            + requestId
+            + " for node '"
+            + options.nodeName()
+            + "' from file '"
+            + options.parameterFile()
+            + "' sent.",
         requestId);
   }
 }

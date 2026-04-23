@@ -4,7 +4,8 @@
 
 #include <roscraft/bridge/app/app.hpp>
 #include <roscraft/bridge/assert.hpp>
-#include <roscraft/bridge/jni/command/handlers.hpp>
+#include <roscraft/bridge/command/handlers.hpp>
+#include <roscraft/bridge/jni/command/jni_sink.hpp>
 #include <roscraft/bridge/jni/env_guard.hpp>
 
 #include <flatbuffers/flatbuffers.h>
@@ -38,8 +39,6 @@ void JniBridge::Init(App& app) {
 
   RCLCPP_INFO(rclcpp::get_logger("JniBridge"), "Initializing JNI bridge...");
 
-  InitCommandHandlerRegistry();
-
   status_.store(BridgeStatus::kReady, std::memory_order_release);
   RCLCPP_INFO(rclcpp::get_logger("JniBridge"),
               "JNI bridge initialized successfully");
@@ -54,8 +53,6 @@ void JniBridge::Destroy(App& /*app*/) {
       callback_.Destroy(guard.Env());
     }
   }
-
-  registry_.Clear();
 
   status_.store(BridgeStatus::kUninitialized, std::memory_order_release);
 }
@@ -80,8 +77,9 @@ void JniBridge::Tick(App& /*app*/) {
   thread_local flatbuffers::FlatBufferBuilder fbb(kFbbBufferSize);
 
   auto& app = App::Instance();
-  registry_.DrainAndDeliverAll<DrainAndDeliverHandlerTypes>(
-      app.OutgoingQueue(), guard.Env(), callback_, fbb);
+  JniPacketSink sink(guard.Env(), callback_);
+  app.HandlerRegistry().DrainAndFlushAll<DrainAndFlushHandlerTypes>(
+      app.OutgoingQueue(), sink, fbb);
 
   if (guard.Env()->ExceptionCheck()) {
     guard.Env()->ExceptionDescribe();
@@ -102,32 +100,9 @@ void JniBridge::ReceivePacket(std::span<const uint8_t> packet) {
     return;
   }
 
-  DispatchReceive(registry_, app.IncomingQueue(),
+  DispatchReceive(app.HandlerRegistry(), app.IncomingQueue(),
                   *fbs::GetBridgePacket(packet.data()),
                   app.PendingFrameAllocator());
-}
-
-void JniBridge::InitCommandHandlerRegistry() {
-  ROSCRAFT_ASSERT(Status() == BridgeStatus::kInitializing,
-                  "JniBridge is not initializing!");
-
-  auto& app = App::Instance();
-  auto& in = app.IncomingQueue();
-  auto& out = app.OutgoingQueue();
-
-  registry_.AddHandler(GraphHandler::From(in, out));
-  registry_.AddHandler(NodeInfoHandler::From(in, out));
-  registry_.AddHandler(TopicInfoHandler::From(in, out));
-  registry_.AddHandler(ServiceInfoHandler::From(in, out));
-  registry_.AddHandler(InterfaceListHandler::From(in, out));
-  registry_.AddHandler(InterfaceShowHandler::From(in, out));
-  registry_.AddHandler(SubscribeTopicHandler::From(in));
-  registry_.AddHandler(PublishMessageHandler::From(in));
-  registry_.AddHandler(TopicHzHandler::From(in, out));
-  registry_.AddHandler(TopicBwHandler::From(in, out));
-  registry_.AddHandler(PlayerListHandler::From(in, out));
-  registry_.AddHandler(TopicPayloadHandler::From(out));
-  registry_.AddHandler(ErrorHandler::From(out));
 }
 
 }  // namespace roscraft::bridge::jni

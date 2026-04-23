@@ -34,6 +34,17 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="build_dirs",
         help="Build directory with compile_commands.json. Can be used multiple times.",
     )
+    parser.add_argument(
+        "-e",
+        "--exclude",
+        action="append",
+        dest="excludes",
+        metavar="PATH",
+        help=(
+            "File or directory to exclude. Can be used multiple times. "
+            f"Defaults to: {', '.join(common.DEFAULT_EXCLUDED_DIRS)}"
+        ),
+    )
     return parser
 
 
@@ -79,8 +90,9 @@ def _create_compile_db_plan(
     root_dir: Path,
     compile_db_dirs: list[Path],
     explicit_files: list[str],
+    exclusions: list[Path],
 ) -> list[tuple[Path, list[Path]]]:
-    files = common.collect_cpp_files(explicit_files, root_dir)
+    files = common.collect_cpp_files(explicit_files, root_dir, exclusions)
     if explicit_files and not files:
         return []
 
@@ -89,8 +101,7 @@ def _create_compile_db_plan(
         source_root = common.infer_source_root_from_build_dir(compile_db_dir)
         if source_root is None:
             common.warn(
-                "Cannot infer source root for compile database: "
-                f"{compile_db_dir}"
+                f"Cannot infer source root for compile database: {compile_db_dir}"
             )
             continue
 
@@ -101,7 +112,7 @@ def _create_compile_db_plan(
                 if common.is_relative_to(file_path, source_root)
             ]
         else:
-            selected = common.collect_cpp_files([], source_root)
+            selected = common.collect_cpp_files([], source_root, exclusions)
 
         if selected:
             plan.append((compile_db_dir, selected))
@@ -130,6 +141,10 @@ def main() -> int:
     if args.config and config_path is None:
         return 2
 
+    exclusions = common.resolve_exclusions(args.excludes, root_dir)
+    if not common.validate_no_overlap(args.files, exclusions, root_dir):
+        return 2
+
     build_dirs = _resolve_build_dirs(root_dir, args.build_dirs)
     if not build_dirs:
         common.error("No build directories found")
@@ -140,7 +155,7 @@ def main() -> int:
         common.error("No compile_commands.json found under provided build directories")
         return 2
 
-    plan = _create_compile_db_plan(root_dir, compile_db_dirs, args.files)
+    plan = _create_compile_db_plan(root_dir, compile_db_dirs, args.files, exclusions)
     if not plan:
         common.warn("No C/C++ files selected for lint")
         return 0
@@ -150,12 +165,13 @@ def main() -> int:
     common.info(f"Linting {total_files} file assignment(s)")
     if config_path:
         common.info(f"Using config: {config_path}")
+    if exclusions:
+        common.info(f"Excluding: {', '.join(str(e) for e in exclusions)}")
 
     failed = False
     for compile_db_dir, file_paths in plan:
         common.info(
-            f"Linting {len(file_paths)} file(s) with compile database: "
-            f"{compile_db_dir}"
+            f"Linting {len(file_paths)} file(s) with compile database: {compile_db_dir}"
         )
         for batch in common.split_chunks(file_paths, chunk_size=20):
             command = _build_command(compile_db_dir, config_path, batch)

@@ -56,8 +56,8 @@ public:
   StackAllocator(StackAllocator&& other) noexcept;
   ~StackAllocator() noexcept override;
 
-  auto operator=(const StackAllocator&) -> StackAllocator& = delete;
-  auto operator=(StackAllocator&& other) noexcept -> StackAllocator&;
+  StackAllocator& operator=(const StackAllocator&) = delete;
+  StackAllocator& operator=(StackAllocator&& other) noexcept;
 
   /**
    * @brief Returns current marker.

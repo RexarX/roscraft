@@ -1,0 +1,9 @@
+namespace roscraft.bridge.fbs;
+
+table StringList {
+  items:[string];
+}
+
+table BytePayload {
+  data:[ubyte];
+}

@@ -1,5 +1,8 @@
 roscraft_require_dependency(doctest)
 
+find_package(std_srvs REQUIRED)
+find_package(rclcpp REQUIRED)
+
 set(ROSCRAFT_BRIDGE_COMMON_TEST_SOURCES
     main.cpp
 
@@ -12,13 +15,23 @@ set(ROSCRAFT_BRIDGE_COMMON_TEST_SOURCES
     command/commands.cpp
     command/queue.cpp
 
-    nodes/graph_cache.cpp
-    nodes/node_info.cpp
-    nodes/topic_info.cpp
-    nodes/service_info.cpp
-    nodes/interface.cpp
-    nodes/topic_relay.cpp
-    nodes/topic_stats.cpp
+    nodes/ros/interface/list.cpp
+    nodes/ros/interface/show.cpp
+    nodes/ros/node/info.cpp
+    nodes/ros/action/info.cpp
+    nodes/ros/action/send_goal.cpp
+    nodes/ros/service/info.cpp
+    nodes/ros/service/call.cpp
+    nodes/ros/topic/info.cpp
+    nodes/ros/topic/relay.cpp
+    nodes/ros/topic/stats.cpp
+    nodes/ros/graph/cache.cpp
+    nodes/ros/param/get.cpp
+    nodes/ros/param/set.cpp
+    nodes/ros/param/list.cpp
+    nodes/ros/param/describe.cpp
+    nodes/ros/param/dump.cpp
+    nodes/ros/param/load.cpp
 )
 
 add_executable(roscraft_bridge_common_tests ${ROSCRAFT_BRIDGE_COMMON_TEST_SOURCES})
@@ -36,6 +49,8 @@ roscraft_target_enable_sanitizers(roscraft_bridge_common_tests)
 target_link_libraries(roscraft_bridge_common_tests PRIVATE
     roscraft::bridge::common
     roscraft::doctest::doctest
+    std_srvs::std_srvs__rosidl_typesupport_cpp
+    rclcpp::rclcpp
 )
 
 add_test(NAME roscraft_bridge_common_tests COMMAND roscraft_bridge_common_tests)

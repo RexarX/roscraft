@@ -1,0 +1,102 @@
+namespace roscraft.bridge.fbs;
+
+table ParamListPacket {
+  request_id:uint64;
+  node_name:string (required);
+  prefixes:[string];
+  depth:uint32;
+  include_types:bool;
+  filter_regex:string;
+  timeout_seconds:double;
+}
+
+table ParamGetPacket {
+  request_id:uint64;
+  node_name:string (required);
+  param_name:string (required);
+  hide_type:bool;
+  timeout_seconds:double;
+}
+
+table ParamSetPacket {
+  request_id:uint64;
+  node_name:string (required);
+  param_name:string (required);
+  value_text:string (required);
+  timeout_seconds:double;
+}
+
+table ParamDescribePacket {
+  request_id:uint64;
+  node_name:string (required);
+  param_name:string (required);
+  timeout_seconds:double;
+}
+
+table ParamDumpPacket {
+  request_id:uint64;
+  node_name:string (required);
+  prefixes:[string];
+  timeout_seconds:double;
+}
+
+table ParamListResponsePacket {
+  request_id:uint64;
+  node_name:string (required);
+  names:[string];
+  prefixes:[string];
+  types:[string];
+}
+
+table ParamGetResponsePacket {
+  request_id:uint64;
+  node_name:string (required);
+  param_name:string (required);
+  found:bool;
+  param_type:string;
+  value_text:string;
+  type_hidden:bool;
+}
+
+table ParamSetResponsePacket {
+  request_id:uint64;
+  node_name:string (required);
+  param_name:string (required);
+  success:bool;
+  reason:string;
+  param_type:string;
+  value_text:string;
+}
+
+table ParamDescribeResponsePacket {
+  request_id:uint64;
+  node_name:string (required);
+  param_name:string (required);
+  found:bool;
+  param_type:string;
+  description:string;
+  read_only:bool;
+  constraints:string;
+}
+
+table ParamDumpResponsePacket {
+  request_id:uint64;
+  node_name:string (required);
+  yaml_text:string;
+}
+
+table ParamLoadPacket {
+  request_id:uint64;
+  node_name:string (required);
+  yaml_text:string (required);
+  timeout_seconds:double;
+  use_wildcard:bool = true;
+}
+
+table ParamLoadResponsePacket {
+  request_id:uint64;
+  node_name:string (required);
+  success:bool;
+  reason:string;
+  params_loaded:uint32;
+}

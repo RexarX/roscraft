@@ -1,228 +1,22 @@
+include "bridge_packets/common.fbs";
+include "bridge_packets/graph.fbs";
+include "bridge_packets/node.fbs";
+include "bridge_packets/topic.fbs";
+include "bridge_packets/service.fbs";
+include "bridge_packets/interface.fbs";
+include "bridge_packets/param.fbs";
+include "bridge_packets/action.fbs";
+include "bridge_packets/player.fbs";
+include "bridge_packets/error.fbs";
+
 namespace roscraft.bridge.fbs;
-
-// ---------------------------------------------------------------------------
-// Shared sub-tables
-// ---------------------------------------------------------------------------
-
-table StringList {
-  items:[string];
-}
-
-table BytePayload {
-  data:[ubyte];
-}
-
-// ---------------------------------------------------------------------------
-// Graph entry types (ROS → mod)
-// ---------------------------------------------------------------------------
-
-/// A topic name and its associated message type (e.g. "geometry_msgs/msg/Twist").
-table TopicEntry {
-  name:string (required);
-  type:string (required);
-}
-
-/// A service name and its associated service type (e.g. "std_srvs/srv/Empty").
-table ServiceEntry {
-  name:string (required);
-  type:string (required);
-}
-
-/// An action name and its associated action type (e.g. "turtlesim/action/RotateAbsolute").
-table ActionEntry {
-  name:string (required);
-  type:string (required);
-}
-
-/// A ROS2 node name (e.g. "/turtlesim").
-table NodeEntry {
-  name:string (required);
-}
-
-// ---------------------------------------------------------------------------
-// Incoming packets (mod → ROS)
-// ---------------------------------------------------------------------------
-
-table QueryGraphPacket {
-  request_id:uint64;
-}
-
-table NodeInfoPacket {
-  request_id:uint64;
-  node_name:string (required);
-  include_hidden:bool;
-}
-
-table TopicInfoPacket {
-  request_id:uint64;
-  topic_name:string (required);
-}
-
-table ServiceInfoPacket {
-  request_id:uint64;
-  service_name:string (required);
-}
-
-table InterfaceListPacket {
-  request_id:uint64;
-  include_messages:bool = true;
-  include_services:bool = true;
-  include_actions:bool = true;
-}
-
-table InterfaceShowPacket {
-  request_id:uint64;
-  interface_type:string (required);  // e.g. "geometry_msgs/msg/Twist"
-}
-
-table SubscribeTopicPacket {
-  request_id:uint64;
-  topic_name:string (required);
-  message_type:string (required);
-  once:bool;
-  timeout_seconds:double;
-  raw:bool;
-}
-
-table PublishMessagePacket {
-  request_id:uint64;
-  topic_name:string (required);
-  message_type:string (required);
-  payload:[ubyte];   // Raw CDR-serialized message bytes
-}
-
-table QueryPlayersPacket {
-  request_id:uint64;
-}
-
-table TopicHzPacket {
-  request_id:uint64;
-  topic_name:string (required);
-  message_type:string (required);
-  window:uint32;
-}
-
-table TopicBwPacket {
-  request_id:uint64;
-  topic_name:string (required);
-  message_type:string (required);
-  window:uint32;
-}
-
-// ---------------------------------------------------------------------------
-// Outgoing packets (ROS → mod)
-// ---------------------------------------------------------------------------
-
-/// Graph snapshot with typed entries for topics, services, actions, and nodes.
-/// Replaces the former flat string lists with structured entries that include
-/// the message/service/action type alongside the name.
-table GraphSnapshotPacket {
-  request_id:uint64;
-  nodes:[NodeEntry];
-  topics:[TopicEntry];
-  services:[ServiceEntry];
-  actions:[ActionEntry];
-}
-
-table NodeInfoResponsePacket {
-  request_id:uint64;
-  node_name:string (required);
-  publishers:[TopicEntry];
-  subscribers:[TopicEntry];
-  services:[ServiceEntry];
-  found:bool;
-}
-
-table TopicInfoResponsePacket {
-  request_id:uint64;
-  topic_name:string (required);
-  message_type:string;
-  publisher_count:uint32;
-  subscriber_count:uint32;
-  publisher_nodes:[string];
-  subscriber_nodes:[string];
-}
-
-table ServiceInfoResponsePacket {
-  request_id:uint64;
-  service_name:string (required);
-  service_type:string;
-  client_count:uint32;
-  server_count:uint32;
-  client_nodes:[string];
-  server_nodes:[string];
-}
-
-table InterfaceListResponsePacket {
-  request_id:uint64;
-  messages:[string];
-  services:[string];
-  actions:[string];
-}
-
-table InterfaceShowResponsePacket {
-  request_id:uint64;
-  interface_type:string (required);
-  definition:string;
-  found:bool;
-}
-
-table TopicPayloadPacket {
-  request_id:uint64;
-  topic_name:string (required);
-  message_type:string (required);
-  raw:bool;
-  payload:[ubyte];
-}
-
-table TopicHzResponsePacket {
-  request_id:uint64;
-  topic_name:string (required);
-  frequency:double;
-  window:uint32;
-  message_count:uint32;
-}
-
-table TopicBwResponsePacket {
-  request_id:uint64;
-  topic_name:string (required);
-  bytes_per_second:double;
-  window:uint32;
-  message_count:uint32;
-  total_bytes:uint64;
-}
-
-table PlayerEntry {
-  name:string (required);
-  x:float;
-  y:float;
-  z:float;
-}
-
-table PlayerListPacket {
-  request_id:uint64;
-  players:[PlayerEntry];
-}
-
-// ---------------------------------------------------------------------------
-// Error reporting (ROS → mod)
-// ---------------------------------------------------------------------------
-
-/// Sent when an incoming command fails (e.g. invalid message type on
-/// subscribe).  The request_id echoes the one from the originating command
-/// so the mod can correlate the error with the user request.
-table ErrorPacket {
-  request_id:uint64;
-  error_code:string (required);
-  error_message:string (required);
-}
 
 // ---------------------------------------------------------------------------
 // Union and root table
 // ---------------------------------------------------------------------------
 
 /// All packet types in a single union so one datagram carries exactly one
-/// command.  The generated C++ switch over PacketPayload::NONE,
+/// command. The generated C++ switch over PacketPayload::NONE,
 /// PacketPayload::QueryGraphPacket, etc. is exhaustive.
 union PacketPayload {
   // Incoming
@@ -232,11 +26,21 @@ union PacketPayload {
   ServiceInfoPacket,
   InterfaceListPacket,
   InterfaceShowPacket,
-  SubscribeTopicPacket,
-  PublishMessagePacket,
+  TopicSubscribePacket,
+  TopicPublishMessagePacket,
   QueryPlayersPacket,
   TopicHzPacket,
   TopicBwPacket,
+  ServiceCallPacket,
+  ParamListPacket,
+  ParamGetPacket,
+  ParamSetPacket,
+  ParamDescribePacket,
+  ParamDumpPacket,
+  ActionInfoPacket,
+  ActionSendGoalPacket,
+  TopicDelayPacket,
+  ParamLoadPacket,
   // Outgoing
   GraphSnapshotPacket,
   NodeInfoResponsePacket,
@@ -247,11 +51,22 @@ union PacketPayload {
   TopicPayloadPacket,
   TopicHzResponsePacket,
   TopicBwResponsePacket,
+  ServiceCallResponsePacket,
+  ParamListResponsePacket,
+  ParamGetResponsePacket,
+  ParamSetResponsePacket,
+  ParamDescribeResponsePacket,
+  ParamDumpResponsePacket,
+  ActionInfoResponsePacket,
+  ActionFeedbackPacket,
+  ActionResultPacket,
   PlayerListPacket,
   ErrorPacket,
+  TopicDelayResponsePacket,
+  ParamLoadResponsePacket,
 }
 
-/// Root table — every UDP datagram deserializes to this.
+/// Root table — every datagram deserializes to this.
 table BridgePacket {
   payload:PacketPayload (required);
 }

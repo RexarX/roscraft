@@ -1,9 +1,8 @@
 #pragma once
 
 #include <roscraft/bridge/bridge.hpp>
-#include <roscraft/bridge/network/command/handler_registry.hpp>
 #include <roscraft/bridge/network/config.hpp>
-#include <roscraft/bridge/network/transport.hpp>
+#include <roscraft/bridge/network/udp_transport.hpp>
 
 #include <asio/awaitable.hpp>
 #include <asio/executor_work_guard.hpp>
@@ -80,9 +79,6 @@ public:
   [[nodiscard]] const BridgeConfig& Config() const noexcept { return config_; }
 
 private:
-  /// @brief Register all packet handlers with the registry.
-  void InitCommandHandlerRegistry();
-
   /// @brief Initialize ASIO networking.
   void InitAsio();
 
@@ -134,10 +130,6 @@ private:
   // ---- Lifecycle state ------------------------------------------------------
 
   std::atomic<BridgeStatus> status_{BridgeStatus::kUninitialized};
-
-  // ---- Handler registry -----------------------------------------------------
-
-  CommandHandlerRegistry registry_;
 
   // ---- ASIO networking ------------------------------------------------------
 

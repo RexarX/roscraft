@@ -53,9 +53,10 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(DEVELOPER_MODE "Enable developer-focused build features" ${PROJECT_IS_TOP_LEVEL})
+option(DEVELOPER_MODE "Enable developer-focused build features" OFF)
+option(ROSCRAFT_BRIDGE_JNI_BUILD_TESTS "Build roscraft bridge jni tests" OFF)
 if(NOT DEFINED BUILD_TESTING)
-  set(BUILD_TESTING ${PROJECT_IS_TOP_LEVEL} CACHE BOOL "Build tests")
+  set(BUILD_TESTING ${ROSCRAFT_BRIDGE_JNI_BUILD_TESTS} CACHE BOOL "Build tests")
 endif()
 option(ROSCRAFT_BRIDGE_JNI_ENABLE_UNITY_BUILD "Enable Unity/Jumbo builds" OFF)
 option(ROSCRAFT_BRIDGE_ENABLE_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
@@ -136,9 +137,7 @@ set(ROSCRAFT_BRIDGE_JNI_HEADERS
     include/roscraft/bridge/jni/native_methods.hpp
 
     include/roscraft/bridge/jni/command/callback.hpp
-    include/roscraft/bridge/jni/command/handler.hpp
-    include/roscraft/bridge/jni/command/handler_registry.hpp
-    include/roscraft/bridge/jni/command/handlers.hpp
+    include/roscraft/bridge/jni/command/jni_sink.hpp
 )
 
 set(ROSCRAFT_BRIDGE_JNI_SOURCES

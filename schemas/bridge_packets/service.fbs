@@ -1,0 +1,35 @@
+namespace roscraft.bridge.fbs;
+
+table ServiceInfoPacket {
+  request_id:uint64;
+  service_name:string (required);
+}
+
+table ServiceCallPacket {
+  request_id:uint64;
+  service_name:string (required);
+  service_type:string (required);
+  payload:[ubyte];
+  timeout_seconds:double;
+  repeat_count:uint32;
+  rate_hz:double;
+}
+
+table ServiceInfoResponsePacket {
+  request_id:uint64;
+  service_name:string (required);
+  service_type:string;
+  client_count:uint32;
+  server_count:uint32;
+  client_nodes:[string];
+  server_nodes:[string];
+}
+
+table ServiceCallResponsePacket {
+  request_id:uint64;
+  service_name:string (required);
+  service_type:string (required);
+  success:bool;
+  response_payload:[ubyte];
+  result_text:string;
+}

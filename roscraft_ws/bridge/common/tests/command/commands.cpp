@@ -161,11 +161,11 @@ TEST_SUITE("bridge::Commands") {
     }
   }
 
-  TEST_CASE("bridge::SubscribeTopicCmd") {
+  TEST_CASE("bridge::TopicSubscribeCmd") {
     SUBCASE("Default ctor uses default PMR resource") {
-      SubscribeTopicCmd cmd;
+      TopicSubscribeCmd cmd;
 
-      CHECK_EQ(SubscribeTopicCmd::kName, "SubscribeTopicCmd");
+      CHECK_EQ(TopicSubscribeCmd::kName, "TopicSubscribeCmd");
       CHECK_EQ(cmd.request_id, 0);
       CHECK_EQ(cmd.topic_name.get_allocator().resource(),
                std::pmr::get_default_resource());
@@ -177,14 +177,14 @@ TEST_SUITE("bridge::Commands") {
       std::array<std::byte, 512> buffer{};
       std::pmr::monotonic_buffer_resource mr(buffer.data(), buffer.size());
 
-      SubscribeTopicCmd cmd(&mr);
+      TopicSubscribeCmd cmd(&mr);
 
       CHECK_EQ(cmd.topic_name.get_allocator().resource(), &mr);
       CHECK_EQ(cmd.message_type.get_allocator().resource(), &mr);
     }
 
     SUBCASE("Default option fields") {
-      SubscribeTopicCmd cmd;
+      TopicSubscribeCmd cmd;
 
       CHECK_EQ(cmd.request_id, 0);
       CHECK_FALSE(cmd.once);
@@ -193,7 +193,7 @@ TEST_SUITE("bridge::Commands") {
     }
 
     SUBCASE("Fields can be set and read") {
-      SubscribeTopicCmd cmd;
+      TopicSubscribeCmd cmd;
 
       cmd.request_id = 31;
       cmd.topic_name = "/topic/echo";
@@ -211,11 +211,11 @@ TEST_SUITE("bridge::Commands") {
     }
   }
 
-  TEST_CASE("bridge::PublishMessageCmd") {
+  TEST_CASE("bridge::TopicPublishMessageCmd") {
     SUBCASE("Default ctor uses default PMR resource") {
-      PublishMessageCmd cmd;
+      TopicPublishMessageCmd cmd;
 
-      CHECK_EQ(PublishMessageCmd::kName, "PublishMessageCmd");
+      CHECK_EQ(TopicPublishMessageCmd::kName, "TopicPublishMessageCmd");
       CHECK_EQ(cmd.request_id, 0);
       CHECK_EQ(cmd.topic_name.get_allocator().resource(),
                std::pmr::get_default_resource());
@@ -229,7 +229,7 @@ TEST_SUITE("bridge::Commands") {
       std::array<std::byte, 512> buffer{};
       std::pmr::monotonic_buffer_resource mr(buffer.data(), buffer.size());
 
-      PublishMessageCmd cmd(&mr);
+      TopicPublishMessageCmd cmd(&mr);
 
       CHECK_EQ(cmd.topic_name.get_allocator().resource(), &mr);
       CHECK_EQ(cmd.message_type.get_allocator().resource(), &mr);

@@ -4,13 +4,9 @@ set(ROSCRAFT_BRIDGE_NETWORK_TEST_SOURCES
     main.cpp
 
     config.cpp
-    transport.cpp
+    udp_transport.cpp
     bridge.cpp
     runner.cpp
-
-    command/handler.cpp
-    command/handler_registry.cpp
-    command/handlers.cpp
 )
 
 add_executable(roscraft_bridge_network_tests ${ROSCRAFT_BRIDGE_NETWORK_TEST_SOURCES})

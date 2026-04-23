@@ -127,7 +127,7 @@ public final class ActionCommands {
   public static CommandResult info(
       CommandContext ctx, String actionName, ActionInfoOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.queryGraph();
+    long requestId = bridge.actionInfo(actionName, options.includeHidden());
     String suffix = options.includeHidden() ? " (include hidden)" : "";
     return CommandResult.success(
         "Action info request #" + requestId + " for " + actionName + suffix + " sent.", requestId);
@@ -141,14 +141,19 @@ public final class ActionCommands {
       byte[] goalPayload,
       ActionSendGoalOptions options) {
     Objects.requireNonNull(goalPayload, "goalPayload must not be null");
-    if (!actionType.contains("/")) {
+    if (!isValidActionType(actionType)) {
       return CommandResult.failure("Invalid action type '" + actionType
-          + "'. Expected format: 'package/type'"
+          + "'. Expected format: 'package/action/Type'"
           + " (e.g., 'example_interfaces/action/Fibonacci')");
     }
 
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.queryGraph();
+    long requestId = bridge.actionSendGoal(
+        actionName,
+        actionType,
+        Arrays.copyOf(goalPayload, goalPayload.length),
+        options.feedback(),
+        options.timeoutSeconds());
     return CommandResult.success(
         "Action send_goal request #" + requestId
             + " for "
@@ -156,8 +161,25 @@ public final class ActionCommands {
             + " ("
             + actionType
             + ") sent."
+            + " [feedback="
+            + options.feedback()
+            + ", timeout="
+            + options.timeoutSeconds()
+            + "s]"
             + " Goal preview="
             + Arrays.toString(Arrays.copyOf(goalPayload, Math.min(goalPayload.length, 8))),
         requestId);
+  }
+
+  private static boolean isValidActionType(String actionType) {
+    if (actionType == null || actionType.isBlank()) {
+      return false;
+    }
+
+    String[] parts = actionType.split("/");
+    return parts.length == 3
+        && !parts[0].isBlank()
+        && "action".equals(parts[1])
+        && !parts[2].isBlank();
   }
 }
