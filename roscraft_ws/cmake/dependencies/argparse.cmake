@@ -9,8 +9,6 @@
 
 include_guard(GLOBAL)
 
-set(ROSCRAFT_ARGPARSE_REQUIRED_VERSION_PATTERN "^3\\.2(\\..*)?$")
-
 # Check if already processed
 roscraft_dep_is_processed(NAME "argparse" OUTPUT_VAR _argparse_processed)
 if(_argparse_processed)
@@ -21,7 +19,7 @@ roscraft_dep_header(NAME "argparse")
 
 roscraft_dep_begin(
     NAME argparse
-    VERSION 3.2.0
+    VERSION ^3.0
     DEBIAN_NAMES argparse-dev
     RPM_NAMES argparse-devel
     PACMAN_NAMES argparse
@@ -33,22 +31,6 @@ roscraft_dep_begin(
     CPM_GIT_TAG v3.2
 )
 roscraft_dep_end()
-
-set(_argparse_detected_version "")
-if(DEFINED argparse_VERSION)
-  set(_argparse_detected_version "${argparse_VERSION}")
-elseif(DEFINED argparse_PC_VERSION)
-  set(_argparse_detected_version "${argparse_PC_VERSION}")
-endif()
-
-if(_argparse_detected_version)
-  if(NOT _argparse_detected_version MATCHES "${ROSCRAFT_ARGPARSE_REQUIRED_VERSION_PATTERN}")
-    message(FATAL_ERROR
-            "argparse version ${_argparse_detected_version} is unsupported. "
-            "Required version series: 3.2.*"
-        )
-  endif()
-endif()
 
 # Create roscraft::argparse::argparse alias
 if(NOT TARGET roscraft::argparse::argparse)
@@ -88,5 +70,3 @@ endif()
 if(NOT TARGET roscraft::argparse)
   add_library(roscraft::argparse ALIAS _roscraft_argparse_all)
 endif()
-
-unset(_argparse_detected_version)

@@ -9,8 +9,6 @@
 
 include_guard(GLOBAL)
 
-set(ROSCRAFT_FLATBUFFERS_REQUIRED_VERSION_PATTERN "^25\\.12\\..*")
-
 # Check if already processed
 roscraft_dep_is_processed(NAME "flatbuffers" OUTPUT_VAR _flatbuffers_processed)
 if(_flatbuffers_processed)
@@ -19,9 +17,17 @@ endif()
 
 roscraft_dep_header(NAME "flatbuffers")
 
+# Pre-create roscraft::flatbuffers as an IMPORTED GLOBAL target so that
+# roscraft_dep_end does not create an internal wrapper.  IMPORTED GLOBAL
+# targets (unlike aliases) store their own name in export sets, and their
+# ::-qualified name is permitted for IMPORTED targets.
+if(NOT TARGET roscraft::flatbuffers)
+  add_library(roscraft::flatbuffers INTERFACE IMPORTED GLOBAL)
+endif()
+
 roscraft_dep_begin(
     NAME flatbuffers
-    VERSION 25.12.19
+    VERSION ^25.12
     DEBIAN_NAMES flatbuffers-dev
     PACMAN_NAMES flatbuffers
     BREW_NAMES flatbuffers
@@ -34,22 +40,6 @@ roscraft_dep_begin(
         "FLATBUFFERS_BUILD_TESTS OFF"
 )
 roscraft_dep_end()
-
-set(_flatbuffers_detected_version "")
-if(DEFINED flatbuffers_VERSION)
-  set(_flatbuffers_detected_version "${flatbuffers_VERSION}")
-elseif(DEFINED flatbuffers_PC_VERSION)
-  set(_flatbuffers_detected_version "${flatbuffers_PC_VERSION}")
-endif()
-
-if(_flatbuffers_detected_version)
-  if(NOT _flatbuffers_detected_version MATCHES "${ROSCRAFT_FLATBUFFERS_REQUIRED_VERSION_PATTERN}")
-    message(WARNING
-            "FlatBuffers version ${_flatbuffers_detected_version} does not match the preferred "
-            "version series 25.12.*. Continuing with detected version."
-        )
-  endif()
-endif()
 
 # Create roscraft::flatbuffers::flatbuffers alias if flatbuffers was found
 if(NOT TARGET roscraft::flatbuffers::flatbuffers)
@@ -87,45 +77,25 @@ else()
   roscraft_dep_log(SUCCESS "FlatBuffers configured (roscraft::flatbuffers::flatbuffers)")
 endif()
 
-# Create roscraft::flatbuffers convenience target that brings in all FlatBuffers targets.
-# When the underlying library is IMPORTED (from a system package), we must create
-# roscraft::flatbuffers as IMPORTED GLOBAL too — otherwise CMake requires it to be in
-# an export set whenever a target that links to it is installed with EXPORT.
-if(NOT TARGET roscraft::flatbuffers)
-  if(TARGET roscraft::flatbuffers::flatbuffers)
-    get_target_property(_roscraft_fb_aliased roscraft::flatbuffers::flatbuffers ALIASED_TARGET)
-    if(_roscraft_fb_aliased)
-      set(_roscraft_fb_lib_target "${_roscraft_fb_aliased}")
-    else()
-      set(_roscraft_fb_lib_target "roscraft::flatbuffers::flatbuffers")
-    endif()
-    get_target_property(_roscraft_fb_is_imported "${_roscraft_fb_lib_target}" IMPORTED)
+# Wire up the pre-created roscraft::flatbuffers target with the real flatbuffers library.
+if(TARGET roscraft::flatbuffers::flatbuffers)
+  get_target_property(_roscraft_fb_aliased roscraft::flatbuffers::flatbuffers ALIASED_TARGET)
+  if(_roscraft_fb_aliased)
+    set(_roscraft_fb_lib_target "${_roscraft_fb_aliased}")
   else()
-    set(_roscraft_fb_is_imported FALSE)
+    set(_roscraft_fb_lib_target "roscraft::flatbuffers::flatbuffers")
   endif()
 
-  if(_roscraft_fb_is_imported)
-    # System flatbuffers (IMPORTED): avoid creating a local INTERFACE target that
-    # would need to be in an export set.  IMPORTED GLOBAL targets are exempt.
-    add_library(roscraft::flatbuffers INTERFACE IMPORTED GLOBAL)
-    if(TARGET roscraft::flatbuffers::flatbuffers)
-      target_link_libraries(roscraft::flatbuffers INTERFACE roscraft::flatbuffers::flatbuffers)
-    endif()
-  else()
-    # CPM / source build: _roscraft_flatbuffers_all is safe because the
-    # underlying targets participate in flatbuffers' own export set.
-    if(NOT TARGET _roscraft_flatbuffers_all)
-      add_library(_roscraft_flatbuffers_all INTERFACE)
-      if(TARGET roscraft::flatbuffers::flatbuffers)
-        target_link_libraries(_roscraft_flatbuffers_all INTERFACE roscraft::flatbuffers::flatbuffers)
-      endif()
-    endif()
-    add_library(roscraft::flatbuffers ALIAS _roscraft_flatbuffers_all)
+  target_link_libraries(roscraft::flatbuffers INTERFACE ${_roscraft_fb_lib_target})
+
+  get_target_property(_target_includes ${_roscraft_fb_lib_target} INTERFACE_INCLUDE_DIRECTORIES)
+  if(_target_includes)
+    set_target_properties(roscraft::flatbuffers PROPERTIES
+        INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_target_includes}"
+    )
   endif()
 
   unset(_roscraft_fb_aliased)
   unset(_roscraft_fb_lib_target)
-  unset(_roscraft_fb_is_imported)
+  unset(_target_includes)
 endif()
-
-unset(_flatbuffers_detected_version)

@@ -20,7 +20,7 @@ roscraft_dep_header(NAME "Taskflow")
 # Use roscraft_module system for standard package finding
 roscraft_dep_begin(
     NAME Taskflow
-    VERSION 4.0.0
+    VERSION ^4.0
     DEBIAN_NAMES libtaskflow-cpp-dev
     RPM_NAMES taskflow-devel
     PACMAN_NAMES taskflow

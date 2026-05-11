@@ -104,6 +104,8 @@ include(${ROSCRAFT_WS_DIR}/cmake/TargetUtils.cmake)
 
 roscraft_print_sanitizer_status()
 
+roscraft_require_dependency(FlatBuffers)
+
 find_package(roscraft_bridge_common REQUIRED)
 if(TARGET roscraft::roscraft_bridge_common AND NOT TARGET roscraft::bridge::common)
   add_library(roscraft::bridge::common ALIAS roscraft::roscraft_bridge_common)

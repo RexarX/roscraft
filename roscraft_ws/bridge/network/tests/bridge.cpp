@@ -420,6 +420,10 @@ TEST_SUITE("bridge::network::NetworkBridge") {
             app.IncomingQueue().HasCommands<ActionSendGoalCmd>()) {
           saw_action_cmd = true;
         }
+        if (!saw_action_cmd &&
+            app.OutgoingQueue().HasCommands<ActionResultCmd>()) {
+          saw_action_cmd = true;
+        }
         return saw_service_cmd && saw_param_cmd && saw_action_cmd;
       });
 

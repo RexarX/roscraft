@@ -3,11 +3,10 @@
 #include <roscraft/container/static_string.hpp>
 
 #include <cstdint>
-#include <string_view>
 
 namespace roscraft::bridge::network {
 
-using IpAddress = container::StaticString<3 * 4 + 3>;
+using IpAddress = container::StaticString<(3 * 4) + 3>;
 
 struct BridgeConfig {
   static constexpr IpAddress kDefaultHost = "127.0.0.1";

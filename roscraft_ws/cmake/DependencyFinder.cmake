@@ -6,6 +6,7 @@
 # - Cached dependency results to avoid duplicate processing
 # - Helper functions for structural logging
 # - Automatic target creation and aliasing
+# - Conan-like version syntax (~, ^, >=, >, <, <=, ranges)
 
 include_guard(GLOBAL)
 
@@ -268,13 +269,88 @@ macro(roscraft_require_dependency _dep_name)
 endmacro()
 
 # ============================================================================
+# Version Specification Helpers (Conan-like syntax)
+# ============================================================================
+# Supported syntax for VERSION parameter:
+#   "3.2"        → >= 3.2
+#   "~3.2"       → >= 3.2.0, < 3.3.0  (tilde: patch-level)
+#   "^3.2"       → >= 3.2.0, < 4.0.0  (caret: minor-level)
+#   ">=3.2"      → >= 3.2
+#   ">3.2"       → > 3.2
+#   "<4.0"       → < 4.0
+#   "<=4.0"      → <= 4.0
+#   ">=3.2 <4.0" → range
+
+function(_roscraft_parse_version_op op_str out_value out_boundary_included)
+  string(STRIP "${op_str}" _stripped)
+  if(_stripped MATCHES "^>=[ ]*([0-9.]+)$")
+    set(${out_value} "${CMAKE_MATCH_1}" PARENT_SCOPE)
+    set(${out_boundary_included} TRUE PARENT_SCOPE)
+  elseif(_stripped MATCHES "^>[ ]*([0-9.]+)$")
+    set(${out_value} "${CMAKE_MATCH_1}" PARENT_SCOPE)
+    set(${out_boundary_included} FALSE PARENT_SCOPE)
+  elseif(_stripped MATCHES "^<=[ ]*([0-9.]+)$")
+    set(${out_value} "${CMAKE_MATCH_1}" PARENT_SCOPE)
+    set(${out_boundary_included} TRUE PARENT_SCOPE)
+  elseif(_stripped MATCHES "^<[ ]*([0-9.]+)$")
+    set(${out_value} "${CMAKE_MATCH_1}" PARENT_SCOPE)
+    set(${out_boundary_included} FALSE PARENT_SCOPE)
+  else()
+    set(${out_value} "" PARENT_SCOPE)
+    set(${out_boundary_included} FALSE PARENT_SCOPE)
+  endif()
+endfunction()
+
+function(_roscraft_compute_tilde ver out_min out_max)
+  string(REPLACE "." ";" _ver_parts "${ver}")
+  list(LENGTH _ver_parts _len)
+  list(GET _ver_parts 0 _major)
+  list(GET _ver_parts 1 _minor)
+  if(_len EQUAL 3)
+    set(_min "${ver}")
+  else()
+    set(_min "${_major}.${_minor}.0")
+  endif()
+  math(EXPR _next_minor "${_minor} + 1")
+  set(_max "${_major}.${_next_minor}.0")
+  set(${out_min} "${_min}" PARENT_SCOPE)
+  set(${out_max} "${_max}" PARENT_SCOPE)
+endfunction()
+
+function(_roscraft_compute_caret ver out_min out_max)
+  string(REPLACE "." ";" _ver_parts "${ver}")
+  list(LENGTH _ver_parts _len)
+  list(GET _ver_parts 0 _major)
+  list(GET _ver_parts 1 _minor)
+  if(_len EQUAL 3)
+    list(GET _ver_parts 2 _patch)
+    set(_min "${ver}")
+  else()
+    set(_patch "0")
+    set(_min "${_major}.${_minor}.0")
+  endif()
+  if(_major GREATER 0)
+    math(EXPR _next_major "${_major} + 1")
+    set(_max "${_next_major}.0.0")
+  elseif(_minor GREATER 0)
+    math(EXPR _next_minor "${_minor} + 1")
+    set(_max "0.${_next_minor}.0")
+  else()
+    math(EXPR _next_patch "${_patch} + 1")
+    set(_max "0.0.${_next_patch}")
+  endif()
+  set(${out_min} "${_min}" PARENT_SCOPE)
+  set(${out_max} "${_max}" PARENT_SCOPE)
+endfunction()
+
+# ============================================================================
 # Package Finding Macros
 # ============================================================================
 
 # Macro to begin package search
 # Usage: roscraft_dep_begin(
 #     NAME <name>
-#     [VERSION <version>]
+#     [VERSION <version>]        # Supports Conan-like syntax: "3.2", "~3.2", "^3.2", ">=3.2", "<4.0", ">=3.2 <4.0"
 #     [DEBIAN_NAMES <pkg1> <pkg2> ...]
 #     [RPM_NAMES <pkg1> <pkg2> ...]
 #     [PACMAN_NAMES <pkg1> <pkg2> ...]
@@ -283,13 +359,17 @@ endmacro()
 #     [CPM_NAME <name>]
 #     [CPM_VERSION <version>]
 #     [CPM_GITHUB_REPOSITORY <repo>]
+#     [CPM_GITLAB_REPOSITORY <repo>]
+#     [CPM_GIT_REPOSITORY <url>]
 #     [CPM_URL <url>]
+#     [CPM_GIT_TAG <tag>]
+#     [CPM_SOURCE_SUBDIR <dir>]
 #     [CPM_OPTIONS <opt1> <opt2> ...]
 #     [CPM_DOWNLOAD_ONLY]
 # )
 macro(roscraft_dep_begin)
   set(options CPM_DOWNLOAD_ONLY)
-  set(oneValueArgs NAME VERSION CPM_NAME CPM_VERSION CPM_GITHUB_REPOSITORY CPM_URL CPM_GIT_TAG CPM_SOURCE_SUBDIR)
+  set(oneValueArgs NAME VERSION CPM_NAME CPM_VERSION CPM_GITHUB_REPOSITORY CPM_GITLAB_REPOSITORY CPM_GIT_REPOSITORY CPM_URL CPM_GIT_TAG CPM_SOURCE_SUBDIR)
   set(multiValueArgs DEBIAN_NAMES RPM_NAMES PACMAN_NAMES BREW_NAMES PKG_CONFIG_NAMES CPM_OPTIONS)
 
   cmake_parse_arguments(ROSCRAFT_${MODULE_NAME}_PKG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -337,11 +417,62 @@ macro(roscraft_dep_begin)
             ${ROSCRAFT_${MODULE_NAME}_FORCE_DOWNLOAD_PACKAGES}
         )
 
-    # Set version requirement
+    # Parse version spec with Conan-like syntax:
+    # "3.2"        → >= 3.2
+    # "~3.2"       → >= 3.2.0, < 3.3.0  (tilde: patch-level)
+    # "^3.2"       → >= 3.2.0, < 4.0.0  (caret: minor-level)
+    # ">=3.2"      → >= 3.2
+    # ">3.2"       → > 3.2
+    # "<4.0"       → < 4.0
+    # "<=4.0"      → <= 4.0
+    # ">=3.2 <4.0" → range
     if(ROSCRAFT_${MODULE_NAME}_PKG_VERSION)
-      if(NOT ${_PKG_NAME}_FIND_VERSION OR "${${_PKG_NAME}_FIND_VERSION}" VERSION_LESS "${ROSCRAFT_${MODULE_NAME}_PKG_VERSION}")
-        set("${_PKG_NAME}_FIND_VERSION" "${ROSCRAFT_${MODULE_NAME}_PKG_VERSION}")
+      set(_pkg_ver_raw "${ROSCRAFT_${MODULE_NAME}_PKG_VERSION}")
+      set(_pkg_ver_min "")
+      set(_pkg_ver_min_exclusive FALSE)
+      set(_pkg_ver_max "")
+      set(_pkg_ver_max_inclusive FALSE)
+
+      # Range: ">=X.Y <Z.W" or similar
+      if(_pkg_ver_raw MATCHES "^([><=]+[ ]*[0-9.]+)[ ]+([><=]+[ ]*[0-9.]+)$")
+        _roscraft_parse_version_op("${CMAKE_MATCH_1}" _pkg_ver_min _min_boundary_incl)
+        _roscraft_parse_version_op("${CMAKE_MATCH_2}" _pkg_ver_max _max_boundary_incl)
+        if(_min_boundary_incl)
+          set(_pkg_ver_min_exclusive FALSE)
+        else()
+          set(_pkg_ver_min_exclusive TRUE)
+        endif()
+        set(_pkg_ver_max_inclusive ${_max_boundary_incl})
+      elseif(_pkg_ver_raw MATCHES "^~([0-9]+\\.[0-9]+(\\.[0-9]+)?)$")
+        _roscraft_compute_tilde("${CMAKE_MATCH_1}" _pkg_ver_min _pkg_ver_max)
+      elseif(_pkg_ver_raw MATCHES "^\\^([0-9]+\\.[0-9]+(\\.[0-9]+)?)$")
+        _roscraft_compute_caret("${CMAKE_MATCH_1}" _pkg_ver_min _pkg_ver_max)
+      elseif(_pkg_ver_raw MATCHES "^([><=]+)[ ]*([0-9]+\\.[0-9]+(\\.[0-9]+)?)$")
+        _roscraft_parse_version_op("${_pkg_ver_raw}" _pkg_ver_num _boundary_incl)
+        if(_pkg_ver_raw MATCHES "^>")
+          set(_pkg_ver_min "${_pkg_ver_num}")
+          if(_boundary_incl)
+            set(_pkg_ver_min_exclusive FALSE)
+          else()
+            set(_pkg_ver_min_exclusive TRUE)
+          endif()
+        else()
+          set(_pkg_ver_max "${_pkg_ver_num}")
+          set(_pkg_ver_max_inclusive ${_boundary_incl})
+        endif()
+      elseif(_pkg_ver_raw MATCHES "^([0-9]+\\.[0-9]+(\\.[0-9]+)?)$")
+        set(_pkg_ver_min "${CMAKE_MATCH_1}")
+      else()
+        set(_pkg_ver_min "${_pkg_ver_raw}")
       endif()
+
+      if(_pkg_ver_min)
+        set("${_PKG_NAME}_FIND_VERSION" "${_pkg_ver_min}")
+      endif()
+      set("${_PKG_NAME}_VERSION_MIN" "${_pkg_ver_min}")
+      set("${_PKG_NAME}_VERSION_MIN_EXCLUSIVE" "${_pkg_ver_min_exclusive}")
+      set("${_PKG_NAME}_VERSION_MAX" "${_pkg_ver_max}")
+      set("${_PKG_NAME}_VERSION_MAX_INCLUSIVE" "${_pkg_ver_max_inclusive}")
     endif()
 
     # Skip version checks if disabled
@@ -368,9 +499,9 @@ macro(roscraft_dep_begin)
           return()
         else()
           message(FATAL_ERROR
-                        "Already using version ${${_PKG_NAME}_VERSION} of ${_PKG_NAME} "
-                        "when version ${${_PKG_NAME}_FIND_VERSION} was requested."
-                    )
+              "Already using version ${${_PKG_NAME}_VERSION} of ${_PKG_NAME} "
+              "when version ${${_PKG_NAME}_FIND_VERSION} was requested."
+          )
         endif()
       endif()
     endif()
@@ -427,18 +558,18 @@ macro(_roscraft_dep_find_part)
   elseif("${PART_PART_TYPE}" STREQUAL "include")
     set(_variable "${_PKG_NAME}_INCLUDE_DIRS")
     find_path(${_PKG_NAME}_INCLUDE_DIRS_${PART_NAMES}
-            NAMES ${PART_NAMES}
-            PATHS ${PART_PATHS}
-            PATH_SUFFIXES ${PART_PATH_SUFFIXES}
-        )
+        NAMES ${PART_NAMES}
+        PATHS ${PART_PATHS}
+        PATH_SUFFIXES ${PART_PATH_SUFFIXES}
+    )
     list(APPEND "${_variable}" "${${_PKG_NAME}_INCLUDE_DIRS_${PART_NAMES}}")
   elseif("${PART_PART_TYPE}" STREQUAL "program")
     set(_variable "${_PKG_NAME}_EXECUTABLE")
     find_program(${_PKG_NAME}_EXECUTABLE_${PART_NAMES}
-            NAMES ${PART_NAMES}
-            PATHS ${PART_PATHS}
-            PATH_SUFFIXES ${PART_PATH_SUFFIXES}
-        )
+        NAMES ${PART_NAMES}
+        PATHS ${PART_PATHS}
+        PATH_SUFFIXES ${PART_PATH_SUFFIXES}
+    )
     list(APPEND "${_variable}" "${${_PKG_NAME}_EXECUTABLE_${PART_NAMES}}")
   else()
     message(FATAL_ERROR "Invalid PART_TYPE: ${PART_PART_TYPE}")
@@ -454,11 +585,11 @@ macro(roscraft_dep_find_library)
   cmake_parse_arguments(LIB "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   _roscraft_dep_find_part(
-        PART_TYPE library
-        NAMES ${LIB_NAMES}
-        PATHS ${LIB_PATHS}
-        PATH_SUFFIXES ${LIB_PATH_SUFFIXES}
-    )
+      PART_TYPE library
+      NAMES ${LIB_NAMES}
+      PATHS ${LIB_PATHS}
+      PATH_SUFFIXES ${LIB_PATH_SUFFIXES}
+  )
 endmacro()
 
 # Find include component
@@ -470,11 +601,11 @@ macro(roscraft_dep_find_include)
   cmake_parse_arguments(INC "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   _roscraft_dep_find_part(
-        PART_TYPE include
-        NAMES ${INC_NAMES}
-        PATHS ${INC_PATHS}
-        PATH_SUFFIXES ${INC_PATH_SUFFIXES}
-    )
+      PART_TYPE include
+      NAMES ${INC_NAMES}
+      PATHS ${INC_PATHS}
+      PATH_SUFFIXES ${INC_PATH_SUFFIXES}
+  )
 endmacro()
 
 # Find program component
@@ -486,11 +617,11 @@ macro(roscraft_dep_find_program)
   cmake_parse_arguments(PROG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   _roscraft_dep_find_part(
-        PART_TYPE program
-        NAMES ${PROG_NAMES}
-        PATHS ${PROG_PATHS}
-        PATH_SUFFIXES ${PROG_PATH_SUFFIXES}
-    )
+      PART_TYPE program
+      NAMES ${PROG_NAMES}
+      PATHS ${PROG_PATHS}
+      PATH_SUFFIXES ${PROG_PATH_SUFFIXES}
+  )
 endmacro()
 
 # Finalize package search
@@ -522,13 +653,44 @@ macro(roscraft_dep_end)
     find_package(PkgConfig QUIET)
     if(PKG_CONFIG_FOUND)
       list(GET ROSCRAFT_${MODULE_NAME}_PKG_PKG_CONFIG_NAMES 0 _pkg_config_name)
-      pkg_check_modules(${_PKG_NAME}_PC QUIET IMPORTED_TARGET ${_pkg_config_name})
+      if(${_PKG_NAME}_FIND_VERSION)
+        pkg_check_modules(${_PKG_NAME}_PC QUIET IMPORTED_TARGET "${_pkg_config_name}>=${${_PKG_NAME}_FIND_VERSION}")
+      else()
+        pkg_check_modules(${_PKG_NAME}_PC QUIET IMPORTED_TARGET ${_pkg_config_name})
+      endif()
       if(${_PKG_NAME}_PC_FOUND)
-        set(${_PKG_NAME}_FOUND TRUE)
-        set(_FOUND_VIA "pkg-config")
-        if(NOT TARGET ${_PKG_NAME})
-          add_library(${_PKG_NAME} INTERFACE IMPORTED)
-          target_link_libraries(${_PKG_NAME} INTERFACE PkgConfig::${_PKG_NAME}_PC)
+        # Check version constraints against pkg-config result
+        set(_pkgpc_version_ok TRUE)
+        if(${_PKG_NAME}_VERSION_MIN AND ${_PKG_NAME}_PC_VERSION)
+          if(${_PKG_NAME}_VERSION_MIN_EXCLUSIVE)
+            if(NOT ${_PKG_NAME}_PC_VERSION VERSION_GREATER "${${_PKG_NAME}_VERSION_MIN}")
+              set(_pkgpc_version_ok FALSE)
+            endif()
+          else()
+            if(${_PKG_NAME}_PC_VERSION VERSION_LESS "${${_PKG_NAME}_VERSION_MIN}")
+              set(_pkgpc_version_ok FALSE)
+            endif()
+          endif()
+        endif()
+        if(_pkgpc_version_ok AND ${_PKG_NAME}_VERSION_MAX AND ${_PKG_NAME}_PC_VERSION)
+          if(${_PKG_NAME}_VERSION_MAX_INCLUSIVE)
+            if(NOT ${_PKG_NAME}_PC_VERSION VERSION_LESS_EQUAL "${${_PKG_NAME}_VERSION_MAX}")
+              set(_pkgpc_version_ok FALSE)
+            endif()
+          else()
+            if(NOT ${_PKG_NAME}_PC_VERSION VERSION_LESS "${${_PKG_NAME}_VERSION_MAX}")
+              set(_pkgpc_version_ok FALSE)
+            endif()
+          endif()
+        endif()
+
+        if(_pkgpc_version_ok)
+          set(${_PKG_NAME}_FOUND TRUE)
+          set(_FOUND_VIA "pkg-config")
+          if(NOT TARGET ${_PKG_NAME})
+            add_library(${_PKG_NAME} INTERFACE IMPORTED)
+            target_link_libraries(${_PKG_NAME} INTERFACE PkgConfig::${_PKG_NAME}_PC)
+          endif()
         endif()
       endif()
     endif()
@@ -549,19 +711,70 @@ macro(roscraft_dep_end)
   if(_required_vars AND NOT ${_PKG_NAME}_FOUND AND NOT _PKG_FORCE_CPM)
     include(FindPackageHandleStandardArgs)
     find_package_handle_standard_args(
-            ${_PKG_NAME}
-            REQUIRED_VARS ${_required_vars}
-            VERSION_VAR ${_PKG_NAME}_VERSION
-            FAIL_MESSAGE "${_ERROR_MESSAGE}"
-        )
+        ${_PKG_NAME}
+        REQUIRED_VARS ${_required_vars}
+        VERSION_VAR ${_PKG_NAME}_VERSION
+        FAIL_MESSAGE "${_ERROR_MESSAGE}"
+    )
     if(${_PKG_NAME}_FOUND)
       set(_FOUND_VIA "manual search")
     endif()
   endif()
 
+  # Version verification: if a system package was found but doesn't match the
+  # required version constraints, warn and fall back to CPM instead of FATAL_ERROR.
+  if(${_PKG_NAME}_FOUND AND ROSCRAFT_${MODULE_NAME}_CHECK_PACKAGE_VERSIONS AND NOT _FOUND_VIA STREQUAL "CPM")
+    set(_pkg_version_ok TRUE)
+    set(_pkg_detected_ver "")
+    if(DEFINED ${_PKG_NAME}_VERSION)
+      set(_pkg_detected_ver "${${_PKG_NAME}_VERSION}")
+    elseif(DEFINED ${_PKG_NAME}_PC_VERSION)
+      set(_pkg_detected_ver "${${_PKG_NAME}_PC_VERSION}")
+    endif()
+
+    if(_pkg_detected_ver)
+      # Check minimum version
+      if(${_PKG_NAME}_VERSION_MIN)
+        if(${_PKG_NAME}_VERSION_MIN_EXCLUSIVE)
+          if(NOT _pkg_detected_ver VERSION_GREATER "${${_PKG_NAME}_VERSION_MIN}")
+            set(_pkg_version_ok FALSE)
+          endif()
+        else()
+          if(_pkg_detected_ver VERSION_LESS "${${_PKG_NAME}_VERSION_MIN}")
+            set(_pkg_version_ok FALSE)
+          endif()
+        endif()
+      endif()
+      # Check maximum version
+      if(_pkg_version_ok AND ${_PKG_NAME}_VERSION_MAX)
+        if(${_PKG_NAME}_VERSION_MAX_INCLUSIVE)
+          if(NOT _pkg_detected_ver VERSION_LESS_EQUAL "${${_PKG_NAME}_VERSION_MAX}")
+            set(_pkg_version_ok FALSE)
+          endif()
+        else()
+          if(NOT _pkg_detected_ver VERSION_LESS "${${_PKG_NAME}_VERSION_MAX}")
+            set(_pkg_version_ok FALSE)
+          endif()
+        endif()
+      endif()
+    endif()
+
+    if(NOT _pkg_version_ok)
+      message(WARNING "  ✗ ${_PKG_NAME} ${_pkg_detected_ver} found, but ${ROSCRAFT_${MODULE_NAME}_PKG_VERSION} is required")
+      if(ROSCRAFT_${MODULE_NAME}_DOWNLOAD_${_PKG_CPM_NAME_UPPER})
+        message(STATUS "  ⬇ Will download ${_PKG_NAME} via CPM instead")
+        set(${_PKG_NAME}_FOUND FALSE)
+        set(_FOUND_VIA "")
+      else()
+        message(FATAL_ERROR "  CPM download is disabled and system version is incompatible")
+      endif()
+    endif()
+  endif()
+
   # 4. Try CPM as last resort
   if(NOT ${_PKG_NAME}_FOUND AND ROSCRAFT_${MODULE_NAME}_DOWNLOAD_${_PKG_CPM_NAME_UPPER})
-    if(ROSCRAFT_${MODULE_NAME}_PKG_CPM_GITHUB_REPOSITORY OR ROSCRAFT_${MODULE_NAME}_PKG_CPM_URL)
+    if(ROSCRAFT_${MODULE_NAME}_PKG_CPM_GITHUB_REPOSITORY OR ROSCRAFT_${MODULE_NAME}_PKG_CPM_GITLAB_REPOSITORY
+       OR ROSCRAFT_${MODULE_NAME}_PKG_CPM_GIT_REPOSITORY OR ROSCRAFT_${MODULE_NAME}_PKG_CPM_URL)
       include(DownloadUsingCPM)
       _roscraft_cpm_add_package()
       if(${_PKG_NAME}_ADDED OR TARGET ${_PKG_NAME})
@@ -584,15 +797,15 @@ macro(roscraft_dep_end)
 
       if(${_PKG_NAME}_INCLUDE_DIRS)
         set_target_properties(${_PKG_NAME} PROPERTIES
-                    INTERFACE_INCLUDE_DIRECTORIES "${${_PKG_NAME}_INCLUDE_DIRS}"
-                    INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${${_PKG_NAME}_INCLUDE_DIRS}"
-                )
+            INTERFACE_INCLUDE_DIRECTORIES "${${_PKG_NAME}_INCLUDE_DIRS}"
+            INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${${_PKG_NAME}_INCLUDE_DIRS}"
+        )
       endif()
 
       if(${_PKG_NAME}_LIBRARIES)
         set_target_properties(${_PKG_NAME} PROPERTIES
-                    INTERFACE_LINK_LIBRARIES "${${_PKG_NAME}_LIBRARIES}"
-                )
+            INTERFACE_LINK_LIBRARIES "${${_PKG_NAME}_LIBRARIES}"
+        )
       endif()
     endif()
 
@@ -625,14 +838,40 @@ macro(roscraft_dep_end)
       endif()
 
       if(_target_to_alias)
-        add_library(roscraft::${_PKG_NAME} ALIAS ${_target_to_alias})
+        if(_FOUND_VIA STREQUAL "CPM")
+          # CPM packages create targets in subdirectories; they cannot be
+          # promoted to global. Use a wrapper+alias pattern instead.
+          add_library(_roscraft_${_PKG_NAME}_wrapper INTERFACE)
+          target_link_libraries(_roscraft_${_PKG_NAME}_wrapper INTERFACE ${_target_to_alias})
+          add_library(roscraft::${_PKG_NAME} ALIAS _roscraft_${_PKG_NAME}_wrapper)
+        else()
+          # Promote imported targets to GLOBAL so aliases are visible everywhere
+          if(TARGET ${_PKG_NAME})
+            get_target_property(_is_imported ${_PKG_NAME} IMPORTED)
+            if(_is_imported)
+              set_target_properties(${_PKG_NAME} PROPERTIES IMPORTED_GLOBAL TRUE)
+            endif()
+          elseif(TARGET ${_PKG_NAME}::${_PKG_NAME})
+            get_target_property(_is_imported ${_PKG_NAME}::${_PKG_NAME} IMPORTED)
+            if(_is_imported)
+              set_target_properties(${_PKG_NAME}::${_PKG_NAME} PROPERTIES IMPORTED_GLOBAL TRUE)
+            endif()
+          endif()
+          add_library(roscraft::${_PKG_NAME} ALIAS ${_target_to_alias})
+        endif()
 
         # Mark target includes as SYSTEM to suppress warnings
         get_target_property(_target_includes ${_target_to_alias} INTERFACE_INCLUDE_DIRECTORIES)
         if(_target_includes)
-          set_target_properties(${_target_to_alias} PROPERTIES
-                        INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_target_includes}"
-                    )
+          if(_FOUND_VIA STREQUAL "CPM")
+            set_target_properties(_roscraft_${_PKG_NAME}_wrapper PROPERTIES
+                INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_target_includes}"
+            )
+          else()
+            set_target_properties(${_target_to_alias} PROPERTIES
+                INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_target_includes}"
+            )
+          endif()
         endif()
       endif()
 
@@ -668,9 +907,11 @@ macro(_roscraft_cpm_add_package)
 
   if(ROSCRAFT_${MODULE_NAME}_PKG_CPM_GITHUB_REPOSITORY)
     list(APPEND _cpm_args GITHUB_REPOSITORY ${ROSCRAFT_${MODULE_NAME}_PKG_CPM_GITHUB_REPOSITORY})
-  endif()
-
-  if(ROSCRAFT_${MODULE_NAME}_PKG_CPM_URL)
+  elseif(ROSCRAFT_${MODULE_NAME}_PKG_CPM_GITLAB_REPOSITORY)
+    list(APPEND _cpm_args GITLAB_REPOSITORY ${ROSCRAFT_${MODULE_NAME}_PKG_CPM_GITLAB_REPOSITORY})
+  elseif(ROSCRAFT_${MODULE_NAME}_PKG_CPM_GIT_REPOSITORY)
+    list(APPEND _cpm_args GIT_REPOSITORY ${ROSCRAFT_${MODULE_NAME}_PKG_CPM_GIT_REPOSITORY})
+  elseif(ROSCRAFT_${MODULE_NAME}_PKG_CPM_URL)
     list(APPEND _cpm_args URL ${ROSCRAFT_${MODULE_NAME}_PKG_CPM_URL})
   endif()
 

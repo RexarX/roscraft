@@ -20,7 +20,7 @@ roscraft_dep_header(NAME "concurrentqueue")
 # Use roscraft_module system for standard package finding
 roscraft_dep_begin(
     NAME concurrentqueue
-    VERSION 1.0.4
+    VERSION ~1.0
     DEBIAN_NAMES concurrentqueue-dev
     BREW_NAMES concurrentqueue
     PKG_CONFIG_NAMES concurrentqueue

@@ -20,7 +20,7 @@ roscraft_dep_header(NAME "doctest")
 # Use roscraft_module system for standard package finding
 roscraft_dep_begin(
     NAME doctest
-    VERSION 2.4.11
+    VERSION ~2.4
     DEBIAN_NAMES doctest-dev
     RPM_NAMES doctest-devel
     PACMAN_NAMES doctest

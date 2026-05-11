@@ -213,8 +213,6 @@ using IntrospectionMessageMembers = rticpp::MessageMembers;
   return info;
 }
 
-const std::string kCancelGoalServiceType = "action_msgs/srv/CancelGoal";
-
 [[nodiscard]] constexpr std::string_view ResultCodeToText(
     int8_t status_code) noexcept {
   switch (status_code) {
@@ -320,6 +318,7 @@ auto ActionSendGoalNode::EnsureGenericClientEntry(std::string_view action_name,
   }
   new_entry.get_result_introspection = std::move(*get_result_intro);
 
+  const std::string kCancelGoalServiceType = "action_msgs/srv/CancelGoal";
   auto cancel_goal_intro =
       details::LoadServiceIntrospection(kCancelGoalServiceType);
   if (!cancel_goal_intro) [[unlikely]] {

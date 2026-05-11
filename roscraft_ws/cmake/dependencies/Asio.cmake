@@ -26,7 +26,7 @@ roscraft_dep_header(NAME "Asio")
 # Use roscraft_module system for standard package finding
 roscraft_dep_begin(
     NAME asio
-    VERSION 1.28
+    VERSION ^1.28
     DEBIAN_NAMES libasio-dev
     RPM_NAMES asio-devel
     PACMAN_NAMES asio

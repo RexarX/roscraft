@@ -9,8 +9,6 @@
 
 include_guard(GLOBAL)
 
-set(ROSCRAFT_GLAZE_REQUIRED_VERSION_PATTERN "^7\\.[23]\\..*")
-
 # Check if already processed
 roscraft_dep_is_processed(NAME "glaze" OUTPUT_VAR _glaze_processed)
 if(_glaze_processed)
@@ -21,33 +19,17 @@ roscraft_dep_header(NAME "glaze")
 
 roscraft_dep_begin(
     NAME glaze
-    VERSION 7.2.0
+    VERSION ^7.0
     DEBIAN_NAMES glaze-dev
     PACMAN_NAMES glaze
     BREW_NAMES glaze
     PKG_CONFIG_NAMES glaze
     CPM_NAME glaze
-    CPM_VERSION 7.2.2
+    CPM_VERSION 7.6.0
     CPM_GITHUB_REPOSITORY stephenberry/glaze
-    CPM_GIT_TAG v7.2.2
+    CPM_GIT_TAG v7.6.0
 )
 roscraft_dep_end()
-
-set(_glaze_detected_version "")
-if(DEFINED glaze_VERSION)
-  set(_glaze_detected_version "${glaze_VERSION}")
-elseif(DEFINED glaze_PC_VERSION)
-  set(_glaze_detected_version "${glaze_PC_VERSION}")
-endif()
-
-if(_glaze_detected_version)
-  if(NOT _glaze_detected_version MATCHES "${ROSCRAFT_GLAZE_REQUIRED_VERSION_PATTERN}")
-    message(FATAL_ERROR
-"glaze version ${_glaze_detected_version} is unsupported. "
-             "Required version series: 7.2.* or 7.3.*"
-        )
-  endif()
-endif()
 
 # Create roscraft::glaze::glaze alias
 if(NOT TARGET roscraft::glaze::glaze)
@@ -87,5 +69,3 @@ endif()
 if(NOT TARGET roscraft::glaze)
   add_library(roscraft::glaze ALIAS _roscraft_glaze_all)
 endif()
-
-unset(_glaze_detected_version)
