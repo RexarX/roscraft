@@ -17,8 +17,8 @@
 - [Prerequisites](#prerequisites)
 - [Dependencies](#dependencies)
 - [Building](#building)
-    - [C++ Backend](#cpp-backend)
-    - [Minecraft Mod](#minecraft-mod)
+  - [C++ Backend](#cpp-backend)
+  - [Minecraft Mod](#minecraft-mod)
 - [CMake Options](#cmake-options)
 - [Makefile](#makefile)
 - [Testing](#testing)
@@ -87,15 +87,15 @@ roscraft_ws/
 
 ## Prerequisites
 
-| Tool  | Minimum Version |
-| ----- | --------------- |
-| CMake | 3.25            |
-| GCC   | 13              |
-| Clang | 17              |
-| Java  | 21              |
-| Ninja | (recommended)   |
-| ROS 2 | Humble or later |
-| flatc | 25.0            |
+| Tool  | Minimum Version                   |
+| ----- | --------------------------------- |
+| CMake | 3.25                              |
+| GCC   | 13                                |
+| Clang | 17                                |
+| Java  | 21                                |
+| Ninja | (recommended)                     |
+| ROS 2 | Humble or later (tested on Jazzy) |
+| flatc | 25.0                              |
 
 <a name="dependencies"></a>
 
@@ -127,9 +127,9 @@ roscraft_ws/
 
 ### System
 
-| Dependency | Notes                                                                    |
-| ---------- | ------------------------------------------------------------------------ |
-| ROS 2      | Must be sourced before building (e.g. `source /opt/ros/humble/setup.sh`) |
+| Dependency | Notes                                                                   |
+| ---------- | ----------------------------------------------------------------------- |
+| ROS 2      | Must be sourced before building (e.g. `source /opt/ros/jazzy/setup.sh`) |
 
 The C++ project uses [CPM.cmake](https://github.com/cpm-cmake/CPM.cmake) to automatically download missing dependencies.
 
@@ -145,7 +145,7 @@ The C++ project uses [CPM.cmake](https://github.com/cpm-cmake/CPM.cmake) to auto
 
 ```bash
 # Source ROS 2 first
-source /opt/ros/humble/setup.sh
+source /opt/ros/jazzy/setup.sh
 
 # Quick start with Makefile
 cd roscraft_ws
@@ -240,18 +240,18 @@ ctest
 1. Source your ROS 2 environment and start the C++ backend:
 
 ```bash
-source /opt/ros/humble/setup.sh
+source /opt/ros/jazzy/setup.sh
 cd roscraft_ws && source install/setup.sh
-roscraft_bridge_network
+ros2 run roscraft_bridge_network roscraft_bridge_network # optional --host 127.0.0.1 --port 7401
 ```
 
 2. Install the mod in your Minecraft Fabric server and configure `config/roscraft.json` or you can do it via the in-game GUI (if Mod Menu mod installed) or via commands in the game:
 
 ```json
 {
-    "bridgeType": "NETWORK",
-    "networkHost": "127.0.0.1",
-    "networkPort": 7401
+  "bridgeType": "NETWORK",
+  "networkHost": "127.0.0.1",
+  "networkPort": 7401
 }
 ```
 
