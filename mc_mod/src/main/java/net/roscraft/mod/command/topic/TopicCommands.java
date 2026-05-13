@@ -358,6 +358,14 @@ public final class TopicCommands {
         requestId);
   }
 
+  /** Stop all active echo subscriptions for a topic. */
+  public static CommandResult echoStop(CommandContext ctx, String topicName) {
+    RoscraftBridge bridge = ctx.requireBridge();
+    long requestId = bridge.unsubscribeTopic(topicName);
+    return CommandResult.success(
+        "Unsubscribe request #" + requestId + " for " + topicName + " sent.", requestId);
+  }
+
   /** Request detailed information for a topic. */
   public static CommandResult info(CommandContext ctx, String topicName, TopicInfoOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();

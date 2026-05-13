@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>roscraft_example_py</name>
+  <version>0.1.0</version>
+  <description>Example ROS 2 Python node for Roscraft bridge.</description>
+
+  <maintainer email="who727cares@gmail.com">Denis Plishko</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

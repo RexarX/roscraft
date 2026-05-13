@@ -16,6 +16,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <future>
 #include <memory_resource>
 #include <optional>
 #include <shared_mutex>
@@ -109,12 +110,6 @@ private:
   void AddClient(const asio::ip::udp::endpoint& client,
                  std::chrono::steady_clock::time_point now);
 
-  /// @brief Update last-seen timestamp for a client.
-  /// @param client Client endpoint
-  /// @param now Current steady clock time
-  void MarkClientSeen(const asio::ip::udp::endpoint& client,
-                      std::chrono::steady_clock::time_point now);
-
   /// @brief Remove client endpoint from registered clients.
   /// @param client Client endpoint to remove
   void RemoveClient(const asio::ip::udp::endpoint& client);
@@ -139,12 +134,16 @@ private:
   using WorkGuard = asio::executor_work_guard<asio::io_context::executor_type>;
   std::optional<WorkGuard> work_guard_;
 
+  /// Future for the ASIO run task launched on the App executor.
+  std::future<void> io_task_;
+
   // ---- Client management (thread-safe) -------------------------------------
+
+  using ClockRep = std::chrono::steady_clock::time_point::rep;
 
   mutable std::shared_mutex clients_mutex_;
   std::unordered_set<asio::ip::udp::endpoint> clients_;
-  std::unordered_map<asio::ip::udp::endpoint,
-                     std::chrono::steady_clock::time_point>
+  std::unordered_map<asio::ip::udp::endpoint, std::atomic<ClockRep>>
       clients_last_seen_;
 
   static constexpr auto kClientInactivityTimeout = std::chrono::seconds(30);

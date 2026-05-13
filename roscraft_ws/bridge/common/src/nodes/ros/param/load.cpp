@@ -9,6 +9,7 @@
 
 #include <glaze/yaml.hpp>
 
+#include <rclcpp/executor.hpp>
 #include <rclcpp/parameter_client.hpp>
 #include <rclcpp/rclcpp.hpp>
 
@@ -433,6 +434,15 @@ ParamLoadNode::ParamLoadNode(CommandQueue& incoming, CommandQueue& outgoing,
       param_load_response_producer_(
           outgoing.MakeProducerToken<ParamLoadResponseCmd>()),
       error_producer_(outgoing.MakeProducerToken<ErrorCmd>()),
+      temp_node_([] {
+        auto options = rclcpp::NodeOptions()
+                           .start_parameter_services(false)
+                           .start_parameter_event_publisher(false)
+                           .enable_rosout(false)
+                           .use_global_arguments(false);
+        return std::make_shared<rclcpp::Node>("_roscraft_param_load_internal",
+                                              options);
+      }()),
       allocator_(allocator) {
   using namespace std::chrono_literals;
   poll_timer_ = this->create_wall_timer(50ms, [this] { OnPollTimer(); });
@@ -442,7 +452,7 @@ void ParamLoadNode::DrainParamLoadCommands() {
   auto& in_storage = incoming_.get().TypedStorage<ParamLoadCmd>();
   auto& out_storage = outgoing_.get().TypedStorage<ParamLoadResponseCmd>();
 
-  ParamLoadCmd cmd(allocator_);
+  ParamLoadCmd cmd(std::pmr::get_default_resource());
   while (in_storage.Dequeue(param_load_consumer_, cmd)) {
     if (cmd.node_name.empty()) [[unlikely]] {
       SendError(cmd.request_id, "PARAM_LOAD_FAILED",
@@ -465,7 +475,8 @@ void ParamLoadNode::DrainParamLoadCommands() {
       client = client_it->second;
     } else {
       std::string node_name(cmd.node_name);
-      client = std::make_shared<rclcpp::SyncParametersClient>(this, node_name);
+      client =
+          std::make_shared<rclcpp::SyncParametersClient>(temp_node_, node_name);
       const auto [inserted_it, inserted] =
           parameter_clients_.emplace(std::move(node_name), client);
       client_it = inserted_it;
@@ -486,7 +497,7 @@ void ParamLoadNode::DrainParamLoadCommands() {
       continue;
     }
 
-    ParamLoadResponseCmd response(allocator_);
+    ParamLoadResponseCmd response(std::pmr::get_default_resource());
     response.request_id = cmd.request_id;
     response.node_name = cmd.node_name;
     response.params_loaded = static_cast<uint32_t>(parameters.size());
@@ -531,10 +542,10 @@ void ParamLoadNode::OnPollTimer() {
 
 void ParamLoadNode::SendError(uint64_t request_id, std::string_view error_code,
                               std::string_view error_message) {
-  ErrorCmd cmd(allocator_);
+  ErrorCmd cmd(std::pmr::get_default_resource());
   cmd.request_id = request_id;
-  cmd.error_code = std::pmr::string(error_code, allocator_);
-  cmd.error_message = std::pmr::string(error_message, allocator_);
+  cmd.error_code = std::pmr::string(error_code);
+  cmd.error_message = std::pmr::string(error_message);
 
   outgoing_.get().Enqueue(error_producer_, std::move(cmd));
 }

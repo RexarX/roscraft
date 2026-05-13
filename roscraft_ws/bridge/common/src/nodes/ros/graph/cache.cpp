@@ -41,6 +41,9 @@ GraphCacheNode::GraphCacheNode(CommandQueue& incoming, CommandQueue& outgoing,
 
 GraphCacheNode::~GraphCacheNode() {
   stop_watcher_.store(true, std::memory_order_release);
+  if (refresh_post_timer_ != nullptr) {
+    refresh_post_timer_->cancel();
+  }
   if (graph_event_ != nullptr) {
     graph_event_->set();
   }
@@ -192,10 +195,6 @@ void GraphCacheNode::OnPollTimer() {
 }
 
 void GraphCacheNode::OnGraphRefreshPost() {
-  if (refresh_post_timer_ != nullptr) {
-    refresh_post_timer_->cancel();
-    refresh_post_timer_.reset();
-  }
   pending_graph_refresh_.store(false, std::memory_order_release);
 
   RefreshSnapshot();
@@ -213,11 +212,17 @@ void GraphCacheNode::WatcherTaskFunc() {
       break;
     }
 
-    graph_event_ = this->get_graph_event();
     if (!pending_graph_refresh_.load(std::memory_order_acquire)) {
       pending_graph_refresh_.store(true, std::memory_order_release);
-      refresh_post_timer_ =
-          this->create_wall_timer(1ns, [this] { OnGraphRefreshPost(); });
+      graph_event_ = this->get_graph_event();
+
+      if (refresh_post_timer_ != nullptr) {
+        refresh_post_timer_->cancel();
+      }
+      refresh_post_timer_ = this->create_wall_timer(1ns, [this] {
+        refresh_post_timer_->cancel();
+        OnGraphRefreshPost();
+      });
     }
   }
 }

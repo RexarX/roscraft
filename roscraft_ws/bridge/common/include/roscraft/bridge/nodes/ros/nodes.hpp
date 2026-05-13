@@ -1,5 +1,6 @@
 #pragma once
 
+#include <roscraft/bridge/nodes/addon/event.hpp>
 #include <roscraft/bridge/nodes/ros/action/info.hpp>
 #include <roscraft/bridge/nodes/ros/action/send_goal.hpp>
 #include <roscraft/bridge/nodes/ros/graph/cache.hpp>

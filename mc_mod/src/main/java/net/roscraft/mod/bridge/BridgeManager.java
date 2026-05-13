@@ -12,7 +12,7 @@ public final class BridgeManager {
 
   private final BridgeCallback callback;
   private RoscraftConfig config;
-  private RoscraftBridge bridge;
+  private volatile RoscraftBridge bridge;
 
   public BridgeManager(RoscraftConfig initialConfig, BridgeCallback callback) {
     this.config = Objects.requireNonNull(initialConfig, "initialConfig must not be null");
@@ -58,6 +58,10 @@ public final class BridgeManager {
       return networkBridge.hasSeenInboundTraffic();
     }
     return true;
+  }
+
+  public synchronized RoscraftBridge getBridge() {
+    return bridge;
   }
 
   public synchronized RoscraftBridge requireConnectedBridge() {
@@ -166,6 +170,10 @@ public final class BridgeManager {
     disconnectInternal();
     OperationResult reconnectResult = connectInternal();
     if (!reconnectResult.success()) {
+      RoscraftMod.LOGGER.warn(
+          "Bridge reconnect failed after {}: {} — bridge is now disconnected.",
+          reason,
+          reconnectResult.message());
       return OperationResult.failure(reason + " Reconnect failed: " + reconnectResult.message());
     }
     return OperationResult.success(reason + " " + reconnectResult.message());

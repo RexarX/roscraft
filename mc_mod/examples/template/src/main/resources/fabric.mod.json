@@ -1,0 +1,20 @@
+{
+    "schemaVersion": 1,
+    "id": "roscraft-template-addon",
+    "version": "${version}",
+    "name": "Roscraft Template Addon",
+    "description": "Template addon for roscraft — copy and customise.",
+    "authors": ["YourName"],
+    "license": "MIT",
+    "environment": "*",
+    "entrypoints": {
+        "roscraft:addon": [
+            "your.mod.TemplateAddon"
+        ]
+    },
+    "depends": {
+        "fabricloader": ">=0.15.0",
+        "minecraft": ">=1.21",
+        "roscraft": ">=0.1.0"
+    }
+}

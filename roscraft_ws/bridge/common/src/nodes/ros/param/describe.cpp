@@ -7,6 +7,7 @@
 #include <roscraft/bridge/command/types/param.hpp>
 #include <roscraft/bridge/nodes/ros/common.hpp>
 
+#include <rclcpp/executor.hpp>
 #include <rclcpp/parameter_client.hpp>
 #include <rclcpp/rclcpp.hpp>
 
@@ -73,6 +74,15 @@ ParamDescribeNode::ParamDescribeNode(CommandQueue& incoming,
       param_describe_response_producer_(
           outgoing.MakeProducerToken<ParamDescribeResponseCmd>()),
       error_producer_(outgoing.MakeProducerToken<ErrorCmd>()),
+      temp_node_([] {
+        auto options = rclcpp::NodeOptions()
+                           .start_parameter_services(false)
+                           .start_parameter_event_publisher(false)
+                           .enable_rosout(false)
+                           .use_global_arguments(false);
+        return std::make_shared<rclcpp::Node>(
+            "_roscraft_param_describe_internal", options);
+      }()),
       allocator_(allocator) {
   using namespace std::chrono_literals;
   poll_timer_ = this->create_wall_timer(50ms, [this] { OnPollTimer(); });
@@ -82,7 +92,7 @@ void ParamDescribeNode::DrainParamDescribeCommands() {
   auto& in_storage = incoming_.get().TypedStorage<ParamDescribeCmd>();
   auto& out_storage = outgoing_.get().TypedStorage<ParamDescribeResponseCmd>();
 
-  ParamDescribeCmd cmd(allocator_);
+  ParamDescribeCmd cmd(std::pmr::get_default_resource());
   while (in_storage.Dequeue(param_describe_consumer_, cmd)) {
     if (cmd.node_name.empty() || cmd.param_name.empty()) [[unlikely]] {
       SendError(cmd.request_id, "PARAM_DESCRIBE_FAILED",
@@ -93,14 +103,14 @@ void ParamDescribeNode::DrainParamDescribeCommands() {
     const auto timeout = ResolveTimeout(cmd.timeout_seconds);
     const auto timeout_for_client = std::chrono::duration<double>(timeout);
     auto client = std::make_shared<rclcpp::SyncParametersClient>(
-        this, std::string(cmd.node_name));
+        temp_node_, std::string(cmd.node_name));
     if (!client->wait_for_service(timeout)) [[unlikely]] {
       SendError(cmd.request_id, "PARAM_DESCRIBE_FAILED",
                 "Parameter services unavailable before timeout");
       continue;
     }
 
-    ParamDescribeResponseCmd response(allocator_);
+    ParamDescribeResponseCmd response(std::pmr::get_default_resource());
     response.request_id = cmd.request_id;
     response.node_name = cmd.node_name;
     response.param_name = cmd.param_name;
@@ -136,10 +146,10 @@ void ParamDescribeNode::OnPollTimer() {
 void ParamDescribeNode::SendError(uint64_t request_id,
                                   std::string_view error_code,
                                   std::string_view error_message) {
-  ErrorCmd cmd(allocator_);
+  ErrorCmd cmd(std::pmr::get_default_resource());
   cmd.request_id = request_id;
-  cmd.error_code = std::pmr::string(error_code, allocator_);
-  cmd.error_message = std::pmr::string(error_message, allocator_);
+  cmd.error_code = std::pmr::string(error_code);
+  cmd.error_message = std::pmr::string(error_message);
 
   outgoing_.get().Enqueue(error_producer_, std::move(cmd));
 }

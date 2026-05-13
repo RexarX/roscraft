@@ -14,6 +14,11 @@ table TopicSubscribePacket {
   raw:bool;
 }
 
+table TopicUnsubscribePacket {
+  request_id:uint64;
+  topic_name:string (required);
+}
+
 table TopicPublishMessagePacket {
   request_id:uint64;
   topic_name:string (required);

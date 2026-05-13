@@ -60,6 +60,25 @@ struct TopicSubscribeHandler {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// TopicUnsubscribeHandler — TopicUnsubscribe (receive only)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// @brief Handles `TopicUnsubscribePacket` (receive only).
+struct TopicUnsubscribeHandler {
+  static constexpr auto kReceiveType =
+      fbs::PacketPayload::TopicUnsubscribePacket;
+
+  void Receive(CommandQueue& in, const fbs::BridgePacket& pkt,
+               std::pmr::memory_resource& arena);
+
+  [[nodiscard]] static TopicUnsubscribeHandler From(CommandQueue& in) {
+    return {in.MakeProducerToken<TopicUnsubscribeCmd>()};
+  }
+
+  CommandQueueProducerToken in_producer;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // TopicPublishMessageHandler — PublishMessage (receive only)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -254,6 +273,23 @@ inline void TopicSubscribeHandler::Receive(
   cmd.once = inner->once();
   cmd.timeout_seconds = inner->timeout_seconds();
   cmd.raw = inner->raw();
+  in.Enqueue(in_producer, std::move(cmd));
+}
+
+inline void TopicUnsubscribeHandler::Receive(
+    CommandQueue& in, const fbs::BridgePacket& pkt,
+    std::pmr::memory_resource& /*arena*/) {
+  ROSCRAFT_ASSERT(pkt.payload_type() == kReceiveType,
+                  "Invalid payload type, got '{}', expected '{}'!",
+                  fbs::EnumNamePacketPayload(pkt.payload_type()),
+                  fbs::EnumNamePacketPayload(kReceiveType));
+
+  auto* mr = std::pmr::get_default_resource();
+  const auto* inner = pkt.payload_as_TopicUnsubscribePacket();
+
+  TopicUnsubscribeCmd cmd(mr);
+  cmd.request_id = inner->request_id();
+  cmd.topic_name = std::pmr::string(inner->topic_name()->string_view(), mr);
   in.Enqueue(in_producer, std::move(cmd));
 }
 

@@ -13,7 +13,10 @@
     "environment": "*",
     "entrypoints": {
         "main": ["net.roscraft.mod.RoscraftMod"],
-        "modmenu": ["net.roscraft.mod.client.RoscraftModMenuApiImpl"]
+        "modmenu": ["net.roscraft.mod.client.RoscraftModMenuApiImpl"],
+        "roscraft:addon": [
+            "net.roscraft.mod.addon.example.ExampleAddon"
+        ]
     },
     "mixins": [],
     "custom": {

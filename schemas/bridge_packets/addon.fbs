@@ -1,0 +1,10 @@
+namespace roscraft.bridge.fbs;
+
+table AddonEventPacket {
+  request_id:uint64;
+  addon_id:string (required);
+  event_type:string (required);
+  encoding:string;
+  payload:[ubyte];
+  response:bool;
+}

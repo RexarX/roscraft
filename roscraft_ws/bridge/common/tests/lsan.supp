@@ -1,3 +1,4 @@
 leak:rmw_fastrtps_shared_cpp::register_type_object
 leak:rmw_create_subscription
 leak:rclcpp::GenericSubscription
+leak:rosidl_typesupport_cpp

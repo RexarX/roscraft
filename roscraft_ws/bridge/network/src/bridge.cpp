@@ -44,11 +44,29 @@ void NetworkBridge::Init(App& app) {
 
   InitAsio();
 
-  status_.store(BridgeStatus::kReady, std::memory_order_release);
   RCLCPP_INFO(
       rclcpp::get_logger("NetworkBridge"),
       "Network bridge initialized successfully\nListening on udp://%s:%u",
       config_.host.CStr(), config_.port);
+}
+
+void NetworkBridge::InitAsio() {
+  io_ctx_.restart();
+
+  const asio::ip::udp::endpoint ep(asio::ip::make_address(config_.host),
+                                   config_.port);
+  socket_.open(ep.protocol());
+  socket_.set_option(asio::socket_base::reuse_address(true));
+  socket_.bind(ep);
+
+  work_guard_.emplace(asio::make_work_guard(io_ctx_));
+
+  asio::co_spawn(io_ctx_, ReceiveLoop(), asio::detached);
+
+  status_.store(BridgeStatus::kReady, std::memory_order_release);
+
+  auto& app = App::Instance();
+  io_task_ = app.Executor().async([this] { io_ctx_.run(); });
 }
 
 void NetworkBridge::Destroy(App& /*app*/) {
@@ -73,26 +91,9 @@ void NetworkBridge::Tick(App& /*app*/) {
     return;
   }
 
-  io_ctx_.restart();
-  io_ctx_.poll();
-
   PruneInactiveClients(std::chrono::steady_clock::now());
 
   DrainAndSendAll();
-}
-
-void NetworkBridge::InitAsio() {
-  io_ctx_.restart();
-
-  const asio::ip::udp::endpoint ep(asio::ip::make_address(config_.host),
-                                   config_.port);
-  socket_.open(ep.protocol());
-  socket_.set_option(asio::socket_base::reuse_address(true));
-  socket_.bind(ep);
-
-  work_guard_.emplace(asio::make_work_guard(io_ctx_));
-
-  asio::co_spawn(io_ctx_, ReceiveLoop(), asio::detached);
 }
 
 void NetworkBridge::DestroyAsio() {
@@ -101,6 +102,10 @@ void NetworkBridge::DestroyAsio() {
     work_guard_.reset();
   }
   io_ctx_.stop();
+
+  if (io_task_.valid()) {
+    io_task_.wait();
+  }
 
   std::error_code ec;
   socket_.close(ec);
@@ -131,21 +136,19 @@ auto NetworkBridge::ReceiveLoop() -> asio::awaitable<void> {
 
     // Manage client connections with minimal locking
     if (config_.allow_multiple_connections) {
-      // Multi-client mode: use read-modify-write pattern
+      // Multi-client mode: update timestamp atomically under shared lock
       std::shared_lock lock(clients_mutex_);
-      if (clients_.contains(sender)) {
-        // Already registered, skip write lock
-        lock.unlock();
-        MarkClientSeen(sender, now);
+      if (const auto it = clients_last_seen_.find(sender);
+          it != clients_last_seen_.end()) {
+        it->second.store(now.time_since_epoch().count(),
+                         std::memory_order_relaxed);
       } else {
-        // Need to add new client - upgrade to unique lock
         lock.unlock();
         AddClient(sender, now);
       }
 
     } else {
       // Single-client mode: only accept from the first connected client
-      // Fast path: check with shared lock
       std::shared_lock lock(clients_mutex_);
       if (clients_.empty()) {
         // Need to register first client
@@ -154,8 +157,13 @@ auto NetworkBridge::ReceiveLoop() -> asio::awaitable<void> {
       } else {
         // Check if sender is the registered client
         const auto& registered = *clients_.begin();
-        lock.unlock();
-        if (sender != registered) {
+        if (sender == registered) {
+          if (const auto it = clients_last_seen_.find(sender);
+              it != clients_last_seen_.end()) {
+            it->second.store(now.time_since_epoch().count(),
+                             std::memory_order_relaxed);
+          }
+        } else {
           // Ignore packets from unknown clients in single-client mode
           RCLCPP_DEBUG(
               rclcpp::get_logger("NetworkBridge"),
@@ -164,7 +172,6 @@ auto NetworkBridge::ReceiveLoop() -> asio::awaitable<void> {
               EndpointToString(registered).c_str());
           continue;
         }
-        MarkClientSeen(sender, now);
       }
     }
 
@@ -179,7 +186,6 @@ void NetworkBridge::DrainAndSendAll() {
   auto& app = App::Instance();
 
   // Thread-local FlatBufferBuilder avoids per-message heap allocation.
-  // Safe here because DrainAndSendAll always runs on the single ASIO thread.
   thread_local flatbuffers::FlatBufferBuilder fbb(4096);
 
   // Build a local snapshot of clients under the read lock, then release it
@@ -230,20 +236,13 @@ void NetworkBridge::AddClient(const asio::ip::udp::endpoint& client,
   std::scoped_lock lock(clients_mutex_);
 
   const bool inserted = clients_.insert(client).second;
-  clients_last_seen_[client] = now;
+  clients_last_seen_[client].store(now.time_since_epoch().count(),
+                                   std::memory_order_relaxed);
 
   if (inserted) {
     RCLCPP_INFO(rclcpp::get_logger("NetworkBridge"),
                 "Client connected: %s (active clients: %zu)",
                 EndpointToString(client).c_str(), clients_.size());
-  }
-}
-
-void NetworkBridge::MarkClientSeen(const asio::ip::udp::endpoint& client,
-                                   std::chrono::steady_clock::time_point now) {
-  std::scoped_lock lock(clients_mutex_);
-  if (clients_.contains(client)) {
-    clients_last_seen_[client] = now;
   }
 }
 
@@ -268,7 +267,10 @@ void NetworkBridge::PruneInactiveClients(
     std::scoped_lock lock(clients_mutex_);
     for (auto it = clients_last_seen_.begin();
          it != clients_last_seen_.end();) {
-      if (now - it->second > kClientInactivityTimeout) {
+      const auto last_seen = std::chrono::steady_clock::time_point{
+          std::chrono::steady_clock::duration{
+              it->second.load(std::memory_order_relaxed)}};
+      if (now - last_seen > kClientInactivityTimeout) {
         stale_clients.push_back(it->first);
         clients_.erase(it->first);
         it = clients_last_seen_.erase(it);

@@ -3,6 +3,7 @@ package net.roscraft.mod.command;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import java.util.List;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 
@@ -10,8 +11,9 @@ final class RoscraftCommandTree {
 
   private RoscraftCommandTree() {}
 
-  static LiteralArgumentBuilder<ServerCommandSource> buildRoot() {
-    return CommandManager.literal("ros")
+  static LiteralArgumentBuilder<ServerCommandSource> buildRoot(
+      List<LiteralArgumentBuilder<ServerCommandSource>> addonCommands) {
+    var root = CommandManager.literal("ros")
         .requires(src -> src.hasPermissionLevel(2))
         .executes(ctx -> RoscraftCommandActions.executeHelp(ctx.getSource()))
         .then(buildConnectionCommands())
@@ -23,6 +25,14 @@ final class RoscraftCommandTree {
         .then(buildInterfaceCommands())
         .then(CommandManager.literal("players")
             .executes(ctx -> RoscraftCommandActions.executePlayers(ctx.getSource())));
+
+    if (addonCommands != null) {
+      for (var cmd : addonCommands) {
+        root.then(cmd);
+      }
+    }
+
+    return root;
   }
 
   static LiteralArgumentBuilder<ServerCommandSource> buildConnectionCommands() {
@@ -94,7 +104,7 @@ final class RoscraftCommandTree {
   static LiteralArgumentBuilder<ServerCommandSource> buildTopicCommands() {
     return CommandManager.literal("topic")
         .then(CommandManager.literal("list")
-            .executes(ctx -> RoscraftCommandActions.executeTopicList(ctx.getSource(), ""))
+            .executes(ctx -> TopicCommandActions.executeTopicList(ctx.getSource(), ""))
             .then(CommandManager.argument("flags", StringArgumentType.greedyString())
                 .suggests((context, builder) -> {
                   builder.suggest("-t");
@@ -104,19 +114,19 @@ final class RoscraftCommandTree {
                   builder.suggest("--include-hidden-topics");
                   return builder.buildFuture();
                 })
-                .executes(ctx -> RoscraftCommandActions.executeTopicList(
+                .executes(ctx -> TopicCommandActions.executeTopicList(
                     ctx.getSource(), StringArgumentType.getString(ctx, "flags")))))
         .then(CommandManager.literal("type")
             .then(CommandManager.argument("topic_name", StringArgumentType.string())
-                .executes(ctx -> RoscraftCommandActions.executeTopicType(
+                .executes(ctx -> TopicCommandActions.executeTopicType(
                     ctx.getSource(), StringArgumentType.getString(ctx, "topic_name")))))
         .then(CommandManager.literal("find")
             .then(CommandManager.argument("topic_type", StringArgumentType.string())
-                .executes(ctx -> RoscraftCommandActions.executeTopicFind(
+                .executes(ctx -> TopicCommandActions.executeTopicFind(
                     ctx.getSource(), StringArgumentType.getString(ctx, "topic_type")))))
         .then(CommandManager.literal("echo")
             .then(CommandManager.argument("topic_name", StringArgumentType.string())
-                .executes(ctx -> RoscraftCommandActions.executeTopicEcho(
+                .executes(ctx -> TopicCommandActions.executeTopicEcho(
                     ctx.getSource(), StringArgumentType.getString(ctx, "topic_name"), "", ""))
                 .then(CommandManager.argument("tail", StringArgumentType.greedyString())
                     .suggests((context, builder) -> {
@@ -126,15 +136,19 @@ final class RoscraftCommandTree {
                       builder.suggest("--raw");
                       return builder.buildFuture();
                     })
-                    .executes(ctx -> RoscraftCommandActions.executeTopicEchoTail(
+                    .executes(ctx -> TopicCommandActions.executeTopicEchoTail(
                         ctx.getSource(),
                         StringArgumentType.getString(ctx, "topic_name"),
-                        StringArgumentType.getString(ctx, "tail"))))))
+                        StringArgumentType.getString(ctx, "tail")))))
+            .then(CommandManager.literal("stop")
+                .then(CommandManager.argument("topic_name", StringArgumentType.string())
+                    .executes(ctx -> TopicCommandActions.executeTopicEchoStop(
+                        ctx.getSource(), StringArgumentType.getString(ctx, "topic_name"))))))
         .then(CommandManager.literal("pub")
             .then(CommandManager.argument("topic_name", StringArgumentType.string())
                 .then(CommandManager.argument("message_type", StringArgumentType.string())
                     .then(CommandManager.argument("payload", StringArgumentType.string())
-                        .executes(ctx -> RoscraftCommandActions.executeTopicPub(
+                        .executes(ctx -> TopicCommandActions.executeTopicPub(
                             ctx.getSource(),
                             StringArgumentType.getString(ctx, "topic_name"),
                             StringArgumentType.getString(ctx, "message_type"),
@@ -149,7 +163,7 @@ final class RoscraftCommandTree {
                               builder.suggest("--qos-profile sensor_data");
                               return builder.buildFuture();
                             })
-                            .executes(ctx -> RoscraftCommandActions.executeTopicPub(
+                            .executes(ctx -> TopicCommandActions.executeTopicPub(
                                 ctx.getSource(),
                                 StringArgumentType.getString(ctx, "topic_name"),
                                 StringArgumentType.getString(ctx, "message_type"),
@@ -157,7 +171,7 @@ final class RoscraftCommandTree {
                                 StringArgumentType.getString(ctx, "flags"))))))))
         .then(CommandManager.literal("hz")
             .then(CommandManager.argument("topic_name", StringArgumentType.string())
-                .executes(ctx -> RoscraftCommandActions.executeTopicHz(
+                .executes(ctx -> TopicCommandActions.executeTopicHz(
                     ctx.getSource(), StringArgumentType.getString(ctx, "topic_name"), "", ""))
                 .then(CommandManager.argument("tail", StringArgumentType.greedyString())
                     .suggests((context, builder) -> {
@@ -166,13 +180,13 @@ final class RoscraftCommandTree {
                       builder.suggest("--wall-time");
                       return builder.buildFuture();
                     })
-                    .executes(ctx -> RoscraftCommandActions.executeTopicHzTail(
+                    .executes(ctx -> TopicCommandActions.executeTopicHzTail(
                         ctx.getSource(),
                         StringArgumentType.getString(ctx, "topic_name"),
                         StringArgumentType.getString(ctx, "tail"))))))
         .then(CommandManager.literal("bw")
             .then(CommandManager.argument("topic_name", StringArgumentType.string())
-                .executes(ctx -> RoscraftCommandActions.executeTopicBw(
+                .executes(ctx -> TopicCommandActions.executeTopicBw(
                     ctx.getSource(), StringArgumentType.getString(ctx, "topic_name"), "", ""))
                 .then(CommandManager.argument("tail", StringArgumentType.greedyString())
                     .suggests((context, builder) -> {
@@ -181,13 +195,13 @@ final class RoscraftCommandTree {
                       builder.suggest("--wall-time");
                       return builder.buildFuture();
                     })
-                    .executes(ctx -> RoscraftCommandActions.executeTopicBwTail(
+                    .executes(ctx -> TopicCommandActions.executeTopicBwTail(
                         ctx.getSource(),
                         StringArgumentType.getString(ctx, "topic_name"),
                         StringArgumentType.getString(ctx, "tail"))))))
         .then(CommandManager.literal("delay")
             .then(CommandManager.argument("topic_name", StringArgumentType.string())
-                .executes(ctx -> RoscraftCommandActions.executeTopicDelay(
+                .executes(ctx -> TopicCommandActions.executeTopicDelay(
                     ctx.getSource(), StringArgumentType.getString(ctx, "topic_name"), "", ""))
                 .then(CommandManager.argument("tail", StringArgumentType.greedyString())
                     .suggests((context, builder) -> {
@@ -195,13 +209,13 @@ final class RoscraftCommandTree {
                       builder.suggest("--window 10");
                       return builder.buildFuture();
                     })
-                    .executes(ctx -> RoscraftCommandActions.executeTopicDelayTail(
+                    .executes(ctx -> TopicCommandActions.executeTopicDelayTail(
                         ctx.getSource(),
                         StringArgumentType.getString(ctx, "topic_name"),
                         StringArgumentType.getString(ctx, "tail"))))))
         .then(CommandManager.literal("info")
             .then(CommandManager.argument("topic_name", StringArgumentType.string())
-                .executes(ctx -> RoscraftCommandActions.executeTopicInfo(
+                .executes(ctx -> TopicCommandActions.executeTopicInfo(
                     ctx.getSource(), StringArgumentType.getString(ctx, "topic_name"), ""))
                 .then(CommandManager.argument("flags", StringArgumentType.greedyString())
                     .suggests((context, builder) -> {
@@ -209,7 +223,7 @@ final class RoscraftCommandTree {
                       builder.suggest("--verbose");
                       return builder.buildFuture();
                     })
-                    .executes(ctx -> RoscraftCommandActions.executeTopicInfo(
+                    .executes(ctx -> TopicCommandActions.executeTopicInfo(
                         ctx.getSource(),
                         StringArgumentType.getString(ctx, "topic_name"),
                         StringArgumentType.getString(ctx, "flags"))))));
@@ -218,7 +232,7 @@ final class RoscraftCommandTree {
   static LiteralArgumentBuilder<ServerCommandSource> buildServiceCommands() {
     return CommandManager.literal("service")
         .then(CommandManager.literal("list")
-            .executes(ctx -> RoscraftCommandActions.executeServiceList(ctx.getSource(), ""))
+            .executes(ctx -> ServiceCommandActions.executeServiceList(ctx.getSource(), ""))
             .then(CommandManager.argument("flags", StringArgumentType.greedyString())
                 .suggests((context, builder) -> {
                   builder.suggest("-t");
@@ -228,19 +242,19 @@ final class RoscraftCommandTree {
                   builder.suggest("--include-hidden-services");
                   return builder.buildFuture();
                 })
-                .executes(ctx -> RoscraftCommandActions.executeServiceList(
+                .executes(ctx -> ServiceCommandActions.executeServiceList(
                     ctx.getSource(), StringArgumentType.getString(ctx, "flags")))))
         .then(CommandManager.literal("type")
             .then(CommandManager.argument("service_name", StringArgumentType.string())
-                .executes(ctx -> RoscraftCommandActions.executeServiceType(
+                .executes(ctx -> ServiceCommandActions.executeServiceType(
                     ctx.getSource(), StringArgumentType.getString(ctx, "service_name")))))
         .then(CommandManager.literal("find")
             .then(CommandManager.argument("service_type", StringArgumentType.string())
-                .executes(ctx -> RoscraftCommandActions.executeServiceFind(
+                .executes(ctx -> ServiceCommandActions.executeServiceFind(
                     ctx.getSource(), StringArgumentType.getString(ctx, "service_type")))))
         .then(CommandManager.literal("info")
             .then(CommandManager.argument("service_name", StringArgumentType.string())
-                .executes(ctx -> RoscraftCommandActions.executeServiceInfo(
+                .executes(ctx -> ServiceCommandActions.executeServiceInfo(
                     ctx.getSource(), StringArgumentType.getString(ctx, "service_name"), ""))
                 .then(CommandManager.argument("flags", StringArgumentType.greedyString())
                     .suggests((context, builder) -> {
@@ -248,7 +262,7 @@ final class RoscraftCommandTree {
                       builder.suggest("--verbose");
                       return builder.buildFuture();
                     })
-                    .executes(ctx -> RoscraftCommandActions.executeServiceInfo(
+                    .executes(ctx -> ServiceCommandActions.executeServiceInfo(
                         ctx.getSource(),
                         StringArgumentType.getString(ctx, "service_name"),
                         StringArgumentType.getString(ctx, "flags"))))))
@@ -256,7 +270,7 @@ final class RoscraftCommandTree {
             .then(CommandManager.argument("service_name", StringArgumentType.string())
                 .then(CommandManager.argument("service_type", StringArgumentType.string())
                     .then(CommandManager.argument("request", StringArgumentType.string())
-                        .executes(ctx -> RoscraftCommandActions.executeServiceCall(
+                        .executes(ctx -> ServiceCommandActions.executeServiceCall(
                             ctx.getSource(),
                             StringArgumentType.getString(ctx, "service_name"),
                             StringArgumentType.getString(ctx, "service_type"),
@@ -269,7 +283,7 @@ final class RoscraftCommandTree {
                               builder.suggest("--rate 1");
                               return builder.buildFuture();
                             })
-                            .executes(ctx -> RoscraftCommandActions.executeServiceCall(
+                            .executes(ctx -> ServiceCommandActions.executeServiceCall(
                                 ctx.getSource(),
                                 StringArgumentType.getString(ctx, "service_name"),
                                 StringArgumentType.getString(ctx, "service_type"),
@@ -280,29 +294,29 @@ final class RoscraftCommandTree {
   static LiteralArgumentBuilder<ServerCommandSource> buildActionCommands() {
     return CommandManager.literal("action")
         .then(CommandManager.literal("list")
-            .executes(ctx -> RoscraftCommandActions.executeActionList(ctx.getSource(), ""))
+            .executes(ctx -> ActionCommandActions.executeActionList(ctx.getSource(), ""))
             .then(CommandManager.argument("flags", StringArgumentType.greedyString())
                 .suggests((context, builder) -> {
                   builder.suggest("-t");
                   builder.suggest("--show-types");
                   return builder.buildFuture();
                 })
-                .executes(ctx -> RoscraftCommandActions.executeActionList(
+                .executes(ctx -> ActionCommandActions.executeActionList(
                     ctx.getSource(), StringArgumentType.getString(ctx, "flags")))))
         .then(CommandManager.literal("type")
             .then(CommandManager.argument("action_name", StringArgumentType.string())
-                .executes(ctx -> RoscraftCommandActions.executeActionType(
+                .executes(ctx -> ActionCommandActions.executeActionType(
                     ctx.getSource(), StringArgumentType.getString(ctx, "action_name")))))
         .then(CommandManager.literal("info")
             .then(CommandManager.argument("action_name", StringArgumentType.string())
-                .executes(ctx -> RoscraftCommandActions.executeActionInfo(
+                .executes(ctx -> ActionCommandActions.executeActionInfo(
                     ctx.getSource(), StringArgumentType.getString(ctx, "action_name"), ""))
                 .then(CommandManager.argument("flags", StringArgumentType.greedyString())
                     .suggests((context, builder) -> {
                       builder.suggest("--include-hidden");
                       return builder.buildFuture();
                     })
-                    .executes(ctx -> RoscraftCommandActions.executeActionInfo(
+                    .executes(ctx -> ActionCommandActions.executeActionInfo(
                         ctx.getSource(),
                         StringArgumentType.getString(ctx, "action_name"),
                         StringArgumentType.getString(ctx, "flags"))))))
@@ -310,7 +324,7 @@ final class RoscraftCommandTree {
             .then(CommandManager.argument("action_name", StringArgumentType.string())
                 .then(CommandManager.argument("action_type", StringArgumentType.string())
                     .then(CommandManager.argument("goal", StringArgumentType.string())
-                        .executes(ctx -> RoscraftCommandActions.executeActionSendGoal(
+                        .executes(ctx -> ActionCommandActions.executeActionSendGoal(
                             ctx.getSource(),
                             StringArgumentType.getString(ctx, "action_name"),
                             StringArgumentType.getString(ctx, "action_type"),
@@ -323,7 +337,7 @@ final class RoscraftCommandTree {
                               builder.suggest("--timeout 10");
                               return builder.buildFuture();
                             })
-                            .executes(ctx -> RoscraftCommandActions.executeActionSendGoal(
+                            .executes(ctx -> ActionCommandActions.executeActionSendGoal(
                                 ctx.getSource(),
                                 StringArgumentType.getString(ctx, "action_name"),
                                 StringArgumentType.getString(ctx, "action_type"),
@@ -335,7 +349,7 @@ final class RoscraftCommandTree {
     return CommandManager.literal("param")
         .then(CommandManager.literal("list")
             .then(CommandManager.argument("node_name", StringArgumentType.string())
-                .executes(ctx -> RoscraftCommandActions.executeParamList(
+                .executes(ctx -> ParamCommandActions.executeParamList(
                     ctx.getSource(), StringArgumentType.getString(ctx, "node_name"), ""))
                 .then(CommandManager.argument("flags", StringArgumentType.greedyString())
                     .suggests((context, builder) -> {
@@ -345,14 +359,14 @@ final class RoscraftCommandTree {
                       builder.suggest("--filter .*rate.*");
                       return builder.buildFuture();
                     })
-                    .executes(ctx -> RoscraftCommandActions.executeParamList(
+                    .executes(ctx -> ParamCommandActions.executeParamList(
                         ctx.getSource(),
                         StringArgumentType.getString(ctx, "node_name"),
                         StringArgumentType.getString(ctx, "flags"))))))
         .then(CommandManager.literal("get")
             .then(CommandManager.argument("node_name", StringArgumentType.string())
                 .then(CommandManager.argument("param_name", StringArgumentType.string())
-                    .executes(ctx -> RoscraftCommandActions.executeParamGet(
+                    .executes(ctx -> ParamCommandActions.executeParamGet(
                         ctx.getSource(),
                         StringArgumentType.getString(ctx, "node_name"),
                         StringArgumentType.getString(ctx, "param_name"),
@@ -362,7 +376,7 @@ final class RoscraftCommandTree {
                           builder.suggest("--hide-type");
                           return builder.buildFuture();
                         })
-                        .executes(ctx -> RoscraftCommandActions.executeParamGet(
+                        .executes(ctx -> ParamCommandActions.executeParamGet(
                             ctx.getSource(),
                             StringArgumentType.getString(ctx, "node_name"),
                             StringArgumentType.getString(ctx, "param_name"),
@@ -371,7 +385,7 @@ final class RoscraftCommandTree {
             .then(CommandManager.argument("node_name", StringArgumentType.string())
                 .then(CommandManager.argument("param_name", StringArgumentType.string())
                     .then(CommandManager.argument("value", StringArgumentType.string())
-                        .executes(ctx -> RoscraftCommandActions.executeParamSet(
+                        .executes(ctx -> ParamCommandActions.executeParamSet(
                             ctx.getSource(),
                             StringArgumentType.getString(ctx, "node_name"),
                             StringArgumentType.getString(ctx, "param_name"),
@@ -382,7 +396,7 @@ final class RoscraftCommandTree {
                               builder.suggest("--timeout 5");
                               return builder.buildFuture();
                             })
-                            .executes(ctx -> RoscraftCommandActions.executeParamSet(
+                            .executes(ctx -> ParamCommandActions.executeParamSet(
                                 ctx.getSource(),
                                 StringArgumentType.getString(ctx, "node_name"),
                                 StringArgumentType.getString(ctx, "param_name"),
@@ -391,27 +405,27 @@ final class RoscraftCommandTree {
         .then(CommandManager.literal("describe")
             .then(CommandManager.argument("node_name", StringArgumentType.string())
                 .then(CommandManager.argument("param_name", StringArgumentType.string())
-                    .executes(ctx -> RoscraftCommandActions.executeParamDescribe(
+                    .executes(ctx -> ParamCommandActions.executeParamDescribe(
                         ctx.getSource(),
                         StringArgumentType.getString(ctx, "node_name"),
                         StringArgumentType.getString(ctx, "param_name"))))))
         .then(CommandManager.literal("dump")
             .then(CommandManager.argument("node_name", StringArgumentType.string())
-                .executes(ctx -> RoscraftCommandActions.executeParamDump(
+                .executes(ctx -> ParamCommandActions.executeParamDump(
                     ctx.getSource(), StringArgumentType.getString(ctx, "node_name"), ""))
                 .then(CommandManager.argument("flags", StringArgumentType.greedyString())
                     .suggests((context, builder) -> {
                       builder.suggest("--param-prefixes foo bar");
                       return builder.buildFuture();
                     })
-                    .executes(ctx -> RoscraftCommandActions.executeParamDump(
+                    .executes(ctx -> ParamCommandActions.executeParamDump(
                         ctx.getSource(),
                         StringArgumentType.getString(ctx, "node_name"),
                         StringArgumentType.getString(ctx, "flags"))))))
         .then(CommandManager.literal("load")
             .then(CommandManager.argument("node_name", StringArgumentType.string())
                 .then(CommandManager.argument("parameter_file", StringArgumentType.string())
-                    .executes(ctx -> RoscraftCommandActions.executeParamLoad(
+                    .executes(ctx -> ParamCommandActions.executeParamLoad(
                         ctx.getSource(),
                         StringArgumentType.getString(ctx, "node_name"),
                         StringArgumentType.getString(ctx, "parameter_file"),
@@ -422,7 +436,7 @@ final class RoscraftCommandTree {
                           builder.suggest("--no-use-wildcard");
                           return builder.buildFuture();
                         })
-                        .executes(ctx -> RoscraftCommandActions.executeParamLoad(
+                        .executes(ctx -> ParamCommandActions.executeParamLoad(
                             ctx.getSource(),
                             StringArgumentType.getString(ctx, "node_name"),
                             StringArgumentType.getString(ctx, "parameter_file"),
@@ -432,7 +446,7 @@ final class RoscraftCommandTree {
   static LiteralArgumentBuilder<ServerCommandSource> buildInterfaceCommands() {
     return CommandManager.literal("interface")
         .then(CommandManager.literal("list")
-            .executes(ctx -> RoscraftCommandActions.executeInterfaceList(ctx.getSource(), ""))
+            .executes(ctx -> InterfaceCommandActions.executeInterfaceList(ctx.getSource(), ""))
             .then(CommandManager.argument("flags", StringArgumentType.greedyString())
                 .suggests((context, builder) -> {
                   builder.suggest("-m");
@@ -443,18 +457,18 @@ final class RoscraftCommandTree {
                   builder.suggest("--only-actions");
                   return builder.buildFuture();
                 })
-                .executes(ctx -> RoscraftCommandActions.executeInterfaceList(
+                .executes(ctx -> InterfaceCommandActions.executeInterfaceList(
                     ctx.getSource(), StringArgumentType.getString(ctx, "flags")))))
         .then(CommandManager.literal("show")
             .then(CommandManager.argument("interface_type", StringArgumentType.string())
-                .executes(ctx -> RoscraftCommandActions.executeInterfaceShow(
+                .executes(ctx -> InterfaceCommandActions.executeInterfaceShow(
                     ctx.getSource(), StringArgumentType.getString(ctx, "interface_type"), ""))
                 .then(CommandManager.argument("flags", StringArgumentType.greedyString())
                     .suggests((context, builder) -> {
                       builder.suggest("--no-comments");
                       return builder.buildFuture();
                     })
-                    .executes(ctx -> RoscraftCommandActions.executeInterfaceShow(
+                    .executes(ctx -> InterfaceCommandActions.executeInterfaceShow(
                         ctx.getSource(),
                         StringArgumentType.getString(ctx, "interface_type"),
                         StringArgumentType.getString(ctx, "flags"))))));

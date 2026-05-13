@@ -932,4 +932,55 @@ TEST_SUITE("bridge::Commands") {
                "Message type is not of the form package/type");
     }
   }
+
+  TEST_CASE("bridge::AddonEventCmd") {
+    SUBCASE("Default ctor uses default PMR resource") {
+      AddonEventCmd cmd;
+
+      CHECK_EQ(AddonEventCmd::kName, "AddonEventCmd");
+      CHECK_EQ(cmd.request_id, 0);
+      CHECK_FALSE(cmd.response);
+      CHECK_EQ(cmd.addon_id.get_allocator().resource(),
+               std::pmr::get_default_resource());
+      CHECK_EQ(cmd.event_type.get_allocator().resource(),
+               std::pmr::get_default_resource());
+      CHECK_EQ(cmd.encoding.get_allocator().resource(),
+               std::pmr::get_default_resource());
+      CHECK_EQ(cmd.payload.get_allocator().resource(),
+               std::pmr::get_default_resource());
+    }
+
+    SUBCASE("Explicit ctor uses provided PMR resource") {
+      std::array<std::byte, 512> buffer{};
+      std::pmr::monotonic_buffer_resource mr(buffer.data(), buffer.size());
+
+      AddonEventCmd cmd(&mr);
+
+      CHECK_EQ(cmd.addon_id.get_allocator().resource(), &mr);
+      CHECK_EQ(cmd.event_type.get_allocator().resource(), &mr);
+      CHECK_EQ(cmd.encoding.get_allocator().resource(), &mr);
+      CHECK_EQ(cmd.payload.get_allocator().resource(), &mr);
+    }
+
+    SUBCASE("Fields can be set and read") {
+      AddonEventCmd cmd;
+
+      cmd.request_id = 42;
+      cmd.addon_id = "ping";
+      cmd.event_type = "hello";
+      cmd.encoding = "json";
+      cmd.response = true;
+      cmd.payload = {0x01, 0x02, 0x03};
+
+      CHECK_EQ(cmd.request_id, 42);
+      CHECK_EQ(cmd.addon_id, "ping");
+      CHECK_EQ(cmd.event_type, "hello");
+      CHECK_EQ(cmd.encoding, "json");
+      CHECK(cmd.response);
+      CHECK_EQ(cmd.payload.size(), 3U);
+      CHECK_EQ(cmd.payload[0], 0x01);
+      CHECK_EQ(cmd.payload[1], 0x02);
+      CHECK_EQ(cmd.payload[2], 0x03);
+    }
+  }
 }

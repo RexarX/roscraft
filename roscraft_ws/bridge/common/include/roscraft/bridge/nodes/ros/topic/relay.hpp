@@ -24,6 +24,7 @@ namespace roscraft::bridge {
 
 class TopicPublishMessageCmd;
 class TopicSubscribeCmd;
+class TopicUnsubscribeCmd;
 
 /// @brief Services `TopicSubscribeCmd` requests and forwards topic messages
 /// as `TopicPayloadCmd` entries in the outgoing queue.
@@ -81,11 +82,17 @@ private:
   /// @brief Drain all pending `TopicSubscribeCmd`s and create subscriptions.
   void DrainSubscribeCommands();
 
+  /// @brief Drain all pending `TopicUnsubscribeCmd`s and remove subscriptions.
+  void DrainUnsubscribeCommands();
+
   /// @brief Drain all pending `TopicPublishMessageCmd`s and publish them.
   void DrainPublishCommands();
 
   /// @brief Register subscription request and ensure backing subscription.
   void Subscribe(const TopicSubscribeCmd& cmd);
+
+  /// @brief Remove all active echo subscriptions for a topic.
+  void Unsubscribe(const TopicUnsubscribeCmd& cmd);
 
   /// @brief Create backing generic subscription for one topic.
   /// @param topic_name Topic name
@@ -174,6 +181,7 @@ private:
   std::reference_wrapper<CommandQueue> outgoing_;
 
   CommandQueueConsumerToken subscribe_consumer_;
+  CommandQueueConsumerToken unsubscribe_consumer_;
   CommandQueueConsumerToken publish_consumer_;
   CommandQueueProducerToken payload_producer_;
   CommandQueueProducerToken error_producer_;

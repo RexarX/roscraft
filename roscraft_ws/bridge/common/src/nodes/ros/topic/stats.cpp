@@ -514,6 +514,7 @@ void TopicStatsNode::OnReportTimer() {
 }
 
 void TopicStatsNode::ReportStats() {
+  auto* const mr = std::pmr::get_default_resource();
   for (auto& [_, session] : sessions_) {
     const auto visitor = [&](auto& data) {
       using T = std::decay_t<decltype(data)>;
@@ -538,9 +539,9 @@ void TopicStatsNode::ReportStats() {
         const double average_delay =
             total_delay / static_cast<double>(data.delays_seconds.size());
 
-        TopicDelayResponseCmd cmd(allocator_);
+        TopicDelayResponseCmd cmd(mr);
         cmd.request_id = session.request_id;
-        cmd.topic_name = std::pmr::string(session.topic_name, allocator_);
+        cmd.topic_name = std::pmr::string(session.topic_name, mr);
         cmd.average_delay = average_delay;
         cmd.min_delay = min_delay;
         cmd.max_delay = max_delay;
@@ -565,9 +566,9 @@ void TopicStatsNode::ReportStats() {
           const auto frequency =
               static_cast<double>(data.timestamps_ns.size() - 1) / elapsed;
 
-          TopicHzResponseCmd cmd(allocator_);
+          TopicHzResponseCmd cmd(mr);
           cmd.request_id = session.request_id;
-          cmd.topic_name = std::pmr::string(session.topic_name, allocator_);
+          cmd.topic_name = std::pmr::string(session.topic_name, mr);
           cmd.frequency = frequency;
           cmd.window = session.window;
           cmd.message_count = static_cast<uint32_t>(data.timestamps_ns.size());
@@ -590,9 +591,9 @@ void TopicStatsNode::ReportStats() {
           const auto bytes_per_second =
               static_cast<double>(total_bytes) / elapsed;
 
-          TopicBwResponseCmd cmd(allocator_);
+          TopicBwResponseCmd cmd(mr);
           cmd.request_id = session.request_id;
-          cmd.topic_name = std::pmr::string(session.topic_name, allocator_);
+          cmd.topic_name = std::pmr::string(session.topic_name, mr);
           cmd.bytes_per_second = bytes_per_second;
           cmd.window = session.window;
           cmd.message_count = static_cast<uint32_t>(data.timestamps_ns.size());

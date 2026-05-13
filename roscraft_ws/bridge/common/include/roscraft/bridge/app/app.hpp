@@ -253,6 +253,26 @@ public:
     return executor_;
   }
 
+  /// @brief ROS executor used for spinning nodes.
+  /// @warning Triggers assertion if ROS executor is not initialized.
+  /// @return Reference to the ROS executor
+  [[nodiscard]] auto RosExecutor() noexcept
+      -> rclcpp::executors::MultiThreadedExecutor& {
+    ROSCRAFT_ASSERT(ros_executor_.has_value(),
+                    "ROS executor is not initialized!");
+    return *ros_executor_;
+  }
+
+  /// @brief ROS executor used for spinning nodes (const).
+  /// @warning Triggers assertion if ROS executor is not initialized.
+  /// @return Const reference to the ROS executor
+  [[nodiscard]] auto RosExecutor() const noexcept
+      -> const rclcpp::executors::MultiThreadedExecutor& {
+    ROSCRAFT_ASSERT(ros_executor_.has_value(),
+                    "ROS executor is not initialized!");
+    return *ros_executor_;
+  }
+
 private:
   App() = default;
 

@@ -17,8 +17,8 @@
 - [Prerequisites](#prerequisites)
 - [Dependencies](#dependencies)
 - [Building](#building)
-  - [C++ Backend](#cpp-backend)
-  - [Minecraft Mod](#minecraft-mod)
+    - [C++ Backend](#cpp-backend)
+    - [Minecraft Mod](#minecraft-mod)
 - [CMake Options](#cmake-options)
 - [Makefile](#makefile)
 - [Testing](#testing)
@@ -249,9 +249,9 @@ ros2 run roscraft_bridge_network roscraft_bridge_network # optional --host 127.0
 
 ```json
 {
-  "bridgeType": "NETWORK",
-  "networkHost": "127.0.0.1",
-  "networkPort": 7401
+    "bridgeType": "NETWORK",
+    "networkHost": "127.0.0.1",
+    "networkPort": 7401
 }
 ```
 

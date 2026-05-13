@@ -50,6 +50,8 @@ private:
 
   rclcpp::TimerBase::SharedPtr poll_timer_;
 
+  rclcpp::Node::SharedPtr temp_node_;
+
   std::pmr::memory_resource* allocator_ = std::pmr::get_default_resource();
 };
 

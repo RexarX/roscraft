@@ -7,6 +7,7 @@
 #include <roscraft/bridge/command/types/param.hpp>
 #include <roscraft/bridge/nodes/ros/common.hpp>
 
+#include <rclcpp/executor.hpp>
 #include <rclcpp/parameter_client.hpp>
 #include <rclcpp/rclcpp.hpp>
 
@@ -31,6 +32,15 @@ ParamDumpNode::ParamDumpNode(CommandQueue& incoming, CommandQueue& outgoing,
       param_dump_response_producer_(
           outgoing.MakeProducerToken<ParamDumpResponseCmd>()),
       error_producer_(outgoing.MakeProducerToken<ErrorCmd>()),
+      temp_node_([] {
+        auto options = rclcpp::NodeOptions()
+                           .start_parameter_services(false)
+                           .start_parameter_event_publisher(false)
+                           .enable_rosout(false)
+                           .use_global_arguments(false);
+        return std::make_shared<rclcpp::Node>("_roscraft_param_dump_internal",
+                                              options);
+      }()),
       allocator_(allocator) {
   using namespace std::chrono_literals;
   poll_timer_ = this->create_wall_timer(50ms, [this] { OnPollTimer(); });
@@ -40,7 +50,7 @@ void ParamDumpNode::DrainParamDumpCommands() {
   auto& in_storage = incoming_.get().TypedStorage<ParamDumpCmd>();
   auto& out_storage = outgoing_.get().TypedStorage<ParamDumpResponseCmd>();
 
-  ParamDumpCmd cmd(allocator_);
+  ParamDumpCmd cmd(std::pmr::get_default_resource());
   while (in_storage.Dequeue(param_dump_consumer_, cmd)) {
     if (cmd.node_name.empty()) [[unlikely]] {
       SendError(cmd.request_id, "PARAM_DUMP_FAILED",
@@ -51,7 +61,7 @@ void ParamDumpNode::DrainParamDumpCommands() {
     const auto timeout = ResolveTimeout(cmd.timeout_seconds);
     const auto timeout_for_client = std::chrono::duration<double>(timeout);
     auto client = std::make_shared<rclcpp::SyncParametersClient>(
-        this, std::string(cmd.node_name));
+        temp_node_, std::string(cmd.node_name));
     if (!client->wait_for_service(timeout)) [[unlikely]] {
       SendError(cmd.request_id, "PARAM_DUMP_FAILED",
                 "Parameter services unavailable before timeout");
@@ -82,7 +92,7 @@ void ParamDumpNode::DrainParamDumpCommands() {
       }
     }
 
-    ParamDumpResponseCmd response(allocator_);
+    ParamDumpResponseCmd response(std::pmr::get_default_resource());
     response.request_id = cmd.request_id;
     response.node_name = cmd.node_name;
 
@@ -111,10 +121,10 @@ void ParamDumpNode::OnPollTimer() {
 
 void ParamDumpNode::SendError(uint64_t request_id, std::string_view error_code,
                               std::string_view error_message) {
-  ErrorCmd cmd(allocator_);
+  ErrorCmd cmd(std::pmr::get_default_resource());
   cmd.request_id = request_id;
-  cmd.error_code = std::pmr::string(error_code, allocator_);
-  cmd.error_message = std::pmr::string(error_message, allocator_);
+  cmd.error_code = std::pmr::string(error_code);
+  cmd.error_message = std::pmr::string(error_message);
 
   outgoing_.get().Enqueue(error_producer_, std::move(cmd));
 }

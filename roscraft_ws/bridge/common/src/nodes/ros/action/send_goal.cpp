@@ -825,12 +825,13 @@ void ActionSendGoalNode::SendFeedback(uint64_t request_id,
                                       std::string_view action_type,
                                       std::span<const uint8_t> feedback_payload,
                                       std::string_view feedback_text) {
-  ActionFeedbackCmd cmd(allocator_);
+  auto* const mr = std::pmr::get_default_resource();
+  ActionFeedbackCmd cmd(mr);
   cmd.request_id = request_id;
-  cmd.action_name = std::pmr::string(action_name, allocator_);
-  cmd.action_type = std::pmr::string(action_type, allocator_);
+  cmd.action_name = std::pmr::string(action_name, mr);
+  cmd.action_type = std::pmr::string(action_type, mr);
   cmd.feedback_payload.assign(feedback_payload.begin(), feedback_payload.end());
-  cmd.feedback_text = std::pmr::string(feedback_text, allocator_);
+  cmd.feedback_text = std::pmr::string(feedback_text, mr);
 
   outgoing_.get().Enqueue(action_feedback_producer_, std::move(cmd));
 }
@@ -840,13 +841,14 @@ void ActionSendGoalNode::SendResult(uint64_t request_id,
                                     std::string_view action_type, bool success,
                                     std::span<const uint8_t> result_payload,
                                     std::string_view result_text) {
-  ActionResultCmd cmd(allocator_);
+  auto* const mr = std::pmr::get_default_resource();
+  ActionResultCmd cmd(mr);
   cmd.request_id = request_id;
-  cmd.action_name = std::pmr::string(action_name, allocator_);
-  cmd.action_type = std::pmr::string(action_type, allocator_);
+  cmd.action_name = std::pmr::string(action_name, mr);
+  cmd.action_type = std::pmr::string(action_type, mr);
   cmd.success = success;
   cmd.result_payload.assign(result_payload.begin(), result_payload.end());
-  cmd.result_text = std::pmr::string(result_text, allocator_);
+  cmd.result_text = std::pmr::string(result_text, mr);
 
   outgoing_.get().Enqueue(action_result_producer_, std::move(cmd));
 }

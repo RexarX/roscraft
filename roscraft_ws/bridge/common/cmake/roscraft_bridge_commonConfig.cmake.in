@@ -88,6 +88,27 @@ if(NOT TARGET roscraft::flat_map)
   endif()
 endif()
 
+# Include rosidl exports before the library target (it references them).
+set(_share_cmake "${CMAKE_CURRENT_LIST_DIR}/../../../share/roscraft_bridge_common/cmake")
+foreach(_suffix
+    rosidl_generator_c
+    rosidl_typesupport_fastrtps_c
+    rosidl_generator_cpp
+    rosidl_typesupport_fastrtps_cpp
+    rosidl_typesupport_introspection_c
+    rosidl_typesupport_c
+    rosidl_typesupport_introspection_cpp
+    rosidl_typesupport_cpp
+    rosidl_generator_py)
+  set(_export "${_share_cmake}/export_roscraft_bridge_common__${_suffix}Export.cmake")
+  if(NOT EXISTS "${_export}")
+    set(_export "${_share_cmake}/roscraft_bridge_common__${_suffix}Export.cmake")
+  endif()
+  if(EXISTS "${_export}")
+    include("${_export}")
+  endif()
+endforeach()
+
 include("${CMAKE_CURRENT_LIST_DIR}/roscraft_bridge_commonTargets.cmake")
 
 check_required_components(roscraft_bridge_common)

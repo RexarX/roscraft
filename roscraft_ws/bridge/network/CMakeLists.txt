@@ -113,6 +113,9 @@ endif()
 if(TARGET roscraft_bridge_common::roscraft_bridge_common AND NOT TARGET roscraft::bridge::common)
   add_library(roscraft::bridge::common ALIAS roscraft_bridge_common::roscraft_bridge_common)
 endif()
+if(TARGET roscraft_bridge_common::roscraft_bridge_common_lib AND NOT TARGET roscraft::bridge::common)
+  add_library(roscraft::bridge::common ALIAS roscraft_bridge_common::roscraft_bridge_common_lib)
+endif()
 if(TARGET roscraft::roscraft_bridge_fbs AND NOT TARGET roscraft::bridge::fbs)
   add_library(roscraft::bridge::fbs ALIAS roscraft::roscraft_bridge_fbs)
 endif()
@@ -131,13 +134,6 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Dependencies
-# ─────────────────────────────────────────────────────────────────────────────
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Static library  (roscraft::bridge::network)
-# ─────────────────────────────────────────────────────────────────────────────
 set(ROSCRAFT_BRIDGE_NETWORK_HEADERS
     include/roscraft/bridge/network/bridge.hpp
     include/roscraft/bridge/network/config.hpp

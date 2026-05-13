@@ -7,374 +7,156 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Abstract base class for all RoscraftBridge implementations.
  *
- * <p>
- * Subclasses provide the transport mechanism (JNI or network), while this class
- * manages the shared callback reference and request-ID generation.
+ * <p>Subclasses provide the transport mechanism (JNI or network). This
+ * class manages the shared callback reference and request-ID generation.
+ * Addons interact through the narrowed {@link BridgeOperations} interface.
  *
- * <p>
- * <b>Lifecycle:</b>
+ * <p><b>Lifecycle:</b>
  * <ol>
  * <li>Construct the concrete subclass.</li>
  * <li>Call {@link #registerCallback} to install an event listener.</li>
- * <li>Call {@link #tick} from your game loop (server tick, etc.).</li>
+ * <li>Call {@link #tick} from the game loop (server tick, etc.).</li>
  * <li>Call {@link #close} during mod shutdown.</li>
  * </ol>
- *
- * <p>
- * <b>Thread safety:</b> {@link #registerCallback} is thread-safe. All other
- * methods, including {@link #tick}, must be called from a single owner thread
- * unless subclasses document otherwise.
  */
-public abstract class RoscraftBridge implements AutoCloseable {
-
-  // -------------------------------------------------------------------------
-  // Request-ID generator (shared across all instances)
-  // -------------------------------------------------------------------------
+public abstract class RoscraftBridge implements BridgeOperations, AutoCloseable {
 
   private static final AtomicLong REQUEST_COUNTER = new AtomicLong(1L);
 
-  /** Allocates a monotonically increasing request identifier. */
   protected static long nextRequestId() {
     return REQUEST_COUNTER.getAndIncrement();
   }
 
-  // -------------------------------------------------------------------------
-  // Callback
-  // -------------------------------------------------------------------------
+  // ── Callback ────────────────────────────────────────────────────────
 
   private final AtomicReference<BridgeCallback> callback =
-      new AtomicReference<>(new BridgeCallback() {}); // no-op default
+      new AtomicReference<>(new BridgeCallback() {});
 
-  /**
-   * Install (or replace) the callback that receives outgoing ROS2 commands.
-   *
-   * @param callback
-   *            Non-null callback implementation.
-   * @throws NullPointerException
-   *             if {@code callback} is {@code null}.
-   */
   public final void registerCallback(BridgeCallback callback) {
     this.callback.set(Objects.requireNonNull(callback, "callback must not be null"));
   }
 
-  /**
-   * Returns the currently registered callback (never {@code null}).
-   *
-   * <p>
-   * Used by subclasses to deliver events.
-   */
   protected final BridgeCallback callback() {
     return callback.get();
   }
 
-  // -------------------------------------------------------------------------
-  // Abstract transport API
-  // -------------------------------------------------------------------------
+  // ── Abstract transport API ──────────────────────────────────────────
 
-  /**
-   * Drive one application tick.
-   *
-   * <p>
-   * Drains the outgoing command queue and delivers events to the registered
-   * {@link BridgeCallback}. Should be called once per server tick or game loop
-   * iteration from the owning thread.
-   */
   public abstract void tick();
 
-  /**
-   * Request a full ROS2 graph snapshot.
-   *
-   * <p>
-   * The response is delivered asynchronously via
-   * {@link BridgeCallback#onGraphSnapshot}.
-   *
-   * @return The request ID that will be echoed in the response.
-   */
+  @Override
+  public abstract void close();
+
+  // ── Core ROS operations (abstract) ──────────────────────────────────
+
+  @Override
   public abstract long queryGraph();
 
-  /**
-   * Request detailed information for a node.
-   *
-   * <p>
-   * The response is delivered asynchronously via
-   * {@link BridgeCallback#onNodeInfoResponse}.
-   *
-   * @param nodeName
-   *            Fully-qualified node name.
-   * @param includeHidden
-   *            Whether hidden endpoints should be included.
-   * @return The request ID that will be echoed in the response.
-   */
+  @Override
   public abstract long nodeInfo(String nodeName, boolean includeHidden);
 
-  /**
-   * Request detailed information for a topic.
-   *
-   * <p>
-   * The response is delivered asynchronously via
-   * {@link BridgeCallback#onTopicInfoResponse}.
-   *
-   * @param topicName
-   *            Fully-qualified topic name.
-   * @return The request ID that will be echoed in the response.
-   */
+  @Override
   public abstract long topicInfo(String topicName);
 
-  /**
-   * Request detailed information for a service.
-   *
-   * <p>
-   * The response is delivered asynchronously via
-   * {@link BridgeCallback#onServiceInfoResponse}.
-   *
-   * @param serviceName
-   *            Fully-qualified service name.
-   * @return The request ID that will be echoed in the response.
-   */
+  @Override
   public abstract long serviceInfo(String serviceName);
 
-  /**
-   * Request the list of available interfaces.
-   *
-   * <p>
-   * The response is delivered asynchronously via
-   * {@link BridgeCallback#onInterfaceListResponse}.
-   *
-   * @param includeMessages
-   *            Whether message interfaces should be included.
-   * @param includeServices
-   *            Whether service interfaces should be included.
-   * @param includeActions
-   *            Whether action interfaces should be included.
-   * @return The request ID that will be echoed in the response.
-   */
+  @Override
   public abstract long interfaceList(
       boolean includeMessages, boolean includeServices, boolean includeActions);
 
-  /**
-   * Request the textual definition of an interface.
-   *
-   * <p>
-   * The response is delivered asynchronously via
-   * {@link BridgeCallback#onInterfaceShowResponse}.
-   *
-   * @param interfaceType
-   *            Interface type string (e.g. {@code std_msgs/msg/String}).
-   * @return The request ID that will be echoed in the response.
-   */
+  @Override
   public abstract long interfaceShow(String interfaceType);
 
-  /**
-   * Subscribe to a ROS2 topic.
-   *
-   * <p>
-   * Subsequent messages are pushed via {@link BridgeCallback#onTopicPayload}.
-   * Duplicate subscription requests for the same topic are silently ignored by
-   * the bridge.
-   *
-   * @param topicName
-   *            Fully-qualified topic name (e.g. {@code /cmd_vel}).
-   * @param messageType
-   *            ROS message type string (e.g. {@code geometry_msgs/msg/Twist}).
-   * @return The request ID associated with this subscription.
-   * @throws NullPointerException
-   *             if either argument is {@code null}.
-   */
+  @Override
   public abstract long subscribeTopic(String topicName, String messageType);
 
-  /**
-   * Subscribe to a ROS2 topic with echo-style options.
-   *
-   * <p>
-   * Equivalent to {@code ros2 topic echo} flags:
-   * <ul>
-   * <li>{@code once}: stop after first received message.</li>
-   * <li>{@code timeoutSeconds}: fail if no message arrives before timeout (0 = no timeout).</li>
-   * <li>{@code raw}: request raw output handling on the receiver side.</li>
-   * </ul>
-   *
-   * <p>
-   * Default implementation falls back to {@link #subscribeTopic(String, String)}.
-   * Implementations that support these options should override this method.
-   */
-  public long subscribeTopic(
-      String topicName, String messageType, boolean once, double timeoutSeconds, boolean raw) {
-    return subscribeTopic(topicName, messageType);
-  }
+  @Override
+  public abstract long subscribeTopic(
+      String topicName, String messageType, boolean once, double timeoutSeconds, boolean raw);
 
-  /**
-   * Publish a ROS2 topic message from UTF-8 YAML payload text bytes.
-   *
-   * @param topicName
-   *            Destination topic.
-   * @param messageType
-   *            ROS message type string.
-   * @param payload
-   *            UTF-8 YAML payload bytes — copied internally before this method returns.
-   * @return The request ID associated with this publish.
-   * @throws NullPointerException
-   *             if any argument is {@code null}.
-   */
+  @Override
+  public abstract long unsubscribeTopic(String topicName);
+
+  @Override
   public abstract long publishMessage(String topicName, String messageType, byte[] payload);
 
-  /**
-   * Publish with `ros2 topic pub` style options.
-   *
-   * <p>
-   * Default implementation falls back to one-shot publish and ignores extended
-   * options. Implementations that support these options should override this
-   * method.
-   */
-  public long publishMessage(
+  @Override
+  public abstract long publishMessage(
       String topicName,
       String messageType,
       byte[] payload,
       boolean once,
       double rateHz,
       int times,
-      String qosProfile) {
-    return publishMessage(topicName, messageType, payload);
-  }
+      String qosProfile);
 
-  /**
-   * Request topic frequency (hz) measurement.
-   */
+  @Override
   public abstract long topicHz(String topicName, String messageType, int window);
 
-  /**
-   * Request topic frequency (hz) measurement with wall-time option.
-   *
-   * <p>
-   * Default implementation falls back to {@link #topicHz(String, String, int)}.
-   */
-  public long topicHz(String topicName, String messageType, int window, boolean wallTime) {
-    return topicHz(topicName, messageType, window);
-  }
+  @Override
+  public abstract long topicHz(String topicName, String messageType, int window, boolean wallTime);
 
-  /**
-   * Request topic bandwidth (bw) measurement.
-   */
+  @Override
   public abstract long topicBw(String topicName, String messageType, int window);
 
-  /**
-   * Request topic bandwidth (bw) measurement with wall-time option.
-   *
-   * <p>
-   * Default implementation falls back to {@link #topicBw(String, String, int)}.
-   */
-  public long topicBw(String topicName, String messageType, int window, boolean wallTime) {
-    return topicBw(topicName, messageType, window);
-  }
+  @Override
+  public abstract long topicBw(String topicName, String messageType, int window, boolean wallTime);
 
-  /**
-   * Request topic delay measurement.
-   */
-  public long topicDelay(String topicName, String messageType, int window) {
-    return queryGraph();
-  }
+  @Override
+  public abstract long topicDelay(String topicName, String messageType, int window);
 
-  /**
-   * Request service-call execution.
-   */
-  public long serviceCall(
+  @Override
+  public abstract long serviceCall(
       String serviceName,
       String serviceType,
       byte[] payload,
       double timeoutSeconds,
       int repeatCount,
-      double rateHz) {
-    return queryGraph();
-  }
+      double rateHz);
 
-  /**
-   * Request parameter list for a node.
-   */
-  public long paramList(
+  @Override
+  public abstract long paramList(
       String nodeName,
       String[] prefixes,
       int depth,
       boolean includeTypes,
       String filterRegex,
-      double timeoutSeconds) {
-    return queryGraph();
-  }
+      double timeoutSeconds);
 
-  /**
-   * Request one parameter value.
-   */
-  public long paramGet(String nodeName, String paramName, boolean hideType, double timeoutSeconds) {
-    return queryGraph();
-  }
+  @Override
+  public abstract long paramGet(
+      String nodeName, String paramName, boolean hideType, double timeoutSeconds);
 
-  /**
-   * Request setting one parameter value.
-   */
-  public long paramSet(String nodeName, String paramName, String valueText, double timeoutSeconds) {
-    return queryGraph();
-  }
+  @Override
+  public abstract long paramSet(
+      String nodeName, String paramName, String valueText, double timeoutSeconds);
 
-  /**
-   * Request parameter descriptor details.
-   */
-  public long paramDescribe(String nodeName, String paramName, double timeoutSeconds) {
-    return queryGraph();
-  }
+  @Override
+  public abstract long paramDescribe(String nodeName, String paramName, double timeoutSeconds);
 
-  /**
-   * Request parameter dump as YAML text.
-   */
-  public long paramDump(String nodeName, String[] prefixes, double timeoutSeconds) {
-    return queryGraph();
-  }
+  @Override
+  public abstract long paramDump(String nodeName, String[] prefixes, double timeoutSeconds);
 
-  /**
-   * Request parameter load from YAML text.
-   */
-  public long paramLoad(
-      String nodeName, String yamlText, double timeoutSeconds, boolean useWildcard) {
-    return queryGraph();
-  }
+  @Override
+  public abstract long paramLoad(
+      String nodeName, String yamlText, double timeoutSeconds, boolean useWildcard);
 
-  /**
-   * Request action endpoint statistics.
-   */
-  public long actionInfo(String actionName, boolean includeHidden) {
-    return queryGraph();
-  }
+  @Override
+  public abstract long actionInfo(String actionName, boolean includeHidden);
 
-  /**
-   * Request sending an action goal.
-   */
-  public long actionSendGoal(
+  @Override
+  public abstract long actionSendGoal(
       String actionName,
       String actionType,
       byte[] goalPayload,
       boolean feedback,
-      double timeoutSeconds) {
-    return queryGraph();
-  }
+      double timeoutSeconds);
 
-  /**
-   * Request the current list of connected players.
-   *
-   * <p>
-   * The response is delivered asynchronously via
-   * {@link BridgeCallback#onPlayerList}.
-   *
-   * @return The request ID that will be echoed in the response.
-   */
+  @Override
   public abstract long queryPlayers();
 
-  // -------------------------------------------------------------------------
-  // AutoCloseable
-  // -------------------------------------------------------------------------
-
-  /**
-   * Shut down the bridge and release all native or network resources.
-   *
-   * <p>
-   * Safe to call multiple times; subsequent calls are no-ops.
-   */
   @Override
-  public abstract void close();
+  public abstract long sendAddonEvent(
+      String addonId, String eventType, String encoding, byte[] payload, boolean response);
 }

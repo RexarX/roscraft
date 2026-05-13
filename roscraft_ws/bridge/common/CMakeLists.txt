@@ -4,20 +4,20 @@ project(roscraft_bridge_common
     VERSION 0.1.0
     DESCRIPTION "Roscraft bridge common module"
     HOMEPAGE_URL "https://github.com/RexarX/roscraft"
-    LANGUAGES CXX
+    LANGUAGES CXX C
 )
 
 # Set archiver tools for Clang to support LTO
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   if(MSVC OR CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
     find_program(LLVM_LIB_EXECUTABLE
-            NAMES llvm-lib llvm-lib.exe
-            HINTS
-                "$ENV{VCINSTALLDIR}/Tools/Llvm/x64/bin"
-                "$ENV{VCINSTALLDIR}/Tools/Llvm/bin"
-                "C:/Program Files/LLVM/bin"
-                "C:/Program Files (x86)/LLVM/bin"
-        )
+        NAMES llvm-lib llvm-lib.exe
+        HINTS
+            "$ENV{VCINSTALLDIR}/Tools/Llvm/x64/bin"
+            "$ENV{VCINSTALLDIR}/Tools/Llvm/bin"
+            "C:/Program Files/LLVM/bin"
+            "C:/Program Files (x86)/LLVM/bin"
+    )
     find_program(MSVC_LIB_EXECUTABLE NAMES lib lib.exe)
 
     if(LLVM_LIB_EXECUTABLE)
@@ -141,6 +141,7 @@ set(ROSCRAFT_BRIDGE_COMMON_HEADERS
     include/roscraft/bridge/command/queue.hpp
 
     include/roscraft/bridge/command/types/action.hpp
+    include/roscraft/bridge/command/types/addon.hpp
     include/roscraft/bridge/command/types/common.hpp
     include/roscraft/bridge/command/types/error.hpp
     include/roscraft/bridge/command/types/graph.hpp
@@ -156,6 +157,8 @@ set(ROSCRAFT_BRIDGE_COMMON_HEADERS
 
     include/roscraft/bridge/nodes/ros/action/info.hpp
     include/roscraft/bridge/nodes/ros/action/send_goal.hpp
+
+    include/roscraft/bridge/nodes/addon/event.hpp
 
     include/roscraft/bridge/nodes/ros/graph/cache.hpp
 
@@ -190,6 +193,8 @@ set(ROSCRAFT_BRIDGE_COMMON_SOURCES
     src/nodes/ros/action/info.cpp
     src/nodes/ros/action/send_goal.cpp
 
+    src/nodes/addon/event.cpp
+
     src/nodes/ros/graph/cache.cpp
 
     src/nodes/ros/interface/list.cpp
@@ -215,24 +220,24 @@ set(ROSCRAFT_BRIDGE_COMMON_SOURCES
     src/nodes/ros/details/introspection_codec.cpp
 )
 
-add_library(roscraft_bridge_common STATIC
+add_library(roscraft_bridge_common_lib STATIC
     ${ROSCRAFT_BRIDGE_COMMON_HEADERS}
     ${ROSCRAFT_BRIDGE_COMMON_SOURCES}
 )
-add_library(roscraft::bridge::common ALIAS roscraft_bridge_common)
+add_library(roscraft::bridge::common ALIAS roscraft_bridge_common_lib)
 
-roscraft_target_set_cxx_standard(roscraft_bridge_common STANDARD 23)
-roscraft_target_set_platform(roscraft_bridge_common)
-roscraft_target_set_output_dirs(roscraft_bridge_common)
-roscraft_target_set_folder(roscraft_bridge_common "roscraft/bridge/common")
+roscraft_target_set_cxx_standard(roscraft_bridge_common_lib STANDARD 23)
+roscraft_target_set_platform(roscraft_bridge_common_lib)
+roscraft_target_set_output_dirs(roscraft_bridge_common_lib)
+roscraft_target_set_folder(roscraft_bridge_common_lib "roscraft/bridge/common")
 
-roscraft_target_add_pch(roscraft_bridge_common ${CMAKE_CURRENT_SOURCE_DIR}/src/pch.hpp)
-roscraft_target_set_warnings(roscraft_bridge_common)
-roscraft_target_set_optimization(roscraft_bridge_common)
-roscraft_target_enable_lto(roscraft_bridge_common)
-roscraft_target_enable_sanitizers(roscraft_bridge_common)
+roscraft_target_add_pch(roscraft_bridge_common_lib ${CMAKE_CURRENT_SOURCE_DIR}/src/pch.hpp)
+roscraft_target_set_warnings(roscraft_bridge_common_lib)
+roscraft_target_set_optimization(roscraft_bridge_common_lib)
+roscraft_target_enable_lto(roscraft_bridge_common_lib)
+roscraft_target_enable_sanitizers(roscraft_bridge_common_lib)
 
-target_include_directories(roscraft_bridge_common
+target_include_directories(roscraft_bridge_common_lib
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
@@ -240,7 +245,7 @@ target_include_directories(roscraft_bridge_common
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_compile_definitions(roscraft_bridge_common PUBLIC
+target_compile_definitions(roscraft_bridge_common_lib PUBLIC
     $<$<BOOL:${ROSCRAFT_BRIDGE_ENABLE_JNI_BACKEND}>:ROSCRAFT_BRIDGE_ENABLE_JNI_BACKEND>
     $<$<BOOL:${ROSCRAFT_BRIDGE_ENABLE_NETWORK_BACKEND}>:ROSCRAFT_BRIDGE_ENABLE_NETWORK_BACKEND>
 )
@@ -248,7 +253,7 @@ target_compile_definitions(roscraft_bridge_common PUBLIC
 roscraft_require_dependency(concurrentqueue)
 roscraft_require_dependency(Taskflow)
 
-target_link_libraries(roscraft_bridge_common
+target_link_libraries(roscraft_bridge_common_lib
     PUBLIC
         roscraft::core
         rclcpp::rclcpp
@@ -263,26 +268,26 @@ target_link_libraries(roscraft_bridge_common
 )
 
 if(TARGET roscraft::flat_map)
-  target_link_libraries(roscraft_bridge_common PUBLIC
+  target_link_libraries(roscraft_bridge_common_lib PUBLIC
       $<BUILD_INTERFACE:roscraft::flat_map>
       $<INSTALL_INTERFACE:roscraft::flat_map>
   )
   if(roscraft_USE_STL_FLAT_MAP)
-    target_compile_definitions(roscraft_bridge_common PUBLIC
+    target_compile_definitions(roscraft_bridge_common_lib PUBLIC
         $<INSTALL_INTERFACE:roscraft_USE_STL_FLAT_MAP>
     )
   endif()
 endif()
 
 if(TARGET concurrentqueue::concurrentqueue OR TARGET concurrentqueue)
-  target_link_libraries(roscraft_bridge_common PUBLIC
+  target_link_libraries(roscraft_bridge_common_lib PUBLIC
       $<BUILD_INTERFACE:roscraft::concurrentqueue>
       $<INSTALL_INTERFACE:concurrentqueue::concurrentqueue>
   )
 endif()
 
 if(TARGET Taskflow::Taskflow OR TARGET Taskflow)
-  target_link_libraries(roscraft_bridge_common PUBLIC
+  target_link_libraries(roscraft_bridge_common_lib PUBLIC
       $<BUILD_INTERFACE:roscraft::taskflow::taskflow>
       $<INSTALL_INTERFACE:Taskflow::Taskflow>
   )
@@ -303,6 +308,7 @@ set(ROSCRAFT_FBS_SCHEMAS
     ${ROSCRAFT_ROOT_DIR}/schemas/bridge_packets/action.fbs
     ${ROSCRAFT_ROOT_DIR}/schemas/bridge_packets/player.fbs
     ${ROSCRAFT_ROOT_DIR}/schemas/bridge_packets/error.fbs
+    ${ROSCRAFT_ROOT_DIR}/schemas/bridge_packets/addon.fbs
 )
 
 set(FLATC_FLAGS
@@ -354,6 +360,7 @@ set(ROSCRAFT_FBS_GENERATED_HEADER_WITH_SUFFIX
 )
 set(ROSCRAFT_FBS_GENERATED_AUX_HEADERS
     ${ROSCRAFT_FBS_GENERATED_HEADER_DIR}/action_generated.hpp
+    ${ROSCRAFT_FBS_GENERATED_HEADER_DIR}/addon_generated.hpp
     ${ROSCRAFT_FBS_GENERATED_HEADER_DIR}/common_generated.hpp
     ${ROSCRAFT_FBS_GENERATED_HEADER_DIR}/error_generated.hpp
     ${ROSCRAFT_FBS_GENERATED_HEADER_DIR}/graph_generated.hpp
@@ -382,19 +389,19 @@ elseif(TARGET flatc)
 endif()
 
 add_custom_command(
-      OUTPUT ${ROSCRAFT_FBS_GENERATED_OUTPUTS}
-      COMMAND ${CMAKE_COMMAND} -E make_directory "${ROSCRAFT_FBS_GENERATED_HEADER_DIR}"
-      COMMAND "${FLATC_EXECUTABLE}"
-              ${FLATC_FLAGS}
-              -I "${ROSCRAFT_ROOT_DIR}/schemas"
-              -o "${ROSCRAFT_FBS_GENERATED_HEADER_DIR}"
-              ${ROSCRAFT_FBS_SCHEMAS}
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-              "${ROSCRAFT_FBS_GENERATED_HEADER_WITH_SUFFIX}"
-              "${ROSCRAFT_FBS_GENERATED_HEADER}"
-      DEPENDS ${_flatc_depends}
-      COMMENT "Compiling Flatbuffers schemas"
-      VERBATIM
+    OUTPUT ${ROSCRAFT_FBS_GENERATED_OUTPUTS}
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${ROSCRAFT_FBS_GENERATED_HEADER_DIR}"
+    COMMAND "${FLATC_EXECUTABLE}"
+            ${FLATC_FLAGS}
+            -I "${ROSCRAFT_ROOT_DIR}/schemas"
+            -o "${ROSCRAFT_FBS_GENERATED_HEADER_DIR}"
+            ${ROSCRAFT_FBS_SCHEMAS}
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${ROSCRAFT_FBS_GENERATED_HEADER_WITH_SUFFIX}"
+            "${ROSCRAFT_FBS_GENERATED_HEADER}"
+    DEPENDS ${_flatc_depends}
+    COMMENT "Compiling Flatbuffers schemas"
+    VERBATIM
 )
 
 add_library(roscraft_bridge_fbs INTERFACE)
@@ -427,7 +434,7 @@ add_custom_target(roscraft_bridge_fbs_generate ALL
 
 add_dependencies(roscraft_bridge_fbs roscraft_bridge_fbs_generate)
 
-target_link_libraries(roscraft_bridge_common PUBLIC roscraft::bridge::fbs)
+target_link_libraries(roscraft_bridge_common_lib PUBLIC roscraft::bridge::fbs)
 
 set(ROSCRAFT_BRIDGE_COMMON_INTERFACE_FILES)
 file(GLOB ROSCRAFT_BRIDGE_COMMON_MSG_FILES    RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} msg/*.msg)
@@ -455,12 +462,12 @@ if(ROSCRAFT_BRIDGE_COMMON_INTERFACE_FILES)
       roscraft_bridge_common
       rosidl_typesupport_cpp
   )
-  target_link_libraries(roscraft_bridge_common PRIVATE
+  target_link_libraries(roscraft_bridge_common_lib PUBLIC
       ${ROSCRAFT_BRIDGE_COMMON_CPP_TYPESUPPORT_TARGET}
   )
 endif()
 
-install(TARGETS roscraft_bridge_common
+install(TARGETS roscraft_bridge_common_lib
     EXPORT export_roscraft_bridge_common
     ARCHIVE DESTINATION lib
 )

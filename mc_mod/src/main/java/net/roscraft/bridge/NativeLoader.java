@@ -48,9 +48,17 @@ final class NativeLoader {
 
   static String osClassifier() {
     String os = System.getProperty("os.name").toLowerCase();
-    if (os.contains("win")) return "windows";
-    if (os.contains("mac")) return "macos";
-    return "linux";
+    String osLabel;
+    if (os.contains("win")) {
+      osLabel = "windows";
+    } else if (os.contains("mac")) {
+      osLabel = "macos";
+    } else {
+      osLabel = "linux";
+    }
+    String arch = System.getProperty("os.arch").toLowerCase();
+    String archLabel = arch.contains("aarch64") || arch.contains("arm64") ? "arm64" : "x86_64";
+    return osLabel + "-" + archLabel;
   }
 
   static String systemLibName() {

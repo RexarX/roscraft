@@ -1,6 +1,7 @@
 #pragma once
 
 #include <roscraft/bridge/command/types/action.hpp>
+#include <roscraft/bridge/command/types/addon.hpp>
 #include <roscraft/bridge/command/types/error.hpp>
 #include <roscraft/bridge/command/types/graph.hpp>
 #include <roscraft/bridge/command/types/interface.hpp>

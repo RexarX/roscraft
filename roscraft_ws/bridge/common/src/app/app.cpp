@@ -1,5 +1,6 @@
 #include <pch.hpp>
 
+#include <rclcpp/executors/multi_threaded_executor.hpp>
 #include <roscraft/bridge/app/app.hpp>
 #include <roscraft/bridge/app/config.hpp>
 #include <roscraft/bridge/assert.hpp>
@@ -165,6 +166,8 @@ void App::RegisterAllNodes() {
                                            &PendingFrameAllocator()));
   AddNode(std::make_shared<TopicStatsNode>(IncomingQueue(), OutgoingQueue(),
                                            &PendingFrameAllocator()));
+  AddNode(std::make_shared<AddonEventNode>(IncomingQueue(), OutgoingQueue(),
+                                           &PendingFrameAllocator()));
 }
 
 void App::UnregisterAllNodes() {
@@ -197,10 +200,12 @@ void App::RegisterAllCommandTypes() {
   incoming_queue_.Register<ServiceInfoCmd>();
   incoming_queue_.Register<TopicInfoCmd>();
   incoming_queue_.Register<TopicSubscribeCmd>();
+  incoming_queue_.Register<TopicUnsubscribeCmd>();
   incoming_queue_.Register<TopicPublishMessageCmd>();
   incoming_queue_.Register<TopicHzCmd>();
   incoming_queue_.Register<TopicBwCmd>();
   incoming_queue_.Register<TopicDelayCmd>();
+  incoming_queue_.Register<AddonEventCmd>();
 
   // Outgoing (ROS -> mod)
   outgoing_queue_.Register<ActionInfoResponseCmd>();
@@ -225,6 +230,7 @@ void App::RegisterAllCommandTypes() {
   outgoing_queue_.Register<TopicHzResponseCmd>();
   outgoing_queue_.Register<TopicBwResponseCmd>();
   outgoing_queue_.Register<TopicDelayResponseCmd>();
+  outgoing_queue_.Register<AddonEventCmd>();
 }
 
 void App::RegisterAllCommandHandlers() {
@@ -240,6 +246,7 @@ void App::RegisterAllCommandHandlers() {
   handler_registry_.AddHandler(InterfaceListHandler::From(in, out));
   handler_registry_.AddHandler(InterfaceShowHandler::From(in, out));
   handler_registry_.AddHandler(TopicSubscribeHandler::From(in));
+  handler_registry_.AddHandler(TopicUnsubscribeHandler::From(in));
   handler_registry_.AddHandler(TopicPublishMessageHandler::From(in));
   handler_registry_.AddHandler(TopicHzHandler::From(in, out));
   handler_registry_.AddHandler(TopicBwHandler::From(in, out));
@@ -257,6 +264,7 @@ void App::RegisterAllCommandHandlers() {
   handler_registry_.AddHandler(PlayerListHandler::From(in, out));
   handler_registry_.AddHandler(TopicPayloadHandler::From(out));
   handler_registry_.AddHandler(ErrorHandler::From(out));
+  handler_registry_.AddHandler(AddonEventHandler::From(in, out));
 }
 
 }  // namespace roscraft::bridge

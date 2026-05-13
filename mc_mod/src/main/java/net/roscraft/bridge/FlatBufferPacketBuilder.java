@@ -4,6 +4,7 @@ import com.google.flatbuffers.FlatBufferBuilder;
 import java.nio.ByteBuffer;
 import roscraft.bridge.fbs.ActionInfoPacket;
 import roscraft.bridge.fbs.ActionSendGoalPacket;
+import roscraft.bridge.fbs.AddonEventPacket;
 import roscraft.bridge.fbs.BridgePacket;
 import roscraft.bridge.fbs.InterfaceListPacket;
 import roscraft.bridge.fbs.InterfaceShowPacket;
@@ -25,7 +26,15 @@ import roscraft.bridge.fbs.TopicHzPacket;
 import roscraft.bridge.fbs.TopicInfoPacket;
 import roscraft.bridge.fbs.TopicPublishMessagePacket;
 import roscraft.bridge.fbs.TopicSubscribePacket;
+import roscraft.bridge.fbs.TopicUnsubscribePacket;
 
+/**
+ * Builds FlatBuffer packets for outgoing bridge commands.
+ *
+ * <p><b>Not thread-safe.</b> Holds a single {@link FlatBufferBuilder} and reuses
+ * it via {@code fbb.clear()}. Each {@link AbstractPacketBridge} owns one builder
+ * and calls it only from the owner tick thread.
+ */
 final class FlatBufferPacketBuilder {
 
   private final FlatBufferBuilder fbb = new FlatBufferBuilder(512);
@@ -88,6 +97,13 @@ final class FlatBufferPacketBuilder {
     return finishPacket(PacketPayload.TopicSubscribePacket, payload);
   }
 
+  ByteBuffer topicUnsubscribe(long requestId, String topicName) {
+    fbb.clear();
+    int topicOffset = fbb.createString(topicName);
+    int payload = TopicUnsubscribePacket.createTopicUnsubscribePacket(fbb, requestId, topicOffset);
+    return finishPacket(PacketPayload.TopicUnsubscribePacket, payload);
+  }
+
   ByteBuffer topicPublishMessage(
       long requestId,
       String topicName,
@@ -137,8 +153,8 @@ final class FlatBufferPacketBuilder {
     fbb.clear();
     int topicOffset = fbb.createString(topicName);
     int typeOffset = fbb.createString(messageType);
-    int payload = TopicDelayPacket.createTopicDelayPacket(
-        fbb, requestId, topicOffset, typeOffset, Integer.toUnsignedLong(window));
+    int payload =
+        TopicDelayPacket.createTopicDelayPacket(fbb, requestId, topicOffset, typeOffset, window);
     return finishPacket(PacketPayload.TopicDelayPacket, payload);
   }
 
@@ -286,5 +302,22 @@ final class FlatBufferPacketBuilder {
     int root = BridgePacket.createBridgePacket(fbb, payloadType, payloadOffset);
     BridgePacket.finishBridgePacketBuffer(fbb, root);
     return fbb.dataBuffer();
+  }
+
+  ByteBuffer addonEvent(
+      long requestId,
+      String addonId,
+      String eventType,
+      String encoding,
+      byte[] payload,
+      boolean response) {
+    fbb.clear();
+    int addonIdOffset = fbb.createString(addonId);
+    int eventTypeOffset = fbb.createString(eventType);
+    int encodingOffset = (encoding != null && !encoding.isEmpty()) ? fbb.createString(encoding) : 0;
+    int payloadOffset = AddonEventPacket.createPayloadVector(fbb, payload);
+    int inner = AddonEventPacket.createAddonEventPacket(
+        fbb, requestId, addonIdOffset, eventTypeOffset, encodingOffset, payloadOffset, response);
+    return finishPacket(PacketPayload.AddonEventPacket, inner);
   }
 }

@@ -59,6 +59,8 @@ private:
 
   rclcpp::TimerBase::SharedPtr poll_timer_;
 
+  rclcpp::Node::SharedPtr temp_node_;
+
   std::unordered_map<std::string, std::shared_ptr<rclcpp::SyncParametersClient>,
                      utils::StringHash, utils::StringEqual>
       parameter_clients_;

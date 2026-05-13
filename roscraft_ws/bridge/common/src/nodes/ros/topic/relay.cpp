@@ -79,15 +79,15 @@ TopicRelayNode::TopicRelayNode(CommandQueue& incoming, CommandQueue& outgoing,
       incoming_(incoming),
       outgoing_(outgoing),
       subscribe_consumer_(incoming.MakeConsumerToken<TopicSubscribeCmd>()),
+      unsubscribe_consumer_(incoming.MakeConsumerToken<TopicUnsubscribeCmd>()),
       publish_consumer_(incoming.MakeConsumerToken<TopicPublishMessageCmd>()),
       payload_producer_(outgoing.MakeProducerToken<TopicPayloadCmd>()),
       error_producer_(outgoing.MakeProducerToken<ErrorCmd>()),
       allocator_(allocator) {
   using namespace std::chrono_literals;
-  // Poll for new subscription requests at 100 ms — fast enough to feel
-  // responsive, cheap enough to not waste spin budget.
   drain_timer_ = this->create_wall_timer(50ms, [this] {
     DrainSubscribeCommands();
+    DrainUnsubscribeCommands();
     DrainPublishCommands();
     scratch_arena_.Reset();
   });
@@ -99,6 +99,15 @@ void TopicRelayNode::DrainSubscribeCommands() {
   TopicSubscribeCmd cmd(allocator_);
   while (storage.Dequeue(subscribe_consumer_, cmd)) {
     Subscribe(cmd);
+  }
+}
+
+void TopicRelayNode::DrainUnsubscribeCommands() {
+  auto& storage = incoming_.get().TypedStorage<TopicUnsubscribeCmd>();
+
+  TopicUnsubscribeCmd cmd(allocator_);
+  while (storage.Dequeue(unsubscribe_consumer_, cmd)) {
+    Unsubscribe(cmd);
   }
 }
 
@@ -290,10 +299,16 @@ void TopicRelayNode::HandleTopicMessage(std::string_view topic_name,
   one_shot_requests.reserve(state.requests.size());
 
   for (const auto& request : state.requests) {
-    TopicPayloadCmd out_cmd(allocator_);
+    // Use the default (stable) memory resource — the moodycamel queue
+    // move-constructs the command and propagates the allocator.  If the
+    // allocator were the arena (PendingFrameAllocator), AdvanceFrame()
+    // would recycle the arena while the command is still in the queue,
+    // causing a use-after-free.
+    auto* const mr = std::pmr::get_default_resource();
+    TopicPayloadCmd out_cmd(mr);
     out_cmd.request_id = request.request_id;
-    out_cmd.topic_name = std::pmr::string(topic_name, allocator_);
-    out_cmd.message_type = std::pmr::string(message_type, allocator_);
+    out_cmd.topic_name = std::pmr::string(topic_name, mr);
+    out_cmd.message_type = std::pmr::string(message_type, mr);
     out_cmd.raw = request.raw;
     out_cmd.payload.assign(serialized.buffer,
                            serialized.buffer + serialized.buffer_length);
@@ -333,6 +348,33 @@ void TopicRelayNode::RemoveTopicRequest(std::string_view topic_name,
   if (state.requests.empty()) {
     subscriptions_.erase(it);
   }
+}
+
+void TopicRelayNode::Unsubscribe(const TopicUnsubscribeCmd& cmd) {
+  if (cmd.topic_name.empty()) [[unlikely]] {
+    SendError(cmd.request_id, "UNSUBSCRIBE_FAILED",
+              "Topic name must be non-empty");
+    return;
+  }
+
+  const auto it = subscriptions_.find(cmd.topic_name);
+  if (it == subscriptions_.end()) [[unlikely]] {
+    SendError(cmd.request_id, "UNSUBSCRIBE_FAILED",
+              "No active subscription for the topic");
+    return;
+  }
+
+  auto& state = it->second;
+  for (const auto& request : state.requests) {
+    once_topics_.erase(request.request_id);
+    ClearTimeout(request.request_id);
+  }
+  state.requests.clear();
+  subscriptions_.erase(it);
+
+  RCLCPP_INFO(
+      this->get_logger(), "Unsubscribed echo requests for '%s' (request %lu)",
+      cmd.topic_name.c_str(), static_cast<unsigned long>(cmd.request_id));
 }
 
 void TopicRelayNode::ClearTimeout(uint64_t request_id) {
@@ -648,10 +690,14 @@ void TopicRelayNode::ClearPublishTimer(uint64_t request_id) {
 
 void TopicRelayNode::SendError(uint64_t request_id, std::string_view error_code,
                                std::string_view error_message) {
-  ErrorCmd cmd(allocator_);
+  // Use the default (stable) memory resource — this method is called from
+  // timer callbacks that fire asynchronously, so the ErrorCmd may outlive
+  // the current frame's arena.
+  auto* const mr = std::pmr::get_default_resource();
+  ErrorCmd cmd(mr);
   cmd.request_id = request_id;
-  cmd.error_code = std::pmr::string(error_code, allocator_);
-  cmd.error_message = std::pmr::string(error_message, allocator_);
+  cmd.error_code = std::pmr::string(error_code, mr);
+  cmd.error_message = std::pmr::string(error_message, mr);
   outgoing_.get().Enqueue(error_producer_, std::move(cmd));
 }
 

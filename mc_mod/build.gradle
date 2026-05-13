@@ -49,7 +49,10 @@ dependencies {
     // Mod Menu API (optional runtime dependency)
     modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 
-    // FlatBuffers Java runtime
+    // API module sources — included inline to avoid circular Loom dependency
+    sourceSets.main.java.srcDir('roscraft-api/src/main/java')
+
+    // FlatBuffers Java runtime (internal — not leaked to API)
     implementation "com.google.flatbuffers:flatbuffers-java:${project.flatbuffers_version}"
 
     // Gson ships with Minecraft; declared explicitly for IDE completion.
@@ -360,9 +363,13 @@ if (discoveredNativeDir != null) {
 
 static String currentOsClassifier() {
     def os = System.getProperty("os.name").toLowerCase(Locale.ROOT)
-    if (os.contains("win")) return "windows"
-    if (os.contains("mac")) return "macos"
-    return "linux"
+    def osLabel
+    if (os.contains("win")) osLabel = "windows"
+    else if (os.contains("mac")) osLabel = "macos"
+    else osLabel = "linux"
+    def arch = System.getProperty("os.arch").toLowerCase(Locale.ROOT)
+    def archLabel = arch.contains("aarch64") || arch.contains("arm64") ? "arm64" : "x86_64"
+    return "${osLabel}-${archLabel}"
 }
 
 // =============================================================================

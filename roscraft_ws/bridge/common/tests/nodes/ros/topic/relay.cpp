@@ -49,6 +49,7 @@ private:
 
 void RegisterQueues(CommandQueue& incoming, CommandQueue& outgoing) {
   incoming.Register<TopicSubscribeCmd>();
+  incoming.Register<TopicUnsubscribeCmd>();
   incoming.Register<TopicPublishMessageCmd>();
   outgoing.Register<TopicPayloadCmd>();
   outgoing.Register<ErrorCmd>();

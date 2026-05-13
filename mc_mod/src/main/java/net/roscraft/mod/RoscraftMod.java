@@ -13,6 +13,7 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.roscraft.mod.addon.AddonManager;
 import net.roscraft.mod.bridge.BridgeManager;
 import net.roscraft.mod.command.RoscraftCommands;
 import org.slf4j.Logger;
@@ -42,6 +43,8 @@ public final class RoscraftMod implements ModInitializer {
    */
   private BridgeManager bridgeManager;
 
+  private AddonManager addonManager;
+
   private MinecraftServer server;
   private final Map<Long, PendingRequest> pendingRequests = new HashMap<>();
 
@@ -54,6 +57,7 @@ public final class RoscraftMod implements ModInitializer {
     TOPIC_TYPE,
     TOPIC_FIND,
     TOPIC_ECHO,
+    TOPIC_ECHO_STOP,
     TOPIC_PUB,
     TOPIC_HZ,
     TOPIC_BW,
@@ -88,14 +92,10 @@ public final class RoscraftMod implements ModInitializer {
     var config = RoscraftConfig.load();
     bridgeManager = new BridgeManager(config, new ModBridgeCallback(this));
 
-    var connectResult = bridgeManager.connect();
-    if (connectResult.success()) {
-      LOGGER.info(connectResult.message());
-    } else {
-      LOGGER.error(connectResult.message());
-    }
+    addonManager = new AddonManager(this);
+    addonManager.loadAddons();
 
-    RoscraftCommands.register();
+    RoscraftCommands.registerWithAddons(addonManager);
 
     ServerTickEvents.END_SERVER_TICK.register(server -> onServerTick());
 
@@ -104,6 +104,7 @@ public final class RoscraftMod implements ModInitializer {
     ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
       LOGGER.info("Roscraft shutting down...");
       this.server = null;
+      addonManager.shutdown();
       bridgeManager.close();
     });
 
@@ -119,6 +120,10 @@ public final class RoscraftMod implements ModInitializer {
    */
   public BridgeManager bridgeManager() {
     return bridgeManager;
+  }
+
+  public AddonManager addonManager() {
+    return addonManager;
   }
 
   public synchronized void trackRequest(
@@ -155,6 +160,8 @@ public final class RoscraftMod implements ModInitializer {
         var entry = iterator.next();
         PendingRequest pending = entry.getValue();
         if (pending.kind() == PendingRequestKind.TOPIC_ECHO
+            || pending.kind() == PendingRequestKind.TOPIC_PUB
+            || pending.kind() == PendingRequestKind.TOPIC_ECHO_STOP
             || pending.kind() == PendingRequestKind.TOPIC_HZ
             || pending.kind() == PendingRequestKind.TOPIC_BW
             || pending.kind() == PendingRequestKind.TOPIC_DELAY) {
@@ -181,6 +188,7 @@ public final class RoscraftMod implements ModInitializer {
             case TOPIC_TYPE -> "Topic type";
             case TOPIC_FIND -> "Topic find";
             case TOPIC_ECHO -> "Topic echo";
+            case TOPIC_ECHO_STOP -> "Topic echo stop";
             case TOPIC_PUB -> "Topic pub";
             case TOPIC_HZ -> "Topic hz";
             case TOPIC_BW -> "Topic bw";

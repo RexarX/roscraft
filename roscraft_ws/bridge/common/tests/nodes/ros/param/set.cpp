@@ -50,14 +50,21 @@ private:
 
 class ScopedSpinExecutor {
 public:
-  ScopedSpinExecutor() {
-    spin_thread_ = std::thread([this] { executor_.spin(); });
+  ScopedSpinExecutor()
+      : executor_(
+            std::make_shared<rclcpp::executors::MultiThreadedExecutor>()) {
+    spin_thread_ = std::thread([this] { executor_->spin(); });
+  }
+
+  explicit ScopedSpinExecutor(rclcpp::Executor::SharedPtr executor)
+      : executor_(std::move(executor)) {
+    spin_thread_ = std::thread([this] { executor_->spin(); });
   }
 
   ScopedSpinExecutor(const ScopedSpinExecutor&) = delete;
   ScopedSpinExecutor(ScopedSpinExecutor&&) = delete;
   ~ScopedSpinExecutor() {
-    executor_.cancel();
+    executor_->cancel();
     if (spin_thread_.joinable()) {
       spin_thread_.join();
     }
@@ -67,11 +74,13 @@ public:
   ScopedSpinExecutor& operator=(ScopedSpinExecutor&&) = delete;
 
   void AddNode(const std::shared_ptr<rclcpp::Node>& node) {
-    executor_.add_node(node);
+    executor_->add_node(node);
   }
 
+  auto GetExecutor() const -> rclcpp::Executor::SharedPtr { return executor_; }
+
 private:
-  rclcpp::executors::MultiThreadedExecutor executor_;
+  rclcpp::Executor::SharedPtr executor_;
   std::thread spin_thread_;
 };
 
@@ -114,7 +123,8 @@ TEST_SUITE("bridge::ParamSetNode") {
     CommandQueue incoming;
     CommandQueue outgoing;
     RegisterQueues(incoming, outgoing);
-    ParamSetNode node(incoming, outgoing, std::pmr::get_default_resource());
+    auto node = std::make_shared<ParamSetNode>(
+        incoming, outgoing, std::pmr::get_default_resource());
 
     SUBCASE("Invalid input") {
       ParamSetCmd cmd(std::pmr::get_default_resource());
@@ -124,7 +134,7 @@ TEST_SUITE("bridge::ParamSetNode") {
       cmd.value_text = "42";
       incoming.Enqueue(std::move(cmd));
 
-      node.DrainParamSetCommands();
+      node->DrainParamSetCommands();
 
       ErrorCmd err(std::pmr::get_default_resource());
       CHECK(outgoing.Dequeue(err));
@@ -137,8 +147,10 @@ TEST_SUITE("bridge::ParamSetNode") {
       using namespace std::chrono_literals;
 
       auto target_node = MakeParamTargetNode();
-      ScopedSpinExecutor executor;
-      executor.AddNode(target_node);
+      auto spin_executor =
+          std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
+      ScopedSpinExecutor background_spinner(spin_executor);
+      background_spinner.AddNode(target_node);
       std::this_thread::sleep_for(100ms);
 
       ParamSetCmd cmd(std::pmr::get_default_resource());
@@ -149,7 +161,7 @@ TEST_SUITE("bridge::ParamSetNode") {
       cmd.timeout_seconds = 2.0;
       incoming.Enqueue(std::move(cmd));
 
-      node.DrainParamSetCommands();
+      node->DrainParamSetCommands();
 
       ParamSetResponseCmd response(std::pmr::get_default_resource());
       CHECK(outgoing.Dequeue(response));

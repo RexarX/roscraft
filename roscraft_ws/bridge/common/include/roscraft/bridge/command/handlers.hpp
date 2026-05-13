@@ -1,6 +1,7 @@
 #pragma once
 
 #include <roscraft/bridge/command/handler/action.hpp>
+#include <roscraft/bridge/command/handler/addon.hpp>
 #include <roscraft/bridge/command/handler/error.hpp>
 #include <roscraft/bridge/command/handler/graph.hpp>
 #include <roscraft/bridge/command/handler/interface.hpp>
@@ -18,16 +19,18 @@
 
 namespace roscraft::bridge {
 
+class CommandHandlerRegistry;
+
 /// @brief Ordered tuple of all handler types that implement `DrainAndFlush`.
 /// @details Pass this as the `TupleT` template argument to
 /// `CommandHandlerRegistry::DrainAndFlushAll<DrainAndFlushHandlerTypes>(...)`.
 using DrainAndFlushHandlerTypes = std::tuple<
     ActionInfoHandler, ActionSendGoalHandler, ActionFeedbackHandler,
-    ErrorHandler, GraphHandler, InterfaceListHandler, InterfaceShowHandler,
-    NodeInfoHandler, ParamListHandler, ParamGetHandler, ParamSetHandler,
-    ParamDescribeHandler, ParamDumpHandler, ParamLoadHandler, PlayerListHandler,
-    ServiceInfoHandler, ServiceCallHandler, TopicInfoHandler, TopicHzHandler,
-    TopicBwHandler, TopicDelayHandler, TopicPayloadHandler>;
+    AddonEventHandler, ErrorHandler, GraphHandler, InterfaceListHandler,
+    InterfaceShowHandler, NodeInfoHandler, ParamListHandler, ParamGetHandler,
+    ParamSetHandler, ParamDescribeHandler, ParamDumpHandler, ParamLoadHandler,
+    PlayerListHandler, ServiceInfoHandler, ServiceCallHandler, TopicInfoHandler,
+    TopicHzHandler, TopicBwHandler, TopicDelayHandler, TopicPayloadHandler>;
 
 /// @brief Dispatches an incoming bridge packet to the matching receive handler.
 /// @details Routes by `pkt.payload_type()`. Unknown payload types are silently
@@ -85,6 +88,9 @@ inline void DispatchReceive(CommandHandlerRegistry& registry, CommandQueue& in,
     case fbs::PacketPayload::TopicSubscribePacket:
       registry.Receive<TopicSubscribeHandler>(in, pkt, arena);
       return;
+    case fbs::PacketPayload::TopicUnsubscribePacket:
+      registry.Receive<TopicUnsubscribeHandler>(in, pkt, arena);
+      return;
     case fbs::PacketPayload::TopicPublishMessagePacket:
       registry.Receive<TopicPublishMessageHandler>(in, pkt, arena);
       return;
@@ -102,6 +108,9 @@ inline void DispatchReceive(CommandHandlerRegistry& registry, CommandQueue& in,
       return;
     case fbs::PacketPayload::ServiceCallPacket:
       registry.Receive<ServiceCallHandler>(in, pkt, arena);
+      return;
+    case fbs::PacketPayload::AddonEventPacket:
+      registry.Receive<AddonEventHandler>(in, pkt, arena);
       return;
     default:
       return;

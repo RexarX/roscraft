@@ -35,6 +35,19 @@ struct TopicSubscribeCmd {
       : topic_name(mr), message_type(mr) {}
 };
 
+/// @brief Ask the bridge to stop forwarding a topic's messages to the mod.
+struct TopicUnsubscribeCmd {
+  static constexpr std::string_view kName = "TopicUnsubscribeCmd";
+
+  uint64_t request_id = 0;
+  std::pmr::string topic_name;
+
+  TopicUnsubscribeCmd()
+      : TopicUnsubscribeCmd(std::pmr::get_default_resource()) {}
+  explicit TopicUnsubscribeCmd(std::pmr::memory_resource* mr)
+      : topic_name(mr) {}
+};
+
 /// @brief Publish a message onto a ROS topic from UTF-8 YAML text.
 struct TopicPublishMessageCmd {
   static constexpr std::string_view kName = "TopicPublishMessageCmd";

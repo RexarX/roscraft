@@ -8,6 +8,7 @@ include "bridge_packets/param.fbs";
 include "bridge_packets/action.fbs";
 include "bridge_packets/player.fbs";
 include "bridge_packets/error.fbs";
+include "bridge_packets/addon.fbs";
 
 namespace roscraft.bridge.fbs;
 
@@ -27,6 +28,7 @@ union PacketPayload {
   InterfaceListPacket,
   InterfaceShowPacket,
   TopicSubscribePacket,
+  TopicUnsubscribePacket,
   TopicPublishMessagePacket,
   QueryPlayersPacket,
   TopicHzPacket,
@@ -41,6 +43,7 @@ union PacketPayload {
   ActionSendGoalPacket,
   TopicDelayPacket,
   ParamLoadPacket,
+  AddonEventPacket,
   // Outgoing
   GraphSnapshotPacket,
   NodeInfoResponsePacket,

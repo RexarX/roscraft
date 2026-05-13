@@ -14,12 +14,27 @@ set(ROSCRAFT_BRIDGE_COMMON_TEST_SOURCES
     command/command.cpp
     command/commands.cpp
     command/queue.cpp
+    command/handler_registry.cpp
+
+    command/handlers/addon.cpp
+    command/handlers/action.cpp
+    command/handlers/error.cpp
+    command/handlers/graph.cpp
+    command/handlers/interface.cpp
+    command/handlers/node.cpp
+    command/handlers/param.cpp
+    command/handlers/player.cpp
+    command/handlers/service.cpp
+    command/handlers/topic.cpp
 
     nodes/ros/interface/list.cpp
     nodes/ros/interface/show.cpp
     nodes/ros/node/info.cpp
     nodes/ros/action/info.cpp
     nodes/ros/action/send_goal.cpp
+
+    nodes/addon/event.cpp
+
     nodes/ros/service/info.cpp
     nodes/ros/service/call.cpp
     nodes/ros/topic/info.cpp

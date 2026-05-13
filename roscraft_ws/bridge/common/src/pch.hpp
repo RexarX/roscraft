@@ -1,6 +1,7 @@
 #pragma once
 
 #include <rclcpp/event.hpp>
+#include <rclcpp/executor.hpp>
 #include <rclcpp/executors/multi_threaded_executor.hpp>
 #include <rclcpp/generic_publisher.hpp>
 #include <rclcpp/generic_subscription.hpp>
