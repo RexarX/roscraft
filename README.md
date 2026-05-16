@@ -17,8 +17,8 @@
 - [Prerequisites](#prerequisites)
 - [Dependencies](#dependencies)
 - [Building](#building)
-    - [C++ Backend](#cpp-backend)
-    - [Minecraft Mod](#minecraft-mod)
+  - [C++ Backend](#cpp-backend)
+  - [Minecraft Mod](#minecraft-mod)
 - [CMake Options](#cmake-options)
 - [Makefile](#makefile)
 - [Testing](#testing)
@@ -111,7 +111,6 @@ roscraft_ws/
 | glaze           | Modern C++ JSON/serialization    |
 | argparse        | CLI argument parsing             |
 | concurrentqueue | Lock-free MPMC queue             |
-| Taskflow        | Parallel task execution          |
 | doctest         | Unit test framework              |
 
 ### Java (via Gradle)
@@ -149,7 +148,7 @@ source /opt/ros/jazzy/setup.sh
 
 # Quick start with Makefile
 cd roscraft_ws
-make build BUILD_TYPE=relwithdebinfo
+make build-{debug,relwithbebinfo,release}
 
 # Or use colcon directly
 colcon build --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo
@@ -167,6 +166,27 @@ cd mc_mod
 ```
 
 The Gradle build auto-generates FlatBuffers Java sources, runs Spotless format checks, and bundles the native JNI library if found in the CMake build tree.
+
+> **JNI library at runtime:** When using the JNI bridge (`bridgeType: "JNI"`), the Minecraft server process must be able to find the ROS 2 shared libraries. Add `/opt/ros/{distro}/lib` to `LD_LIBRARY_PATH` before launching the server (replace `{distro}` with your ROS 2 distribution, e.g. `jazzy`):
+>
+> ```bash
+> export LD_LIBRARY_PATH=/opt/ros/jazzy/lib:$LD_LIBRARY_PATH
+> java -jar minecraft_server.jar
+> ```
+>
+> This can also be set globally via `/etc/environment`, your systemd service file, or in most Minecraft launchers' settings (e.g. in Prism Launcher per-instance via _Edit Instance → Settings → Environment Variables_, or globally via _Settings → Minecraft → Environment Variables_).
+
+> **flatc version conflicts:** The Java FlatBuffers library (`flatbuffers-java`) and the C++ FlatBuffers runtime must use compatible schema versions. If you encounter build errors or runtime mismatches, download a matching `flatc` binary from the [FlatBuffers releases page](https://github.com/google/flatbuffers/releases) and point the build to it:
+>
+> ```bash
+> ./gradlew build -PflatcPath=/path/to/flatc
+> ```
+
+> **Specifying the CMake build type:** When the Mod build auto-discovers the native JNI library and multiple build types are present (e.g. both `debug` and `relwithdebinfo`), you can select which one to bundle:
+>
+> ```bash
+> ./gradlew build -PcmakeBuildType=relwithdebinfo
+> ```
 
 [↑ Back to Top](#readme-top)
 
@@ -224,7 +244,7 @@ Tests use the [doctest](https://github.com/doctest/doctest) framework for C++. R
 ```bash
 # Using Makefile
 cd roscraft_ws
-make test BUILD_TYPE=debug
+make test-{debug,relwithbebinfo,release}
 
 # Using CTest directly
 cd roscraft_ws/build/debug
@@ -249,9 +269,9 @@ ros2 run roscraft_bridge_network roscraft_bridge_network # optional --host 127.0
 
 ```json
 {
-    "bridgeType": "NETWORK",
-    "networkHost": "127.0.0.1",
-    "networkPort": 7401
+  "bridgeType": "NETWORK",
+  "networkHost": "127.0.0.1",
+  "networkPort": 7401
 }
 ```
 
