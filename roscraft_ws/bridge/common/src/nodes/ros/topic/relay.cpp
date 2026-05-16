@@ -352,15 +352,30 @@ void TopicRelayNode::RemoveTopicRequest(std::string_view topic_name,
 
 void TopicRelayNode::Unsubscribe(const TopicUnsubscribeCmd& cmd) {
   if (cmd.topic_name.empty()) [[unlikely]] {
-    SendError(cmd.request_id, "UNSUBSCRIBE_FAILED",
-              "Topic name must be non-empty");
+    scratch_arena_.Reset();
+
+    size_t count = 0;
+    for (const auto& [topic_name, _] : subscriptions_) {
+      UnsubscribeTopic(topic_name);
+      ++count;
+    }
+
+    RCLCPP_INFO(this->get_logger(),
+                "Unsubscribed all echo requests (%zu topics) (request %lu)",
+                count, static_cast<unsigned long>(cmd.request_id));
     return;
   }
 
-  const auto it = subscriptions_.find(cmd.topic_name);
+  UnsubscribeTopic(cmd.topic_name);
+
+  RCLCPP_INFO(
+      this->get_logger(), "Unsubscribed echo requests for '%s' (request %lu)",
+      cmd.topic_name.c_str(), static_cast<unsigned long>(cmd.request_id));
+}
+
+void TopicRelayNode::UnsubscribeTopic(std::string_view topic_name) {
+  const auto it = subscriptions_.find(topic_name);
   if (it == subscriptions_.end()) [[unlikely]] {
-    SendError(cmd.request_id, "UNSUBSCRIBE_FAILED",
-              "No active subscription for the topic");
     return;
   }
 
@@ -371,10 +386,6 @@ void TopicRelayNode::Unsubscribe(const TopicUnsubscribeCmd& cmd) {
   }
   state.requests.clear();
   subscriptions_.erase(it);
-
-  RCLCPP_INFO(
-      this->get_logger(), "Unsubscribed echo requests for '%s' (request %lu)",
-      cmd.topic_name.c_str(), static_cast<unsigned long>(cmd.request_id));
 }
 
 void TopicRelayNode::ClearTimeout(uint64_t request_id) {

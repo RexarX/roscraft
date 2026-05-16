@@ -488,23 +488,4 @@ TEST_SUITE("bridge::App") {
     const auto& allocator = app.Allocator();
     CHECK_EQ(&allocator, &app.Allocator());
   }
-
-  TEST_CASE("bridge::App::Executor") {
-    ScopedAppGuard guard;
-    auto& app = App::Instance();
-
-    auto& executor = app.Executor();
-    CHECK_EQ(&executor, &app.Executor());
-  }
-
-  TEST_CASE("bridge::App::Executor const") {
-    ScopedAppGuard guard;
-    auto& app = App::Instance();
-
-    auto& executor = app.Executor();
-    const auto& const_executor = static_cast<const App&>(app).Executor();
-
-    CHECK_EQ(static_cast<const void*>(&executor),
-             static_cast<const void*>(&const_executor));
-  }
 }

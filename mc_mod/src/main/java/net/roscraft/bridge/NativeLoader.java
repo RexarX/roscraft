@@ -5,6 +5,8 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Loads the native library for the bridge JNI layer.
@@ -23,27 +25,76 @@ final class NativeLoader {
   }
 
   private static void loadFromJar() {
-    String resourcePath = "natives/" + osClassifier() + "/" + systemLibName();
-    try (InputStream in = NativeLoader.class.getClassLoader().getResourceAsStream(resourcePath)) {
-      if (in != null) {
-        loadFromStream(in);
-        return;
-      }
-    } catch (IOException e) {
-      throw new UnsatisfiedLinkError(
-          "Failed to extract native library " + resourcePath + ": " + e.getMessage());
+    String resourceDir = "natives/" + osClassifier() + "/";
+    List<String> libNames = listNativeLibNames(resourceDir);
+    if (!libNames.contains(systemLibName())) {
+      System.loadLibrary(LIB_NAME);
+      return;
     }
 
-    System.loadLibrary(LIB_NAME);
+    try {
+      loadNativeLibsFromJar(resourceDir, libNames);
+    } catch (IOException e) {
+      throw new UnsatisfiedLinkError(
+          "Failed to extract native libraries from " + resourceDir + ": " + e.getMessage());
+    }
   }
 
-  private static void loadFromStream(InputStream in) throws IOException {
+  private static List<String> listNativeLibNames(String resourceDir) {
+    List<String> names = new ArrayList<>();
+    try (InputStream in =
+        NativeLoader.class.getClassLoader().getResourceAsStream(resourceDir + "natives.list")) {
+      if (in == null) {
+        return names;
+      }
+      byte[] buf = in.readAllBytes();
+      for (String line : new String(buf).split("\n")) {
+        String trimmed = line.trim();
+        if (!trimmed.isEmpty()) {
+          names.add(trimmed);
+        }
+      }
+    } catch (IOException e) {
+      return names;
+    }
+    return names;
+  }
+
+  private static void loadNativeLibsFromJar(String resourceDir, List<String> libNames)
+      throws IOException {
     Path tempDir = Files.createTempDirectory("roscraft-natives");
     tempDir.toFile().deleteOnExit();
-    Path tempLib = tempDir.resolve(systemLibName());
-    Files.copy(in, tempLib, StandardCopyOption.REPLACE_EXISTING);
-    tempLib.toFile().deleteOnExit();
-    System.load(tempLib.toAbsolutePath().toString());
+
+    for (String libName : libNames) {
+      String resourcePath = resourceDir + libName;
+      try (InputStream in = NativeLoader.class.getClassLoader().getResourceAsStream(resourcePath)) {
+        if (in == null) continue;
+        Path target = tempDir.resolve(libName);
+        Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+        target.toFile().deleteOnExit();
+      }
+    }
+
+    List<String> remaining = new ArrayList<>(libNames);
+    int prevSize = remaining.size() + 1;
+    while (!remaining.isEmpty() && remaining.size() < prevSize) {
+      prevSize = remaining.size();
+      List<String> stillRemaining = new ArrayList<>();
+      for (String libName : remaining) {
+        try {
+          System.load(tempDir.resolve(libName).toAbsolutePath().toString());
+        } catch (UnsatisfiedLinkError e) {
+          stillRemaining.add(libName);
+        }
+      }
+      remaining = stillRemaining;
+    }
+
+    String mainLib = systemLibName();
+    if (!remaining.isEmpty() && remaining.contains(mainLib)) {
+      throw new UnsatisfiedLinkError(
+          "Failed to load " + mainLib + ". Remaining deps: " + String.join(", ", remaining));
+    }
   }
 
   static String osClassifier() {

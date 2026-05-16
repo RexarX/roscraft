@@ -1,6 +1,7 @@
 #pragma once
 
 #include <roscraft/bridge/bridge.hpp>
+#include <roscraft/bridge/command/queue.hpp>
 #include <roscraft/bridge/network/config.hpp>
 #include <roscraft/bridge/network/udp_transport.hpp>
 
@@ -16,12 +17,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <future>
 #include <memory_resource>
 #include <optional>
 #include <shared_mutex>
 #include <span>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -134,8 +135,8 @@ private:
   using WorkGuard = asio::executor_work_guard<asio::io_context::executor_type>;
   std::optional<WorkGuard> work_guard_;
 
-  /// Future for the ASIO run task launched on the App executor.
-  std::future<void> io_task_;
+  /// Thread for the ASIO event loop.
+  std::jthread io_thread_;
 
   // ---- Client management (thread-safe) -------------------------------------
 
@@ -147,6 +148,11 @@ private:
       clients_last_seen_;
 
   static constexpr auto kClientInactivityTimeout = std::chrono::seconds(30);
+
+  // ---- Stats session cleanup ------------------------------------------------
+
+  std::optional<CommandQueueProducerToken> stop_all_stats_producer_;
+  std::optional<CommandQueueProducerToken> stop_all_echo_producer_;
 
   // ---- Receive-side resources ----------------------------------------------
 

@@ -171,7 +171,7 @@ public abstract class AbstractPacketBridge extends RoscraftBridge {
     Objects.requireNonNull(topicName, "topicName must not be null");
     Objects.requireNonNull(messageType, "messageType must not be null");
     long id = nextRequestId();
-    sendPacket(packetBuilder.topicDelay(id, topicName, messageType, Math.max(1, window)));
+    sendPacket(packetBuilder.topicDelay(id, topicName, messageType, window));
     return id;
   }
 

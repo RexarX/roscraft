@@ -513,6 +513,71 @@ public final class TopicCommands {
         requestId);
   }
 
+  /** Stop topic rate measurement (`topic hz stop`). */
+  public static CommandResult hzStop(CommandContext ctx, String topicName) {
+    if (topicName == null || topicName.isBlank()) {
+      return CommandResult.failure("Topic name must be non-empty.");
+    }
+
+    RoscraftBridge bridge = ctx.requireBridge();
+    long requestId = bridge.topicHz(topicName, "", 0, false);
+    return CommandResult.success(
+        "Topic hz stop request #" + requestId + " for " + topicName + " sent.", requestId);
+  }
+
+  /** Stop topic bandwidth measurement (`topic bw stop`). */
+  public static CommandResult bwStop(CommandContext ctx, String topicName) {
+    if (topicName == null || topicName.isBlank()) {
+      return CommandResult.failure("Topic name must be non-empty.");
+    }
+
+    RoscraftBridge bridge = ctx.requireBridge();
+    long requestId = bridge.topicBw(topicName, "", 0, false);
+    return CommandResult.success(
+        "Topic bw stop request #" + requestId + " for " + topicName + " sent.", requestId);
+  }
+
+  /** Stop topic delay measurement (`topic delay stop`). */
+  public static CommandResult delayStop(CommandContext ctx, String topicName) {
+    if (topicName == null || topicName.isBlank()) {
+      return CommandResult.failure("Topic name must be non-empty.");
+    }
+
+    RoscraftBridge bridge = ctx.requireBridge();
+    long requestId = bridge.topicDelay(topicName, "", 0);
+    return CommandResult.success(
+        "Topic delay stop request #" + requestId + " for " + topicName + " sent.", requestId);
+  }
+
+  /** Stop all topic rate measurements (`topic hz stop`). */
+  public static CommandResult hzStopAll(CommandContext ctx) {
+    RoscraftBridge bridge = ctx.requireBridge();
+    long requestId = bridge.topicHz("", "", 0, false);
+    return CommandResult.success("Topic hz stop-all request #" + requestId + " sent.", requestId);
+  }
+
+  /** Stop all topic bandwidth measurements (`topic bw stop`). */
+  public static CommandResult bwStopAll(CommandContext ctx) {
+    RoscraftBridge bridge = ctx.requireBridge();
+    long requestId = bridge.topicBw("", "", 0, false);
+    return CommandResult.success("Topic bw stop-all request #" + requestId + " sent.", requestId);
+  }
+
+  /** Stop all topic delay measurements (`topic delay stop`). */
+  public static CommandResult delayStopAll(CommandContext ctx) {
+    RoscraftBridge bridge = ctx.requireBridge();
+    long requestId = bridge.topicDelay("", "", 0);
+    return CommandResult.success(
+        "Topic delay stop-all request #" + requestId + " sent.", requestId);
+  }
+
+  /** Stop all echo subscriptions (`topic echo stop`). */
+  public static CommandResult echoStopAll(CommandContext ctx) {
+    RoscraftBridge bridge = ctx.requireBridge();
+    long requestId = bridge.unsubscribeTopic("");
+    return CommandResult.success("Topic echo stop-all request #" + requestId + " sent.", requestId);
+  }
+
   private static String normalizeQosProfile(String qosProfile) {
     if (qosProfile == null || qosProfile.isBlank()) {
       return "default";

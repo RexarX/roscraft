@@ -60,8 +60,11 @@ public final class RoscraftMod implements ModInitializer {
     TOPIC_ECHO_STOP,
     TOPIC_PUB,
     TOPIC_HZ,
+    TOPIC_HZ_STOP,
     TOPIC_BW,
+    TOPIC_BW_STOP,
     TOPIC_DELAY,
+    TOPIC_DELAY_STOP,
     TOPIC_INFO,
     SERVICE_LIST,
     SERVICE_TYPE,
@@ -91,6 +94,7 @@ public final class RoscraftMod implements ModInitializer {
 
     var config = RoscraftConfig.load();
     bridgeManager = new BridgeManager(config, new ModBridgeCallback(this));
+    bridgeManager.setPreDisconnectHook(this::stopRunningSessions);
 
     addonManager = new AddonManager(this);
     addonManager.loadAddons();
@@ -150,6 +154,69 @@ public final class RoscraftMod implements ModInitializer {
     processTimedOutRequests();
   }
 
+  synchronized void stopRunningSessions() {
+    if (bridgeManager == null) {
+      return;
+    }
+
+    var activeBridge = bridgeManager.getBridge();
+    if (activeBridge == null) {
+      return;
+    }
+
+    List<Map.Entry<Long, PendingRequest>> toStop = new ArrayList<>();
+    for (var entry : pendingRequests.entrySet()) {
+      PendingRequest pending = entry.getValue();
+      switch (pending.kind()) {
+        case TOPIC_HZ, TOPIC_BW, TOPIC_DELAY, TOPIC_ECHO -> {
+          if (pending.metadata() != null) {
+            toStop.add(entry);
+          }
+        }
+        default -> {}
+      }
+    }
+
+    for (var entry : toStop) {
+      long requestId = entry.getKey();
+      PendingRequest pending = entry.getValue();
+      String topicName = extractTopicName(pending.metadata());
+      if (topicName == null || topicName.isBlank()) {
+        pendingRequests.remove(requestId);
+        continue;
+      }
+
+      try {
+        switch (pending.kind()) {
+          case TOPIC_HZ -> activeBridge.topicHz(topicName, "", 0, false);
+          case TOPIC_BW -> activeBridge.topicBw(topicName, "", 0, false);
+          case TOPIC_DELAY -> activeBridge.topicDelay(topicName, "", 0);
+          case TOPIC_ECHO -> activeBridge.unsubscribeTopic(topicName);
+          default -> {}
+        }
+      } catch (RuntimeException e) {
+        LOGGER.warn(
+            "Failed to stop running session #{} for {}: {}", requestId, topicName, e.getMessage());
+      }
+
+      pendingRequests.remove(requestId);
+    }
+  }
+
+  private static String extractTopicName(String metadata) {
+    if (metadata == null || metadata.isBlank()) {
+      return null;
+    }
+    if (metadata.startsWith("topic_name=")) {
+      int semicolonIdx = metadata.indexOf(';', "topic_name=".length());
+      if (semicolonIdx < 0) {
+        return metadata.substring("topic_name=".length());
+      }
+      return metadata.substring("topic_name=".length(), semicolonIdx);
+    }
+    return metadata;
+  }
+
   private void processTimedOutRequests() {
     long now = System.currentTimeMillis();
     List<Map.Entry<Long, PendingRequest>> timedOut = new ArrayList<>();
@@ -163,8 +230,11 @@ public final class RoscraftMod implements ModInitializer {
             || pending.kind() == PendingRequestKind.TOPIC_PUB
             || pending.kind() == PendingRequestKind.TOPIC_ECHO_STOP
             || pending.kind() == PendingRequestKind.TOPIC_HZ
+            || pending.kind() == PendingRequestKind.TOPIC_HZ_STOP
             || pending.kind() == PendingRequestKind.TOPIC_BW
-            || pending.kind() == PendingRequestKind.TOPIC_DELAY) {
+            || pending.kind() == PendingRequestKind.TOPIC_BW_STOP
+            || pending.kind() == PendingRequestKind.TOPIC_DELAY
+            || pending.kind() == PendingRequestKind.TOPIC_DELAY_STOP) {
           continue;
         }
         if (now - pending.createdAtMillis() >= REQUEST_TIMEOUT_MILLIS) {
@@ -191,8 +261,11 @@ public final class RoscraftMod implements ModInitializer {
             case TOPIC_ECHO_STOP -> "Topic echo stop";
             case TOPIC_PUB -> "Topic pub";
             case TOPIC_HZ -> "Topic hz";
+            case TOPIC_HZ_STOP -> "Topic hz stop";
             case TOPIC_BW -> "Topic bw";
+            case TOPIC_BW_STOP -> "Topic bw stop";
             case TOPIC_DELAY -> "Topic delay";
+            case TOPIC_DELAY_STOP -> "Topic delay stop";
             case TOPIC_INFO -> "Topic info";
             case SERVICE_LIST -> "Service list";
             case SERVICE_TYPE -> "Service type";

@@ -10,16 +10,14 @@
 #include <rclcpp/executors/multi_threaded_executor.hpp>
 #include <rclcpp/rclcpp.hpp>
 
-#include <taskflow/taskflow.hpp>
-
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
-#include <future>
 #include <memory>
 #include <memory_resource>
 #include <mutex>
 #include <optional>
+#include <thread>
 #include <vector>
 
 namespace roscraft::bridge {
@@ -243,16 +241,6 @@ public:
     return allocator_;
   }
 
-  /// @brief Executor used by the `App` for async tasks.
-  /// @return Reference to the executor
-  [[nodiscard]] tf::Executor& Executor() noexcept { return executor_; }
-
-  /// @brief Executor used by the `App` for async tasks (const).
-  /// @return Const reference to the executor
-  [[nodiscard]] const tf::Executor& Executor() const noexcept {
-    return executor_;
-  }
-
   /// @brief ROS executor used for spinning nodes.
   /// @warning Triggers assertion if ROS executor is not initialized.
   /// @return Reference to the ROS executor
@@ -309,9 +297,9 @@ private:
   std::vector<rclcpp::node_interfaces::NodeBaseInterface::SharedPtr> nodes_;
   std::vector<std::shared_ptr<rclcpp::Node>> owned_nodes_;
   std::optional<rclcpp::executors::MultiThreadedExecutor> ros_executor_;
-  std::future<void> ros_spin_task_;
-
-  tf::Executor executor_;
+  std::jthread ros_spin_thread_;
+  std::optional<std::promise<void>> shutdown_promise_;
+  std::shared_future<void> shutdown_future_;
 };
 
 inline App& App::Instance() noexcept {

@@ -96,8 +96,16 @@ final class RoscraftCommandActions {
             .formatted(Formatting.GRAY));
     sendStyled(
         source,
+        Text.literal("   | topic hz stop [<topic>] | topic bw stop [<topic>]")
+            .formatted(Formatting.DARK_GRAY));
+    sendStyled(
+        source,
         Text.literal(" - /ros topic delay <topic> [<type>] [--window <n>]")
             .formatted(Formatting.GRAY));
+    sendStyled(
+        source,
+        Text.literal("   | topic delay stop [<topic>] | topic echo stop [<topic>]")
+            .formatted(Formatting.DARK_GRAY));
     sendStyled(
         source,
         Text.literal(

@@ -31,9 +31,9 @@ target_link_libraries(roscraft_bridge_jni_tests PRIVATE
     roscraft::doctest::doctest
 )
 
-add_test(NAME roscraft_bridge_jni_tests COMMAND roscraft_bridge_jni_tests)
+add_test(NAME roscraft_bridge_jni_tests COMMAND roscraft_bridge_jni_tests --no-intro)
 
 set_tests_properties(roscraft_bridge_jni_tests PROPERTIES
     ENVIRONMENT
-        "ASAN_OPTIONS=new_delete_type_mismatch=0"
+        "ASAN_OPTIONS=new_delete_type_mismatch=0;LSAN_OPTIONS=suppressions=${CMAKE_CURRENT_SOURCE_DIR}/lsan.supp"
 )

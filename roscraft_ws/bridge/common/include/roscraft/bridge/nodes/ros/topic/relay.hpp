@@ -94,6 +94,9 @@ private:
   /// @brief Remove all active echo subscriptions for a topic.
   void Unsubscribe(const TopicUnsubscribeCmd& cmd);
 
+  /// @brief Remove all echo request registrations for a single topic.
+  void UnsubscribeTopic(std::string_view topic_name);
+
   /// @brief Create backing generic subscription for one topic.
   /// @param topic_name Topic name
   /// @param request_id Request id for error reporting

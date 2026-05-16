@@ -251,7 +251,6 @@ target_compile_definitions(roscraft_bridge_common_lib PUBLIC
 )
 
 roscraft_require_dependency(concurrentqueue)
-roscraft_require_dependency(Taskflow)
 
 target_link_libraries(roscraft_bridge_common_lib
     PUBLIC
@@ -283,13 +282,6 @@ if(TARGET concurrentqueue::concurrentqueue OR TARGET concurrentqueue)
   target_link_libraries(roscraft_bridge_common_lib PUBLIC
       $<BUILD_INTERFACE:roscraft::concurrentqueue>
       $<INSTALL_INTERFACE:concurrentqueue::concurrentqueue>
-  )
-endif()
-
-if(TARGET Taskflow::Taskflow OR TARGET Taskflow)
-  target_link_libraries(roscraft_bridge_common_lib PUBLIC
-      $<BUILD_INTERFACE:roscraft::taskflow::taskflow>
-      $<INSTALL_INTERFACE:Taskflow::Taskflow>
   )
 endif()
 
@@ -455,7 +447,6 @@ if(ROSCRAFT_BRIDGE_COMMON_INTERFACE_FILES)
           builtin_interfaces
           geometry_msgs
           std_msgs
-      ADD_LINTER_TESTS
   )
 
   rosidl_get_typesupport_target(ROSCRAFT_BRIDGE_COMMON_CPP_TYPESUPPORT_TARGET

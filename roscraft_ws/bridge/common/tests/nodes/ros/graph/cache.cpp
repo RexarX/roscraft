@@ -11,8 +11,6 @@
 
 #include <rclcpp/rclcpp.hpp>
 
-#include <taskflow/taskflow.hpp>
-
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -67,16 +65,13 @@ GraphSnapshotCmd DequeueSnapshot(CommandQueue& outgoing) {
 }  // namespace
 
 TEST_SUITE("bridge::GraphCacheNode") {
-  tf::Executor executor;
-
   TEST_CASE("bridge::GraphCacheNode::ctor") {
     ScopedRosContext ros_context;
     CommandQueue incoming;
     CommandQueue outgoing;
     RegisterQueues(incoming, outgoing);
 
-    GraphCacheNode node(incoming, outgoing, executor,
-                        std::pmr::get_default_resource());
+    GraphCacheNode node(incoming, outgoing, std::pmr::get_default_resource());
 
     CHECK(std::string_view(node.get_name()) == "roscraft_graph_cache_node");
     CHECK_LT(node.CurrentSnapshotIndex(), 2);
@@ -89,8 +84,7 @@ TEST_SUITE("bridge::GraphCacheNode") {
     RegisterQueues(incoming, outgoing);
 
     {
-      GraphCacheNode node(incoming, outgoing, executor,
-                          std::pmr::get_default_resource());
+      GraphCacheNode node(incoming, outgoing, std::pmr::get_default_resource());
       CHECK_LT(node.CurrentSnapshotIndex(), 2);
     }
 
@@ -102,8 +96,7 @@ TEST_SUITE("bridge::GraphCacheNode") {
     CommandQueue incoming;
     CommandQueue outgoing;
     RegisterQueues(incoming, outgoing);
-    GraphCacheNode node(incoming, outgoing, executor,
-                        std::pmr::get_default_resource());
+    GraphCacheNode node(incoming, outgoing, std::pmr::get_default_resource());
 
     node.RefreshSnapshot();
 
@@ -125,8 +118,7 @@ TEST_SUITE("bridge::GraphCacheNode") {
     CommandQueue incoming;
     CommandQueue outgoing;
     RegisterQueues(incoming, outgoing);
-    GraphCacheNode node(incoming, outgoing, executor,
-                        std::pmr::get_default_resource());
+    GraphCacheNode node(incoming, outgoing, std::pmr::get_default_resource());
 
     incoming.Enqueue(QueryGraphCmd{.request_id = 11});
     incoming.Enqueue(QueryGraphCmd{.request_id = 12});
@@ -146,8 +138,7 @@ TEST_SUITE("bridge::GraphCacheNode") {
     CommandQueue incoming;
     CommandQueue outgoing;
     RegisterQueues(incoming, outgoing);
-    GraphCacheNode node(incoming, outgoing, executor,
-                        std::pmr::get_default_resource());
+    GraphCacheNode node(incoming, outgoing, std::pmr::get_default_resource());
 
     incoming.Enqueue(QueryGraphCmd{.request_id = 21});
 
@@ -163,8 +154,7 @@ TEST_SUITE("bridge::GraphCacheNode") {
     CommandQueue outgoing;
     RegisterQueues(incoming, outgoing);
 
-    GraphCacheNode node(incoming, outgoing, executor,
-                        std::pmr::get_default_resource());
+    GraphCacheNode node(incoming, outgoing, std::pmr::get_default_resource());
 
     incoming.Enqueue(QueryGraphCmd{.request_id = 31});
 
@@ -181,11 +171,12 @@ TEST_SUITE("bridge::GraphCacheNode") {
     CommandQueue incoming;
     CommandQueue outgoing;
     RegisterQueues(incoming, outgoing);
-    GraphCacheNode node(incoming, outgoing, executor,
-                        std::pmr::get_default_resource());
+    GraphCacheNode node(incoming, outgoing, std::pmr::get_default_resource());
 
     node.stop_watcher_.store(true, std::memory_order_release);
-    node.WatcherTaskFunc();
+    std::stop_source stop_source;
+    stop_source.request_stop();
+    node.WatcherTaskFunc(stop_source.get_token());
 
     CHECK(node.stop_watcher_.load(std::memory_order_acquire));
   }
@@ -195,8 +186,7 @@ TEST_SUITE("bridge::GraphCacheNode") {
     CommandQueue incoming;
     CommandQueue outgoing;
     RegisterQueues(incoming, outgoing);
-    GraphCacheNode node(incoming, outgoing, executor,
-                        std::pmr::get_default_resource());
+    GraphCacheNode node(incoming, outgoing, std::pmr::get_default_resource());
 
     node.current_snapshot_index_.store(0, std::memory_order_release);
     CHECK_EQ(node.PendingSnapshotIndex(), 1);
@@ -210,8 +200,7 @@ TEST_SUITE("bridge::GraphCacheNode") {
     CommandQueue incoming;
     CommandQueue outgoing;
     RegisterQueues(incoming, outgoing);
-    GraphCacheNode node(incoming, outgoing, executor,
-                        std::pmr::get_default_resource());
+    GraphCacheNode node(incoming, outgoing, std::pmr::get_default_resource());
 
     node.current_snapshot_index_.store(0, std::memory_order_release);
     CHECK_EQ(node.CurrentSnapshotIndex(), 0);

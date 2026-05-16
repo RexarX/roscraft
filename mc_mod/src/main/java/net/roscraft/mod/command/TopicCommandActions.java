@@ -88,6 +88,11 @@ final class TopicCommandActions {
         ctx -> TopicCommands.echoStop(ctx, topicName));
   }
 
+  static int executeTopicEchoStopAll(ServerCommandSource source) {
+    return RoscraftCommandActions.executeLogicCommand(
+        source, PendingRequestKind.TOPIC_ECHO_STOP, ctx -> TopicCommands.echoStopAll(ctx));
+  }
+
   static int executeTopicEchoTail(ServerCommandSource source, String topicName, String rawTail) {
     TopicCommandTail tail = parseTopicCommandTailOrError(source, "/ros topic echo", rawTail);
     if (tail == null) {
@@ -155,10 +160,11 @@ final class TopicCommandActions {
     final String resolvedMessageType =
         (messageType == null || messageType.isBlank()) ? "" : messageType;
 
+    String trackingMetadata = "topic_name=" + topicName + ";" + options.encodeTrackingMetadata();
     return RoscraftCommandActions.executeLogicCommand(
         source,
         PendingRequestKind.TOPIC_ECHO,
-        options.encodeTrackingMetadata(),
+        trackingMetadata,
         ctx -> TopicCommands.echo(ctx, topicName, resolvedMessageType, options));
   }
 
@@ -385,6 +391,19 @@ final class TopicCommandActions {
         ctx -> TopicCommands.hz(ctx, topicName, resolvedMessageType, options));
   }
 
+  static int executeTopicHzStop(ServerCommandSource source, String topicName) {
+    return RoscraftCommandActions.executeLogicCommand(
+        source,
+        PendingRequestKind.TOPIC_HZ_STOP,
+        topicName,
+        ctx -> TopicCommands.hzStop(ctx, topicName));
+  }
+
+  static int executeTopicHzStopAll(ServerCommandSource source) {
+    return RoscraftCommandActions.executeLogicCommand(
+        source, PendingRequestKind.TOPIC_HZ_STOP, ctx -> TopicCommands.hzStopAll(ctx));
+  }
+
   static int executeTopicBw(
       ServerCommandSource source, String topicName, String messageType, String rawFlags) {
     List<String> flags =
@@ -465,6 +484,19 @@ final class TopicCommandActions {
         ctx -> TopicCommands.bw(ctx, topicName, resolvedMessageType, options));
   }
 
+  static int executeTopicBwStop(ServerCommandSource source, String topicName) {
+    return RoscraftCommandActions.executeLogicCommand(
+        source,
+        PendingRequestKind.TOPIC_BW_STOP,
+        topicName,
+        ctx -> TopicCommands.bwStop(ctx, topicName));
+  }
+
+  static int executeTopicBwStopAll(ServerCommandSource source) {
+    return RoscraftCommandActions.executeLogicCommand(
+        source, PendingRequestKind.TOPIC_BW_STOP, ctx -> TopicCommands.bwStopAll(ctx));
+  }
+
   static int executeTopicDelay(
       ServerCommandSource source, String topicName, String messageType, String rawFlags) {
     List<String> flags =
@@ -539,6 +571,19 @@ final class TopicCommandActions {
         PendingRequestKind.TOPIC_DELAY,
         trackingMetadata,
         ctx -> TopicCommands.delay(ctx, topicName, resolvedMessageType, options));
+  }
+
+  static int executeTopicDelayStop(ServerCommandSource source, String topicName) {
+    return RoscraftCommandActions.executeLogicCommand(
+        source,
+        PendingRequestKind.TOPIC_DELAY_STOP,
+        topicName,
+        ctx -> TopicCommands.delayStop(ctx, topicName));
+  }
+
+  static int executeTopicDelayStopAll(ServerCommandSource source) {
+    return RoscraftCommandActions.executeLogicCommand(
+        source, PendingRequestKind.TOPIC_DELAY_STOP, ctx -> TopicCommands.delayStopAll(ctx));
   }
 
   private record TopicCommandTail(String messageType, List<String> flags) {}

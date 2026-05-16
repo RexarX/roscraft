@@ -58,6 +58,7 @@ void RegisterQueues(CommandQueue& incoming, CommandQueue& outgoing) {
   incoming.Register<TopicHzCmd>();
   incoming.Register<TopicBwCmd>();
   incoming.Register<TopicDelayCmd>();
+  incoming.Register<TopicStatsStopAllCmd>();
   outgoing.Register<TopicHzResponseCmd>();
   outgoing.Register<TopicBwResponseCmd>();
   outgoing.Register<TopicDelayResponseCmd>();
@@ -585,6 +586,142 @@ TEST_SUITE("bridge::TopicStatsNode") {
     CHECK(outgoing.TypedStorage<ErrorCmd>().Dequeue(err));
     CHECK_EQ(err.request_id, 41);
     CHECK_EQ(err.error_code, "TOPIC_HZ_FAILED");
+  }
+
+  TEST_CASE("bridge::TopicStatsNode::StartHzSession window=0 stops session") {
+    ScopedRosContext ros_context;
+    CommandQueue incoming;
+    CommandQueue outgoing;
+    RegisterQueues(incoming, outgoing);
+    TopicStatsNode node(incoming, outgoing, std::pmr::get_default_resource());
+
+    TopicHzCmd start(std::pmr::get_default_resource());
+    start.request_id = 50;
+    start.topic_name = "/stop_test";
+    start.message_type = "std_msgs/msg/String";
+    start.window = 10;
+    node.StartHzSession(start);
+
+    CHECK(node.sessions_.contains("/stop_test#hz"));
+
+    TopicHzCmd stop(std::pmr::get_default_resource());
+    stop.request_id = 51;
+    stop.topic_name = "/stop_test";
+    stop.message_type = "";
+    stop.window = 0;
+    node.StartHzSession(stop);
+
+    CHECK_FALSE(node.sessions_.contains("/stop_test#hz"));
+    CHECK_EQ(node.sessions_.size(), 0);
+
+    ErrorCmd err;
+    CHECK_FALSE(outgoing.TypedStorage<ErrorCmd>().Dequeue(err));
+  }
+
+  TEST_CASE("bridge::TopicStatsNode::StartBwSession window=0 stops session") {
+    ScopedRosContext ros_context;
+    CommandQueue incoming;
+    CommandQueue outgoing;
+    RegisterQueues(incoming, outgoing);
+    TopicStatsNode node(incoming, outgoing, std::pmr::get_default_resource());
+
+    TopicBwCmd start(std::pmr::get_default_resource());
+    start.request_id = 52;
+    start.topic_name = "/stop_bw_test";
+    start.message_type = "std_msgs/msg/String";
+    start.window = 10;
+    node.StartBwSession(start);
+
+    CHECK(node.sessions_.contains("/stop_bw_test#bw"));
+
+    TopicBwCmd stop(std::pmr::get_default_resource());
+    stop.request_id = 53;
+    stop.topic_name = "/stop_bw_test";
+    stop.message_type = "";
+    stop.window = 0;
+    node.StartBwSession(stop);
+
+    CHECK_FALSE(node.sessions_.contains("/stop_bw_test#bw"));
+    CHECK_EQ(node.sessions_.size(), 0);
+  }
+
+  TEST_CASE(
+      "bridge::TopicStatsNode::StartDelaySession window=0 stops session") {
+    ScopedRosContext ros_context;
+    CommandQueue incoming;
+    CommandQueue outgoing;
+    RegisterQueues(incoming, outgoing);
+    TopicStatsNode node(incoming, outgoing, std::pmr::get_default_resource());
+
+    TopicDelayCmd start(std::pmr::get_default_resource());
+    start.request_id = 54;
+    start.topic_name = "/stop_delay_test";
+    start.message_type = "geometry_msgs/msg/PointStamped";
+    start.window = 10;
+    node.StartDelaySession(start);
+
+    CHECK(node.sessions_.contains("/stop_delay_test#delay"));
+
+    TopicDelayCmd stop(std::pmr::get_default_resource());
+    stop.request_id = 55;
+    stop.topic_name = "/stop_delay_test";
+    stop.message_type = "";
+    stop.window = 0;
+    node.StartDelaySession(stop);
+
+    CHECK_FALSE(node.sessions_.contains("/stop_delay_test#delay"));
+    CHECK_EQ(node.sessions_.size(), 0);
+  }
+
+  TEST_CASE("bridge::TopicStatsNode::StopAllSessions clears all sessions") {
+    ScopedRosContext ros_context;
+    CommandQueue incoming;
+    CommandQueue outgoing;
+    RegisterQueues(incoming, outgoing);
+    TopicStatsNode node(incoming, outgoing, std::pmr::get_default_resource());
+
+    TopicHzCmd hz_cmd(std::pmr::get_default_resource());
+    hz_cmd.request_id = 56;
+    hz_cmd.topic_name = "/topic_a";
+    hz_cmd.message_type = "std_msgs/msg/String";
+    hz_cmd.window = 10;
+    node.StartHzSession(hz_cmd);
+
+    TopicDelayCmd delay_cmd(std::pmr::get_default_resource());
+    delay_cmd.request_id = 57;
+    delay_cmd.topic_name = "/topic_b";
+    delay_cmd.message_type = "geometry_msgs/msg/PointStamped";
+    delay_cmd.window = 10;
+    node.StartDelaySession(delay_cmd);
+
+    CHECK_EQ(node.sessions_.size(), 2);
+
+    node.StopAllSessions();
+
+    CHECK_EQ(node.sessions_.size(), 0);
+  }
+
+  TEST_CASE("bridge::TopicStatsNode::DrainStopAllCommands stops all sessions") {
+    ScopedRosContext ros_context;
+    CommandQueue incoming;
+    CommandQueue outgoing;
+    RegisterQueues(incoming, outgoing);
+    TopicStatsNode node(incoming, outgoing, std::pmr::get_default_resource());
+
+    TopicHzCmd hz_cmd(std::pmr::get_default_resource());
+    hz_cmd.request_id = 58;
+    hz_cmd.topic_name = "/topic_c";
+    hz_cmd.message_type = "std_msgs/msg/String";
+    hz_cmd.window = 10;
+    node.StartHzSession(hz_cmd);
+
+    CHECK_EQ(node.sessions_.size(), 1);
+
+    incoming.Enqueue(TopicStatsStopAllCmd{});
+
+    node.DrainStopAllCommands();
+
+    CHECK_EQ(node.sessions_.size(), 0);
   }
 
   TEST_CASE("bridge::TopicStatsNode::OnPollTimer") {

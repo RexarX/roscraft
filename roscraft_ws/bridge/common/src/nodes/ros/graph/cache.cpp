@@ -8,8 +8,6 @@
 
 #include <rclcpp/rclcpp.hpp>
 
-#include <taskflow/taskflow.hpp>
-
 #include <algorithm>
 #include <chrono>
 #include <format>
@@ -21,7 +19,6 @@
 namespace roscraft::bridge {
 
 GraphCacheNode::GraphCacheNode(CommandQueue& incoming, CommandQueue& outgoing,
-                               tf::Executor& executor,
                                std::pmr::memory_resource* allocator)
     : rclcpp::Node("roscraft_graph_cache_node"),
       incoming_(incoming),
@@ -36,7 +33,8 @@ GraphCacheNode::GraphCacheNode(CommandQueue& incoming, CommandQueue& outgoing,
 
   RefreshSnapshot();
 
-  watcher_task_ = executor.async([this] { WatcherTaskFunc(); });
+  watcher_thread_ = std::jthread(
+      [this](std::stop_token stoken) { WatcherTaskFunc(std::move(stoken)); });
 }
 
 GraphCacheNode::~GraphCacheNode() {
@@ -47,8 +45,9 @@ GraphCacheNode::~GraphCacheNode() {
   if (graph_event_ != nullptr) {
     graph_event_->set();
   }
-  if (watcher_task_.valid()) {
-    watcher_task_.wait();
+  watcher_thread_.request_stop();
+  if (watcher_thread_.joinable()) {
+    watcher_thread_.join();
   }
 }
 
@@ -202,13 +201,15 @@ void GraphCacheNode::OnGraphRefreshPost() {
   scratch_arena_.Reset();
 }
 
-void GraphCacheNode::WatcherTaskFunc() {
+void GraphCacheNode::WatcherTaskFunc(std::stop_token stoken) {
   using namespace std::chrono_literals;
 
-  while (!stop_watcher_.load(std::memory_order_acquire)) {
+  while (!stoken.stop_requested() &&
+         !stop_watcher_.load(std::memory_order_acquire)) {
     this->wait_for_graph_change(graph_event_, 200ms);
 
-    if (stop_watcher_.load(std::memory_order_acquire)) {
+    if (stoken.stop_requested() ||
+        stop_watcher_.load(std::memory_order_acquire)) {
       break;
     }
 

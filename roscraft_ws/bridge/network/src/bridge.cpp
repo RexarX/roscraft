@@ -3,6 +3,7 @@
 #include <roscraft/bridge/app/app.hpp>
 #include <roscraft/bridge/assert.hpp>
 #include <roscraft/bridge/command/handlers.hpp>
+#include <roscraft/bridge/command/types/topic.hpp>
 #include <roscraft/bridge/network/bridge.hpp>
 #include <roscraft/bridge/network/command/udp_sink.hpp>
 #include <roscraft/bridge/network/config.hpp>
@@ -48,6 +49,11 @@ void NetworkBridge::Init(App& app) {
       rclcpp::get_logger("NetworkBridge"),
       "Network bridge initialized successfully\nListening on udp://%s:%u",
       config_.host.CStr(), config_.port);
+
+  stop_all_stats_producer_ =
+      app.IncomingQueue().MakeProducerToken<TopicStatsStopAllCmd>();
+  stop_all_echo_producer_ =
+      app.IncomingQueue().MakeProducerToken<TopicUnsubscribeCmd>();
 }
 
 void NetworkBridge::InitAsio() {
@@ -65,8 +71,7 @@ void NetworkBridge::InitAsio() {
 
   status_.store(BridgeStatus::kReady, std::memory_order_release);
 
-  auto& app = App::Instance();
-  io_task_ = app.Executor().async([this] { io_ctx_.run(); });
+  io_thread_ = std::jthread([this] { io_ctx_.run(); });
 }
 
 void NetworkBridge::Destroy(App& /*app*/) {
@@ -103,8 +108,8 @@ void NetworkBridge::DestroyAsio() {
   }
   io_ctx_.stop();
 
-  if (io_task_.valid()) {
-    io_task_.wait();
+  if (io_thread_.joinable()) {
+    io_thread_.join();
   }
 
   std::error_code ec;
@@ -288,6 +293,18 @@ void NetworkBridge::PruneInactiveClients(
                                    kClientInactivityTimeout)
                                    .count()),
         EndpointToString(client).c_str(), ClientCount());
+  }
+
+  if (!stale_clients.empty() && ClientCount() == 0) {
+    auto& app = App::Instance();
+    app.IncomingQueue().Enqueue(*stop_all_stats_producer_,
+                                TopicStatsStopAllCmd{});
+    TopicUnsubscribeCmd unsubscribe;
+    app.IncomingQueue().Enqueue(*stop_all_echo_producer_,
+                                std::move(unsubscribe));
+    RCLCPP_INFO(rclcpp::get_logger("NetworkBridge"),
+                "All clients disconnected - stopping all stats and echo "
+                "sessions");
   }
 }
 

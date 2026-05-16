@@ -7,6 +7,7 @@
 #include <roscraft/bridge/assert.hpp>
 #include <roscraft/bridge/jni/bridge.hpp>
 #include <roscraft/bridge/jni/config.hpp>
+#include <roscraft/bridge/jni/env_setup.hpp>
 
 #include <rclcpp/logging.hpp>
 
@@ -81,6 +82,8 @@ Java_net_roscraft_bridge_JniBridge_nativeCreate(JNIEnv* env, jclass /*cls*/) {
   if (app.State() == roscraft::bridge::AppState::kInitialized) {
     return JNI_TRUE;
   }
+
+  roscraft::bridge::jni::SetupRosEnvironment();
 
   auto bridge = std::make_unique<roscraft::bridge::jni::JniBridge>(
       roscraft::bridge::jni::BridgeConfig{.jvm = jvm});

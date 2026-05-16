@@ -97,6 +97,11 @@ struct TopicBwCmd {
       : topic_name(mr), message_type(mr) {}
 };
 
+/// @brief Request stopping all topic statistics sessions.
+struct TopicStatsStopAllCmd {
+  static constexpr std::string_view kName = "TopicStatsStopAllCmd";
+};
+
 /// @brief Response for `TopicInfoCmd`.
 struct TopicInfoResponseCmd {
   static constexpr std::string_view kName = "TopicInfoResponseCmd";

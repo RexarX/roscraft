@@ -20,7 +20,7 @@ roscraft_dep_header(NAME "doctest")
 # Use roscraft_module system for standard package finding
 roscraft_dep_begin(
     NAME doctest
-    VERSION ~2.4
+    VERSION ^2.0
     DEBIAN_NAMES doctest-dev
     RPM_NAMES doctest-devel
     PACMAN_NAMES doctest
@@ -39,19 +39,27 @@ roscraft_dep_end()
 # Create roscraft::doctest::doctest alias if doctest was found
 if(NOT TARGET roscraft::doctest::doctest)
   if(TARGET doctest::doctest)
-    # Check if it's an alias and get the real target
     get_target_property(_doctest_aliased doctest::doctest ALIASED_TARGET)
     if(_doctest_aliased)
-      add_library(roscraft::doctest::doctest ALIAS ${_doctest_aliased})
+      get_target_property(_doctest_real ${_doctest_aliased} ALIASED_TARGET)
+      if(_doctest_real)
+        add_library(roscraft::doctest::doctest ALIAS ${_doctest_real})
+      else()
+        add_library(roscraft::doctest::doctest ALIAS ${_doctest_aliased})
+      endif()
     else()
       add_library(roscraft::doctest::doctest ALIAS doctest::doctest)
     endif()
     roscraft_dep_log(SUCCESS "doctest configured (doctest::doctest)")
   elseif(TARGET doctest)
-    # Check if it's an alias and get the real target
     get_target_property(_doctest_aliased doctest ALIASED_TARGET)
     if(_doctest_aliased)
-      add_library(roscraft::doctest::doctest ALIAS ${_doctest_aliased})
+      get_target_property(_doctest_real ${_doctest_aliased} ALIASED_TARGET)
+      if(_doctest_real)
+        add_library(roscraft::doctest::doctest ALIAS ${_doctest_real})
+      else()
+        add_library(roscraft::doctest::doctest ALIAS ${_doctest_aliased})
+      endif()
     else()
       add_library(roscraft::doctest::doctest ALIAS doctest)
     endif()

@@ -44,7 +44,7 @@ namespace {
 }
 
 [[nodiscard]] constexpr uint32_t SafeWindow(uint32_t window) noexcept {
-  return window == 0 ? 10U : window;
+  return window == 0 ? 0U : window;
 }
 
 [[nodiscard]] int64_t ToNanoseconds(const rclcpp::Time& time_point) noexcept {
@@ -90,6 +90,7 @@ TopicStatsNode::TopicStatsNode(CommandQueue& incoming, CommandQueue& outgoing,
       hz_consumer_(incoming.MakeConsumerToken<TopicHzCmd>()),
       bw_consumer_(incoming.MakeConsumerToken<TopicBwCmd>()),
       delay_consumer_(incoming.MakeConsumerToken<TopicDelayCmd>()),
+      stop_all_consumer_(incoming.MakeConsumerToken<TopicStatsStopAllCmd>()),
       hz_response_producer_(outgoing.MakeProducerToken<TopicHzResponseCmd>()),
       bw_response_producer_(outgoing.MakeProducerToken<TopicBwResponseCmd>()),
       delay_response_producer_(
@@ -101,6 +102,7 @@ TopicStatsNode::TopicStatsNode(CommandQueue& incoming, CommandQueue& outgoing,
     DrainHzCommands();
     DrainBwCommands();
     DrainDelayCommands();
+    DrainStopAllCommands();
     scratch_arena_.Reset();
   });
   report_timer_ = this->create_wall_timer(1s, [this] {
@@ -136,8 +138,21 @@ void TopicStatsNode::DrainDelayCommands() {
   }
 }
 
+void TopicStatsNode::DrainStopAllCommands() {
+  auto& storage = incoming_.get().TypedStorage<TopicStatsStopAllCmd>();
+
+  TopicStatsStopAllCmd cmd;
+  while (storage.Dequeue(stop_all_consumer_, cmd)) {
+    StopAllSessions();
+  }
+}
+
 void TopicStatsNode::StartHzSession(const TopicHzCmd& cmd) {
   if (cmd.topic_name.empty()) [[unlikely]] {
+    if (cmd.window == 0) {
+      StopSessionsByMode("#hz");
+      return;
+    }
     SendError(cmd.request_id, "TOPIC_HZ_FAILED",
               "Topic name must be non-empty");
     return;
@@ -145,6 +160,12 @@ void TopicStatsNode::StartHzSession(const TopicHzCmd& cmd) {
 
   const auto session_key =
       BuildSessionKey(cmd.topic_name, "hz", &scratch_arena_);
+
+  if (cmd.window == 0) {
+    StopSession(session_key);
+    return;
+  }
+
   const auto it = sessions_.find(session_key);
 
   std::string resolved_message_type;
@@ -228,6 +249,10 @@ void TopicStatsNode::StartHzSession(const TopicHzCmd& cmd) {
 
 void TopicStatsNode::StartBwSession(const TopicBwCmd& cmd) {
   if (cmd.topic_name.empty()) [[unlikely]] {
+    if (cmd.window == 0) {
+      StopSessionsByMode("#bw");
+      return;
+    }
     SendError(cmd.request_id, "TOPIC_BW_FAILED",
               "Topic name must be non-empty");
     return;
@@ -235,6 +260,12 @@ void TopicStatsNode::StartBwSession(const TopicBwCmd& cmd) {
 
   const auto session_key =
       BuildSessionKey(cmd.topic_name, "bw", &scratch_arena_);
+
+  if (cmd.window == 0) {
+    StopSession(session_key);
+    return;
+  }
+
   const auto it = sessions_.find(session_key);
 
   std::string resolved_message_type;
@@ -318,6 +349,10 @@ void TopicStatsNode::StartBwSession(const TopicBwCmd& cmd) {
 
 void TopicStatsNode::StartDelaySession(const TopicDelayCmd& cmd) {
   if (cmd.topic_name.empty()) [[unlikely]] {
+    if (cmd.window == 0) {
+      StopSessionsByMode("#delay");
+      return;
+    }
     SendError(cmd.request_id, "TOPIC_DELAY_FAILED",
               "Topic name must be non-empty");
     return;
@@ -325,6 +360,12 @@ void TopicStatsNode::StartDelaySession(const TopicDelayCmd& cmd) {
 
   const auto session_key =
       BuildSessionKey(cmd.topic_name, "delay", &scratch_arena_);
+
+  if (cmd.window == 0) {
+    StopSession(session_key);
+    return;
+  }
+
   const auto it = sessions_.find(session_key);
 
   std::string resolved_message_type;
@@ -648,6 +689,46 @@ auto TopicStatsNode::EnsureDelayStampExtractor(std::string_view message_type)
                   "Delay stamp extractor insertion should succeed for '{}'!",
                   message_type);
   return &inserted_it->second.value();
+}
+
+void TopicStatsNode::StopSession(std::string_view session_key) {
+  const auto it = sessions_.find(session_key);
+  if (it == sessions_.end()) [[unlikely]] {
+    return;
+  }
+
+  RCLCPP_INFO(this->get_logger(), "Stopped stats session for '%s'",
+              it->second.topic_name.c_str());
+  sessions_.erase(it);
+}
+
+void TopicStatsNode::StopAllSessions() {
+  if (sessions_.empty()) {
+    return;
+  }
+
+  RCLCPP_INFO(this->get_logger(), "Stopping all stats sessions (%zu total)",
+              sessions_.size());
+  sessions_.clear();
+}
+
+void TopicStatsNode::StopSessionsByMode(std::string_view mode_suffix) {
+  size_t stopped_count = 0;
+  for (auto it = sessions_.begin(); it != sessions_.end();) {
+    if (it->first.size() > mode_suffix.size() &&
+        it->first.ends_with(mode_suffix)) {
+      it = sessions_.erase(it);
+      ++stopped_count;
+    } else {
+      ++it;
+    }
+  }
+
+  if (stopped_count > 0) {
+    RCLCPP_INFO(this->get_logger(),
+                "Stopped %zu stats session(s) for mode '%.*s'", stopped_count,
+                static_cast<int>(mode_suffix.size()), mode_suffix.data());
+  }
 }
 
 void TopicStatsNode::SendError(uint64_t request_id, std::string_view error_code,

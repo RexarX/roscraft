@@ -139,6 +139,7 @@ set(ROSCRAFT_BRIDGE_JNI_HEADERS
     include/roscraft/bridge/jni/bridge.hpp
     include/roscraft/bridge/jni/config.hpp
     include/roscraft/bridge/jni/env_guard.hpp
+    include/roscraft/bridge/jni/env_setup.hpp
     include/roscraft/bridge/jni/native_methods.hpp
 
     include/roscraft/bridge/jni/command/callback.hpp
@@ -148,6 +149,7 @@ set(ROSCRAFT_BRIDGE_JNI_HEADERS
 set(ROSCRAFT_BRIDGE_JNI_SOURCES
     src/bridge.cpp
     src/env_guard.cpp
+    src/env_setup.cpp
     src/native_methods.cpp
 )
 
@@ -187,6 +189,11 @@ target_compile_definitions(roscraft_bridge_jni PRIVATE
     ROSCRAFT_BRIDGE_JNI_BUILD_SHARED
 )
 
+set_target_properties(roscraft_bridge_jni PROPERTIES
+    INSTALL_RPATH "$ORIGIN"
+    BUILD_RPATH "$ORIGIN"
+)
+
 if(TARGET JNI::JNI)
   target_link_libraries(roscraft_bridge_jni PRIVATE JNI::JNI)
 else()
@@ -203,6 +210,7 @@ target_link_libraries(roscraft_bridge_jni
       roscraft::flat_map
   PRIVATE
       rclcpp::rclcpp
+      ${CMAKE_DL_LIBS}
 )
 
 install(TARGETS roscraft_bridge_jni

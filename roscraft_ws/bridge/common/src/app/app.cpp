@@ -14,6 +14,8 @@
 
 #include <atomic>
 #include <exception>
+#include <memory>
+#include <thread>
 
 namespace roscraft::bridge {
 
@@ -69,8 +71,6 @@ void App::Shutdown() {
 
   handler_registry_.Clear();
 
-  executor_.wait_for_all();
-
   outgoing_queue_.Clear();
   incoming_queue_.Clear();
   ResetAllocator();
@@ -94,12 +94,15 @@ void App::InitROS(int argc, char* argv[]) {
 
   RegisterAllNodes();
 
-  ros_spin_task_ = executor_.async([this] { SpinROS(); });
+  shutdown_promise_.emplace();
+  shutdown_future_ = shutdown_promise_->get_future().share();
+
+  ros_spin_thread_ = std::jthread([this] { SpinROS(); });
 }
 
 void App::SpinROS() {
   try {
-    ros_executor_->spin();
+    ros_executor_->spin_until_future_complete(shutdown_future_);
   } catch (const std::exception& e) {
     const auto st = roscraft::Stacktrace::FromCurrentException();
     RCLCPP_ERROR(rclcpp::get_logger("App"), "Exception in ROS spin: %s!\n%s",
@@ -118,8 +121,13 @@ void App::CleanUpROS() {
     ros_executor_->cancel();
   }
 
-  if (ros_spin_task_.valid()) [[likely]] {
-    ros_spin_task_.wait();
+  if (shutdown_promise_.has_value()) [[likely]] {
+    shutdown_promise_->set_value();
+    shutdown_promise_.reset();
+  }
+
+  if (ros_spin_thread_.joinable()) [[likely]] {
+    ros_spin_thread_.join();
   }
 
   UnregisterAllNodes();
@@ -132,8 +140,8 @@ void App::ShutdownROS() {
 }
 
 void App::RegisterAllNodes() {
-  AddNode(std::make_shared<GraphCacheNode>(
-      IncomingQueue(), OutgoingQueue(), Executor(), &PendingFrameAllocator()));
+  AddNode(std::make_shared<GraphCacheNode>(IncomingQueue(), OutgoingQueue(),
+                                           &PendingFrameAllocator()));
   AddNode(std::make_shared<ActionInfoNode>(IncomingQueue(), OutgoingQueue(),
                                            &PendingFrameAllocator()));
   AddNode(std::make_shared<ActionSendGoalNode>(IncomingQueue(), OutgoingQueue(),
@@ -205,6 +213,7 @@ void App::RegisterAllCommandTypes() {
   incoming_queue_.Register<TopicHzCmd>();
   incoming_queue_.Register<TopicBwCmd>();
   incoming_queue_.Register<TopicDelayCmd>();
+  incoming_queue_.Register<TopicStatsStopAllCmd>();
   incoming_queue_.Register<AddonEventCmd>();
 
   // Outgoing (ROS -> mod)

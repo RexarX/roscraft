@@ -68,7 +68,7 @@ target_link_libraries(roscraft_bridge_common_tests PRIVATE
     rclcpp::rclcpp
 )
 
-add_test(NAME roscraft_bridge_common_tests COMMAND roscraft_bridge_common_tests)
+add_test(NAME roscraft_bridge_common_tests COMMAND roscraft_bridge_common_tests --no-intro)
 
 set_tests_properties(roscraft_bridge_common_tests PROPERTIES
     ENVIRONMENT

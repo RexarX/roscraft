@@ -73,9 +73,13 @@ private:
   void DrainHzCommands();
   void DrainBwCommands();
   void DrainDelayCommands();
+  void DrainStopAllCommands();
   void StartHzSession(const TopicHzCmd& cmd);
   void StartBwSession(const TopicBwCmd& cmd);
   void StartDelaySession(const TopicDelayCmd& cmd);
+  void StopSession(std::string_view session_key);
+  void StopAllSessions();
+  void StopSessionsByMode(std::string_view mode_suffix);
 
   [[nodiscard]] auto CreateSubscription(uint64_t request_id,
                                         const std::string& topic_name,
@@ -104,6 +108,7 @@ private:
   CommandQueueConsumerToken hz_consumer_;
   CommandQueueConsumerToken bw_consumer_;
   CommandQueueConsumerToken delay_consumer_;
+  CommandQueueConsumerToken stop_all_consumer_;
   CommandQueueProducerToken hz_response_producer_;
   CommandQueueProducerToken bw_response_producer_;
   CommandQueueProducerToken delay_response_producer_;

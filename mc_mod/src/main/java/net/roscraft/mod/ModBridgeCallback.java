@@ -97,26 +97,16 @@ final class ModBridgeCallback implements BridgeCallback {
       case TOPIC_ECHO, TOPIC_ECHO_STOP -> {
         return;
       }
-      case TOPIC_PUB -> {
-        return;
-      }
-      case SERVICE_LIST -> sendServiceList(snapshot, requesterUuid, pending.metadata());
-      case SERVICE_TYPE -> sendServiceType(snapshot, requesterUuid, pending.metadata());
-      case SERVICE_FIND -> sendServiceFind(snapshot, requesterUuid, pending.metadata());
-      case ACTION_LIST -> sendActionList(snapshot, requesterUuid, pending.metadata());
-      case ACTION_TYPE -> sendActionType(snapshot, requesterUuid, pending.metadata());
-      case ACTION_INFO,
-          ACTION_SEND_GOAL,
-          PARAM_LIST,
-          PARAM_GET,
-          PARAM_SET,
-          PARAM_DESCRIBE,
-          PARAM_LOAD,
-          PARAM_DUMP,
-          SERVICE_CALL -> {
-        return;
-      }
-      case PLAYERS, TOPIC_INFO, SERVICE_INFO, INTERFACE_SHOW, TOPIC_HZ, TOPIC_BW, TOPIC_DELAY -> {
+      case PLAYERS,
+          TOPIC_INFO,
+          SERVICE_INFO,
+          INTERFACE_SHOW,
+          TOPIC_HZ,
+          TOPIC_HZ_STOP,
+          TOPIC_BW,
+          TOPIC_BW_STOP,
+          TOPIC_DELAY,
+          TOPIC_DELAY_STOP -> {
         return;
       }
     }
@@ -747,7 +737,7 @@ final class ModBridgeCallback implements BridgeCallback {
   // ── Topic Hz ───────────────────────────────────────────────────────
 
   private void handleTopicHzResponse(BridgeEvent.TopicHzResponse response) {
-    RoscraftMod.PendingRequest pending = mod.completeRequest(response.requestId());
+    RoscraftMod.PendingRequest pending = mod.pendingRequest(response.requestId());
     if (pending != null && pending.kind() != PendingRequestKind.TOPIC_HZ) {
       return;
     }
@@ -775,7 +765,7 @@ final class ModBridgeCallback implements BridgeCallback {
   // ── Topic Bw ───────────────────────────────────────────────────────
 
   private void handleTopicBwResponse(BridgeEvent.TopicBwResponse response) {
-    RoscraftMod.PendingRequest pending = mod.completeRequest(response.requestId());
+    RoscraftMod.PendingRequest pending = mod.pendingRequest(response.requestId());
     if (pending != null && pending.kind() != PendingRequestKind.TOPIC_BW) {
       return;
     }
@@ -801,7 +791,7 @@ final class ModBridgeCallback implements BridgeCallback {
   // ── Topic delay ────────────────────────────────────────────────────
 
   private void handleTopicDelayResponse(BridgeEvent.TopicDelayResponse response) {
-    RoscraftMod.PendingRequest pending = mod.completeRequest(response.requestId());
+    RoscraftMod.PendingRequest pending = mod.pendingRequest(response.requestId());
     if (pending != null && pending.kind() != PendingRequestKind.TOPIC_DELAY) {
       return;
     }

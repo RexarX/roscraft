@@ -209,10 +209,24 @@ def findNativeLibs = { File baseDir ->
     def results = []
     def searchBases = []
 
-    if (baseDir.name == "roscraft_ws" || baseDir.name == "build") {
+    if (baseDir.name == "roscraft_ws") {
         for (def bt : ["debug", "relwithdebinfo", "release"]) {
-            def btDir = new File(baseDir, "build/${bt}")
+            def buildDir = new File(baseDir, "build/${bt}")
+            if (buildDir.exists()) searchBases.add([base: buildDir, buildType: bt])
+            def installDir = new File(baseDir, "install/${bt}")
+            if (installDir.exists()) searchBases.add([base: installDir, buildType: bt])
+        }
+    } else if (baseDir.name == "build") {
+        for (def bt : ["debug", "relwithdebinfo", "release"]) {
+            def btDir = new File(baseDir, bt)
             if (btDir.exists()) searchBases.add([base: btDir, buildType: bt])
+        }
+        def installBase = new File(baseDir.parentFile, "install")
+        if (installBase.exists()) {
+            for (def bt : ["debug", "relwithdebinfo", "release"]) {
+                def btDir = new File(installBase, bt)
+                if (btDir.exists()) searchBases.add([base: btDir, buildType: bt])
+            }
         }
     }
     if (searchBases.isEmpty()) searchBases.add([base: baseDir, buildType: baseDir.name])
@@ -243,7 +257,7 @@ def findNativeLibs = { File baseDir ->
         for (def c : candidates.unique()) {
             if (!c.exists()) continue
             if (nativeLibNames.any { new File(c, it).exists() }) {
-                results.add([dir: c, buildType: btName])
+                results.add([dir: c, buildType: btName, prefix: entry.base])
             }
         }
     }
@@ -269,20 +283,17 @@ def resolveNativeLibDir = {
             ?: "../roscraft_ws/build"
     ).toString()
 
-    if (cmakeBuildType != null) {
-        def specificDir = file("${cmakeBuildDirProp}/${cmakeBuildType}")
-        if (specificDir.exists()) {
-            logger.lifecycle("[roscraft] Native lib: using {} (cmakeBuildType={})", specificDir, cmakeBuildType)
-            return specificDir
-        }
-        def baseDir = file(cmakeBuildDirProp)
-        def found = findNativeLibs(baseDir).find { it.buildType == cmakeBuildType }?.dir
-        if (found != null) return found
-        logger.lifecycle("[roscraft] cmakeBuildType={} but lib not found there, falling back", cmakeBuildType)
-    }
-
     def base = file(cmakeBuildDirProp)
     def foundLibs = findNativeLibs(base)
+
+    if (cmakeBuildType != null) {
+        def found = foundLibs.find { it.buildType == cmakeBuildType }
+        if (found != null) {
+            logger.lifecycle("[roscraft] Native lib: using {} (cmakeBuildType={})", found.dir, cmakeBuildType)
+            return found
+        }
+        logger.lifecycle("[roscraft] cmakeBuildType={} but lib not found, falling back", cmakeBuildType)
+    }
 
     if (foundLibs.isEmpty()) {
         logger.lifecycle(
@@ -306,7 +317,7 @@ def resolveNativeLibDir = {
         }
     }
 
-    return foundLibs[0].dir
+    return foundLibs[0]
 }
 
 def discoveredNativeDir = resolveNativeLibDir()
@@ -341,12 +352,24 @@ if (discoveredNativeDir != null) {
 
     tasks.register("copyNativeLib", Copy) {
         group       = "build"
-        description = "Copy roscraft_bridge_jni into the mod resources."
-        from(discoveredNativeDir) { include nativeLibNames }
+        description = "Copy roscraft native libraries into the mod resources."
+        from(discoveredNativeDir.prefix) {
+            include "**/lib/*.so"
+            exclude "**/python*/**"
+        }
         into(generatedNativeDir)
+        eachFile { it.path = it.name }
         doFirst {
-            logger.lifecycle("[roscraft] Copying native lib: {} → {}",
-                discoveredNativeDir, generatedNativeDir.get().asFile)
+            logger.lifecycle("[roscraft] Copying native libs from {} → {}",
+                discoveredNativeDir.prefix, generatedNativeDir.get().asFile)
+        }
+        doLast {
+            def listFile = new File(generatedNativeDir.get().asFile, "natives.list")
+            generatedNativeDir.get().asFile.eachFile { f ->
+                if (f.name.endsWith(".so") || f.name.endsWith(".dll") || f.name.endsWith(".dylib")) {
+                    listFile.append(f.name + "\n")
+                }
+            }
         }
     }
     processResources.dependsOn("copyNativeLib")
@@ -408,7 +431,10 @@ processResources {
 
     if (discoveredNativeDir != null) {
         from(layout.buildDirectory.dir("generated/roscraft-natives/${currentOsClassifier()}")) {
-            include nativeLibNames
+            include "*.so"
+            include "*.dll"
+            include "*.dylib"
+            include "natives.list"
             into "natives/${currentOsClassifier()}"
         }
     }

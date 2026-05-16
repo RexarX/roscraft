@@ -125,6 +125,11 @@ final class RoscraftCommandTree {
                 .executes(ctx -> TopicCommandActions.executeTopicFind(
                     ctx.getSource(), StringArgumentType.getString(ctx, "topic_type")))))
         .then(CommandManager.literal("echo")
+            .then(CommandManager.literal("stop")
+                .executes(ctx -> TopicCommandActions.executeTopicEchoStopAll(ctx.getSource()))
+                .then(CommandManager.argument("topic_name", StringArgumentType.string())
+                    .executes(ctx -> TopicCommandActions.executeTopicEchoStop(
+                        ctx.getSource(), StringArgumentType.getString(ctx, "topic_name")))))
             .then(CommandManager.argument("topic_name", StringArgumentType.string())
                 .executes(ctx -> TopicCommandActions.executeTopicEcho(
                     ctx.getSource(), StringArgumentType.getString(ctx, "topic_name"), "", ""))
@@ -139,11 +144,7 @@ final class RoscraftCommandTree {
                     .executes(ctx -> TopicCommandActions.executeTopicEchoTail(
                         ctx.getSource(),
                         StringArgumentType.getString(ctx, "topic_name"),
-                        StringArgumentType.getString(ctx, "tail")))))
-            .then(CommandManager.literal("stop")
-                .then(CommandManager.argument("topic_name", StringArgumentType.string())
-                    .executes(ctx -> TopicCommandActions.executeTopicEchoStop(
-                        ctx.getSource(), StringArgumentType.getString(ctx, "topic_name"))))))
+                        StringArgumentType.getString(ctx, "tail"))))))
         .then(CommandManager.literal("pub")
             .then(CommandManager.argument("topic_name", StringArgumentType.string())
                 .then(CommandManager.argument("message_type", StringArgumentType.string())
@@ -170,6 +171,11 @@ final class RoscraftCommandTree {
                                 StringArgumentType.getString(ctx, "payload"),
                                 StringArgumentType.getString(ctx, "flags"))))))))
         .then(CommandManager.literal("hz")
+            .then(CommandManager.literal("stop")
+                .executes(ctx -> TopicCommandActions.executeTopicHzStopAll(ctx.getSource()))
+                .then(CommandManager.argument("topic_name", StringArgumentType.string())
+                    .executes(ctx -> TopicCommandActions.executeTopicHzStop(
+                        ctx.getSource(), StringArgumentType.getString(ctx, "topic_name")))))
             .then(CommandManager.argument("topic_name", StringArgumentType.string())
                 .executes(ctx -> TopicCommandActions.executeTopicHz(
                     ctx.getSource(), StringArgumentType.getString(ctx, "topic_name"), "", ""))
@@ -185,6 +191,11 @@ final class RoscraftCommandTree {
                         StringArgumentType.getString(ctx, "topic_name"),
                         StringArgumentType.getString(ctx, "tail"))))))
         .then(CommandManager.literal("bw")
+            .then(CommandManager.literal("stop")
+                .executes(ctx -> TopicCommandActions.executeTopicBwStopAll(ctx.getSource()))
+                .then(CommandManager.argument("topic_name", StringArgumentType.string())
+                    .executes(ctx -> TopicCommandActions.executeTopicBwStop(
+                        ctx.getSource(), StringArgumentType.getString(ctx, "topic_name")))))
             .then(CommandManager.argument("topic_name", StringArgumentType.string())
                 .executes(ctx -> TopicCommandActions.executeTopicBw(
                     ctx.getSource(), StringArgumentType.getString(ctx, "topic_name"), "", ""))
@@ -200,6 +211,11 @@ final class RoscraftCommandTree {
                         StringArgumentType.getString(ctx, "topic_name"),
                         StringArgumentType.getString(ctx, "tail"))))))
         .then(CommandManager.literal("delay")
+            .then(CommandManager.literal("stop")
+                .executes(ctx -> TopicCommandActions.executeTopicDelayStopAll(ctx.getSource()))
+                .then(CommandManager.argument("topic_name", StringArgumentType.string())
+                    .executes(ctx -> TopicCommandActions.executeTopicDelayStop(
+                        ctx.getSource(), StringArgumentType.getString(ctx, "topic_name")))))
             .then(CommandManager.argument("topic_name", StringArgumentType.string())
                 .executes(ctx -> TopicCommandActions.executeTopicDelay(
                     ctx.getSource(), StringArgumentType.getString(ctx, "topic_name"), "", ""))

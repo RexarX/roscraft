@@ -13,10 +13,15 @@ public final class BridgeManager {
   private final BridgeCallback callback;
   private RoscraftConfig config;
   private volatile RoscraftBridge bridge;
+  private volatile Runnable preDisconnectHook;
 
   public BridgeManager(RoscraftConfig initialConfig, BridgeCallback callback) {
     this.config = Objects.requireNonNull(initialConfig, "initialConfig must not be null");
     this.callback = Objects.requireNonNull(callback, "callback must not be null");
+  }
+
+  public synchronized void setPreDisconnectHook(Runnable hook) {
+    this.preDisconnectHook = hook;
   }
 
   public synchronized RoscraftConfig config() {
@@ -204,6 +209,13 @@ public final class BridgeManager {
   private void disconnectInternal() {
     if (bridge == null) {
       return;
+    }
+    if (preDisconnectHook != null) {
+      try {
+        preDisconnectHook.run();
+      } catch (RuntimeException e) {
+        RoscraftMod.LOGGER.warn("Pre-disconnect hook failed: {}", e.getMessage());
+      }
     }
     logConnectionClosed();
     bridge.close();

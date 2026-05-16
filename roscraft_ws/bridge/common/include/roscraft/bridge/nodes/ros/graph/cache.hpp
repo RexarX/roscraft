@@ -7,14 +7,12 @@
 #include <rclcpp/node.hpp>
 #include <rclcpp/timer.hpp>
 
-#include <taskflow/taskflow.hpp>
-
 #include <atomic>
 #include <chrono>
 #include <functional>
-#include <future>
 #include <memory_resource>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace roscraft::bridge {
@@ -27,11 +25,10 @@ public:
   /// @brief Construct graph-cache node.
   /// @param incoming Incoming command queue
   /// @param outgoing Outgoing command queue
-  /// @param executor Taskflow executor for the graph-watcher task
   /// @param allocator The memory resource for command allocation (default:
   /// `std::pmr::get_default_resource()`)
   GraphCacheNode(
-      CommandQueue& incoming, CommandQueue& outgoing, tf::Executor& executor,
+      CommandQueue& incoming, CommandQueue& outgoing,
       std::pmr::memory_resource* allocator = std::pmr::get_default_resource());
 
   GraphCacheNode(CommandQueue& incoming, CommandQueue& outgoing,
@@ -79,7 +76,7 @@ private:
   void OnGraphRefreshPost();
 
   /// @brief Graph-watcher async task body.
-  void WatcherTaskFunc();
+  void WatcherTaskFunc(std::stop_token stoken);
 
   /// @brief Current active snapshot index.
   [[nodiscard]] size_t CurrentSnapshotIndex() const noexcept {
@@ -120,7 +117,7 @@ private:
   rclcpp::TimerBase::SharedPtr poll_timer_;
   rclcpp::Event::SharedPtr graph_event_;
 
-  std::future<void> watcher_task_;
+  std::jthread watcher_thread_;
   std::atomic<bool> stop_watcher_{false};
 
   std::atomic<bool> pending_graph_refresh_{false};
