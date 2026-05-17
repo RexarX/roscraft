@@ -265,7 +265,7 @@ cd roscraft_ws && source install/setup.sh
 ros2 run roscraft_bridge_network roscraft_bridge_network # optional --host 127.0.0.1 --port 7401
 ```
 
-2. Install the mod in your Minecraft Fabric server and configure `config/roscraft.json` or you can do it via the in-game GUI (if Mod Menu mod installed) or via commands in the game:
+2. Install the mod in your Minecraft Fabric server and configure `config/roscraft.json` or you can do it via the in-game GUI (if [Mod Menu](https://modrinth.com/mod/modmenu) mod installed) or via commands in the game:
 
 ```json
 {
