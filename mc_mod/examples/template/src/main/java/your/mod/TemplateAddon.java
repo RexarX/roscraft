@@ -8,6 +8,7 @@ import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.roscraft.bridge.BridgeOperations;
 import net.roscraft.bridge.event.BridgeEvent;
 import net.roscraft.mod.addon.AddonContext;
 import net.roscraft.mod.addon.RoscraftAddon;
@@ -67,7 +68,7 @@ public class TemplateAddon implements RoscraftAddon {
             .bridgeIfConnected()
             .ifPresent(bridge -> {
                 switch (event) {
-                    case BridgeEvent.TopicPayload p -> bridge.publishMessage(
+                    case BridgeEvent.TopicPayload p -> bridge.topics().publish(
                         "/roscraft/example/out",
                         "std_msgs/msg/String",
                         String.format(
@@ -76,7 +77,7 @@ public class TemplateAddon implements RoscraftAddon {
                             p.payloadLength()
                         ).getBytes(StandardCharsets.UTF_8)
                     );
-                    case BridgeEvent.BridgeError e -> bridge.publishMessage(
+                    case BridgeEvent.BridgeError e -> bridge.topics().publish(
                         "/roscraft/example/out",
                         "std_msgs/msg/String",
                         String.format(
@@ -116,7 +117,7 @@ public class TemplateAddon implements RoscraftAddon {
 
         var bridge = ctx.bridgeIfConnected().get();
         for (int i = 0; i < count; i++) {
-            bridge.publishMessage(
+            bridge.topics().publish(
                 "/roscraft/example/out",
                 "std_msgs/msg/String",
                 String.format("data: 'template #%d'", i).getBytes(

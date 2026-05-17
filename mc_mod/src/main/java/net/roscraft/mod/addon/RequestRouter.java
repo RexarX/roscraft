@@ -30,7 +30,8 @@ final class RequestRouter implements AddonContext.RequestTracker {
     persistentOwners.remove(requestId, addonId);
   }
 
-  void trackPersistent(String addonId, long requestId) {
+  @Override
+  public void trackPersistent(String addonId, long requestId) {
     persistentOwners.put(requestId, addonId);
   }
 

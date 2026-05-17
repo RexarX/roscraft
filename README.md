@@ -17,8 +17,8 @@
 - [Prerequisites](#prerequisites)
 - [Dependencies](#dependencies)
 - [Building](#building)
-  - [C++ Backend](#cpp-backend)
-  - [Minecraft Mod](#minecraft-mod)
+    - [C++ Backend](#cpp-backend)
+    - [Minecraft Mod](#minecraft-mod)
 - [CMake Options](#cmake-options)
 - [Makefile](#makefile)
 - [Testing](#testing)
@@ -174,7 +174,7 @@ The Gradle build auto-generates FlatBuffers Java sources, runs Spotless format c
 > java -jar minecraft_server.jar
 > ```
 >
-> This can also be set globally via `/etc/environment`, your systemd service file, or in most Minecraft launchers' settings (e.g. in Prism Launcher per-instance via _Edit Instance → Settings → Environment Variables_, or globally via _Settings → Minecraft → Environment Variables_).
+> This can also be set globally via `/etc/environment`, your systemd service file, or in most Minecraft launchers' settings (e.g. in Prism Launcher per-instance via _Edit Instance -> Settings -> Environment Variables_, or globally via _Settings -> Minecraft -> Environment Variables_).
 
 > **flatc version conflicts:** The Java FlatBuffers library (`flatbuffers-java`) and the C++ FlatBuffers runtime must use compatible schema versions. If you encounter build errors or runtime mismatches, download a matching `flatc` binary from the [FlatBuffers releases page](https://github.com/google/flatbuffers/releases) and point the build to it:
 >
@@ -269,9 +269,9 @@ ros2 run roscraft_bridge_network roscraft_bridge_network # optional --host 127.0
 
 ```json
 {
-  "bridgeType": "NETWORK",
-  "networkHost": "127.0.0.1",
-  "networkPort": 7401
+    "bridgeType": "NETWORK",
+    "networkHost": "127.0.0.1",
+    "networkPort": 7401
 }
 ```
 

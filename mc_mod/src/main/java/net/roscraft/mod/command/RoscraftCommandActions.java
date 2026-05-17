@@ -266,7 +266,7 @@ final class RoscraftCommandActions {
       return 0;
     }
 
-    long requestId = bridge.queryGraph();
+    long requestId = bridge.graph().snapshot();
     RoscraftMod mod = getMod();
     if (mod != null) {
       mod.trackRequest(requestId, PendingRequestKind.CONNECTION_CHECK, requesterUuid(source));

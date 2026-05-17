@@ -29,8 +29,7 @@ enum class AppState : uint8_t {
 };
 
 /// @brief Class for managing the entire application.
-/// @details Creates a Taskflow executor for running async tasks, initialises
-/// ROS2, and manages the application lifecycle.
+/// @details Initialises ROS2, and manages the application lifecycle.
 ///
 /// Frame Allocator Usage:
 /// The DoubleFrameAllocator provides two frames for double-buffering:
@@ -43,7 +42,6 @@ enum class AppState : uint8_t {
 ///
 /// Thread Safety:
 /// - ROS callbacks run on a dedicated thread (single-threaded)
-/// - Taskflow executor handles async tasks
 /// - Frame advancing should be called from a single "tick" thread
 class App {
 public:

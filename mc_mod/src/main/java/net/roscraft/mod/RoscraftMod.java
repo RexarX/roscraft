@@ -188,10 +188,10 @@ public final class RoscraftMod implements ModInitializer {
 
       try {
         switch (pending.kind()) {
-          case TOPIC_HZ -> activeBridge.topicHz(topicName, "", 0, false);
-          case TOPIC_BW -> activeBridge.topicBw(topicName, "", 0, false);
-          case TOPIC_DELAY -> activeBridge.topicDelay(topicName, "", 0);
-          case TOPIC_ECHO -> activeBridge.unsubscribeTopic(topicName);
+          case TOPIC_HZ -> activeBridge.topics().hz(topicName, "", 0);
+          case TOPIC_BW -> activeBridge.topics().bw(topicName, "", 0);
+          case TOPIC_DELAY -> activeBridge.topics().delay(topicName, "", 0);
+          case TOPIC_ECHO -> activeBridge.topics().unsubscribe(topicName);
           default -> {}
         }
       } catch (RuntimeException e) {

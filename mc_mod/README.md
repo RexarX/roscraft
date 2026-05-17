@@ -1,6 +1,6 @@
 # Roscraft — Minecraft Mod
 
-ROS 2 ↔ Minecraft bidirectional bridge.
+ROS 2 <=> Minecraft bidirectional bridge.
 
 ## Build
 
@@ -23,7 +23,7 @@ cd mc_mod
 **Requirements:**
 
 - Java 21
-- `flatc` on PATH (schemas → Java code generation)
+- `flatc` on PATH (schemas -> Java code generation)
 
 ## Run
 
@@ -38,7 +38,14 @@ cd mc_mod
 mc_mod/
 ├── roscraft-api/              Public API for addon authors
 │   └── src/main/java/net/roscraft/
-│       ├── bridge/event/       BridgeEvent sealed hierarchy, EventBus
+│       ├── bridge/event/       BridgeEvent sealed hierarchy (22 records)
+│       │   ├── BridgeEventBus.java     Global bridge event subscriptions
+│       │   ├── LocalBus.java           Typed local messages
+│       │   ├── AddonSignalBus.java     String-keyed inter-addon signals
+│       │   └── Subscription.java       AutoCloseable unsubscribe handle
+│       ├── bridge/             BridgeOperations (namespaced sub-interfaces)
+│       │                         TopicOps, ParamOps, ServiceOps,
+│       │                         ActionOps, GraphOps
 │       └── mod/addon/          RoscraftAddon, AddonContext
 ├── src/main/java/net/roscraft/
 │   ├── bridge/                 Transport (JNI/UDP), FlatBuffers serialization
@@ -46,6 +53,14 @@ mc_mod/
 ├── examples/template/          Addon template — copy to start your own addon
 └── build.gradle                Main build config
 ```
+
+## Architecture
+
+- **BridgeOperations** are grouped into domain sub-interfaces (`topics()`, `params()`, `services()`, `actions()`, `graph()`) with options records replacing boolean-heavy overloads.
+- **Auto-tracking** — every bridge operation invoked through `ctx.bridgeIfConnected()` is automatically tracked; manual `track()` calls are deprecated.
+- **Three event buses** replace the monolithic `EventBus`: `BridgeEventBus` (global bridge events), `LocalBus` (typed local messages), `AddonSignalBus` (string-keyed inter-addon signals).
+- **Subscription handles** (`AutoCloseable`) replace raw `long` request IDs for persistent operations; closing a handle unsubscribes and untracks.
+- **`AddonContext.DISCONNECTED`** sentinel (`0L`) documents the disconnected-bridge return value.
 
 ## Addon template
 
@@ -62,5 +77,5 @@ to produce the jar at `../../build/libs/roscraft-<version>.jar`.
 1. Copy `examples/template/` to a new directory
 2. Rename `your.mod` in both `src/main/java/` and `fabric.mod.json`
 3. Set a unique `addonId()` in your addon class
-4. Register in `fabric.mod.json` under `"entrypoints" → "roscraft:addon"`
+4. Register in `fabric.mod.json` under `"entrypoints" -> "roscraft:addon"`
 5. Build and place the JAR alongside the roscraft mod

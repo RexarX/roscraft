@@ -2,6 +2,7 @@ package net.roscraft.mod.command.action;
 
 import java.util.Arrays;
 import java.util.Objects;
+import net.roscraft.bridge.BridgeOperations;
 import net.roscraft.bridge.RoscraftBridge;
 import net.roscraft.mod.command.CommandContext;
 import net.roscraft.mod.command.CommandResult;
@@ -104,7 +105,7 @@ public final class ActionCommands {
   /** Request action list (backed by graph query). */
   public static CommandResult list(CommandContext ctx, ActionListOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.queryGraph();
+    long requestId = bridge.graph().snapshot();
     String suffix = options.showTypes() ? " (with types)" : "";
     return CommandResult.success(
         "Action list request #" + requestId + suffix + " sent.", requestId);
@@ -113,7 +114,7 @@ public final class ActionCommands {
   /** Request action type for a specific action name (backed by graph query). */
   public static CommandResult type(CommandContext ctx, String actionName) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.queryGraph();
+    long requestId = bridge.graph().snapshot();
     return CommandResult.success(
         "Action type request #" + requestId + " for " + actionName + " sent.", requestId);
   }
@@ -127,7 +128,7 @@ public final class ActionCommands {
   public static CommandResult info(
       CommandContext ctx, String actionName, ActionInfoOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.actionInfo(actionName, options.includeHidden());
+    long requestId = bridge.actions().info(actionName, options.includeHidden());
     String suffix = options.includeHidden() ? " (include hidden)" : "";
     return CommandResult.success(
         "Action info request #" + requestId + " for " + actionName + suffix + " sent.", requestId);
@@ -148,12 +149,14 @@ public final class ActionCommands {
     }
 
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.actionSendGoal(
-        actionName,
-        actionType,
-        Arrays.copyOf(goalPayload, goalPayload.length),
-        options.feedback(),
-        options.timeoutSeconds());
+    long requestId = bridge
+        .actions()
+        .sendGoal(
+            actionName,
+            actionType,
+            Arrays.copyOf(goalPayload, goalPayload.length),
+            new BridgeOperations.ActionOps.ActionGoalOptions(
+                options.feedback(), options.timeoutSeconds()));
     return CommandResult.success(
         "Action send_goal request #" + requestId
             + " for "

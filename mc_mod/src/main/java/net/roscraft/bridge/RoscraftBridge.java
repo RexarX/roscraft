@@ -19,7 +19,14 @@ import java.util.concurrent.atomic.AtomicReference;
  * <li>Call {@link #close} during mod shutdown.</li>
  * </ol>
  */
-public abstract class RoscraftBridge implements BridgeOperations, AutoCloseable {
+public abstract class RoscraftBridge
+    implements BridgeOperations,
+        BridgeOperations.TopicOps,
+        BridgeOperations.ParamOps,
+        BridgeOperations.ServiceOps,
+        BridgeOperations.ActionOps,
+        BridgeOperations.GraphOps,
+        AutoCloseable {
 
   private static final AtomicLong REQUEST_COUNTER = new AtomicLong(1L);
 
@@ -40,6 +47,33 @@ public abstract class RoscraftBridge implements BridgeOperations, AutoCloseable 
     return callback.get();
   }
 
+  // ── BridgeOperations accessors ──────────────────────────────────────
+
+  @Override
+  public TopicOps topics() {
+    return this;
+  }
+
+  @Override
+  public ParamOps params() {
+    return this;
+  }
+
+  @Override
+  public ServiceOps services() {
+    return this;
+  }
+
+  @Override
+  public ActionOps actions() {
+    return this;
+  }
+
+  @Override
+  public GraphOps graph() {
+    return this;
+  }
+
   // ── Abstract transport API ──────────────────────────────────────────
 
   public abstract void tick();
@@ -47,10 +81,18 @@ public abstract class RoscraftBridge implements BridgeOperations, AutoCloseable 
   @Override
   public abstract void close();
 
-  // ── Core ROS operations (abstract) ──────────────────────────────────
+  // ── BridgeOperations ────────────────────────────────────────────────
 
   @Override
-  public abstract long queryGraph();
+  public abstract long queryPlayers();
+
+  @Override
+  public abstract long sendRawPacket(byte[] flatbufferPayload);
+
+  // ── Graph operations ─────────────────────────────────────────────────
+
+  @Override
+  public abstract long snapshot();
 
   @Override
   public abstract long nodeInfo(String nodeName, boolean includeHidden);
@@ -68,95 +110,90 @@ public abstract class RoscraftBridge implements BridgeOperations, AutoCloseable 
   @Override
   public abstract long interfaceShow(String interfaceType);
 
-  @Override
-  public abstract long subscribeTopic(String topicName, String messageType);
+  // ── Topic operations ─────────────────────────────────────────────────
 
   @Override
-  public abstract long subscribeTopic(
-      String topicName, String messageType, boolean once, double timeoutSeconds, boolean raw);
+  public abstract long subscribe(String topicName, String messageType);
 
   @Override
-  public abstract long unsubscribeTopic(String topicName);
+  public abstract long subscribe(
+      String topicName, String messageType, TopicOps.SubscribeOptions opts);
 
   @Override
-  public abstract long publishMessage(String topicName, String messageType, byte[] payload);
+  public abstract long unsubscribe(String topicName);
 
   @Override
-  public abstract long publishMessage(
-      String topicName,
-      String messageType,
-      byte[] payload,
-      boolean once,
-      double rateHz,
-      int times,
-      String qosProfile);
+  public abstract long publish(String topicName, String messageType, byte[] payload);
 
   @Override
-  public abstract long topicHz(String topicName, String messageType, int window);
+  public abstract long publish(
+      String topicName, String messageType, byte[] payload, TopicOps.PublishOptions opts);
 
   @Override
-  public abstract long topicHz(String topicName, String messageType, int window, boolean wallTime);
+  public abstract long hz(String topicName, String messageType, int window);
 
   @Override
-  public abstract long topicBw(String topicName, String messageType, int window);
+  public abstract long hz(
+      String topicName, String messageType, int window, TopicOps.HzOptions opts);
 
   @Override
-  public abstract long topicBw(String topicName, String messageType, int window, boolean wallTime);
+  public abstract long bw(String topicName, String messageType, int window);
 
   @Override
-  public abstract long topicDelay(String topicName, String messageType, int window);
+  public abstract long bw(
+      String topicName, String messageType, int window, TopicOps.BwOptions opts);
 
   @Override
-  public abstract long serviceCall(
-      String serviceName,
-      String serviceType,
-      byte[] payload,
-      double timeoutSeconds,
-      int repeatCount,
-      double rateHz);
+  public abstract long delay(String topicName, String messageType, int window);
+
+  // ── Service operations ───────────────────────────────────────────────
 
   @Override
-  public abstract long paramList(
-      String nodeName,
-      String[] prefixes,
-      int depth,
-      boolean includeTypes,
-      String filterRegex,
-      double timeoutSeconds);
+  public abstract long call(
+      String serviceName, String serviceType, byte[] payload, ServiceOps.ServiceCallOptions opts);
+
+  // ── Param operations ─────────────────────────────────────────────────
 
   @Override
-  public abstract long paramGet(
-      String nodeName, String paramName, boolean hideType, double timeoutSeconds);
+  public abstract long list(String nodeName, ParamOps.ParamListOptions opts);
 
   @Override
-  public abstract long paramSet(
+  public abstract long get(String nodeName, String paramName, ParamOps.ParamGetOptions opts);
+
+  @Override
+  public abstract long set(
       String nodeName, String paramName, String valueText, double timeoutSeconds);
 
   @Override
-  public abstract long paramDescribe(String nodeName, String paramName, double timeoutSeconds);
+  public abstract long describe(String nodeName, String paramName, double timeoutSeconds);
 
   @Override
-  public abstract long paramDump(String nodeName, String[] prefixes, double timeoutSeconds);
+  public abstract long dump(String nodeName, String[] prefixes, double timeoutSeconds);
 
   @Override
-  public abstract long paramLoad(
-      String nodeName, String yamlText, double timeoutSeconds, boolean useWildcard);
+  public abstract long load(String nodeName, String yamlText, ParamOps.ParamLoadOptions opts);
+
+  // ── Action operations ────────────────────────────────────────────────
 
   @Override
-  public abstract long actionInfo(String actionName, boolean includeHidden);
+  public abstract long info(String actionName, boolean includeHidden);
 
   @Override
-  public abstract long actionSendGoal(
-      String actionName,
-      String actionType,
-      byte[] goalPayload,
-      boolean feedback,
-      double timeoutSeconds);
+  public abstract long sendGoal(
+      String actionName, String actionType, byte[] goalPayload, ActionOps.ActionGoalOptions opts);
 
-  @Override
-  public abstract long queryPlayers();
+  // ── Addon event (internal — only AddonManager calls this) ────────────
 
-  @Override
-  public abstract long sendAddonEvent(
-      String addonId, String eventType, String encoding, byte[] payload, boolean response);
+  public long sendAddonEvent(
+      String addonId, String eventType, String encoding, byte[] payload, boolean response) {
+    // Default: serialize and sendRawPacket. Subclasses override for efficiency.
+    byte[] packet = buildAddonEventPacket(addonId, eventType, encoding, payload, response);
+    return sendRawPacket(packet);
+  }
+
+  protected byte[] buildAddonEventPacket(
+      String addonId, String eventType, String encoding, byte[] payload, boolean response) {
+    throw new UnsupportedOperationException(
+        "buildAddonEventPacket must be overridden or sendAddonEvent must be overridden");
+  }
 }

@@ -92,15 +92,17 @@ public final class InterfaceCommands {
     }
 
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.interfaceShow(interfaceType);
+    long requestId = bridge.graph().interfaceShow(interfaceType);
     return CommandResult.success("Interface show request #" + requestId + " sent.", requestId);
   }
 
   /** Request available interface types grouped by kind. */
   public static CommandResult list(CommandContext ctx, InterfaceListOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.interfaceList(
-        options.includeMessages(), options.includeServices(), options.includeActions());
+    long requestId = bridge
+        .graph()
+        .interfaceList(
+            options.includeMessages(), options.includeServices(), options.includeActions());
     return CommandResult.success("Interface list request #" + requestId + " sent.", requestId);
   }
 }

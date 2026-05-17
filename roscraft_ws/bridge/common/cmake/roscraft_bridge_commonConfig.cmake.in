@@ -14,7 +14,6 @@ find_dependency(std_srvs REQUIRED)
 find_dependency(std_msgs REQUIRED)
 
 find_dependency(concurrentqueue REQUIRED)
-find_dependency(Taskflow REQUIRED)
 
 find_package(flatbuffers QUIET CONFIG)
 if(NOT flatbuffers_FOUND)

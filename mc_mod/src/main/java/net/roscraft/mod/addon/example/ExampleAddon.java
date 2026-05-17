@@ -8,27 +8,17 @@ import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.roscraft.bridge.BridgeOperations;
 import net.roscraft.bridge.event.BridgeEvent;
+import net.roscraft.bridge.event.Subscription;
 import net.roscraft.mod.RoscraftMod;
 import net.roscraft.mod.addon.AddonContext;
 import net.roscraft.mod.addon.RoscraftAddon;
 
-/**
- * Example addon demonstrating the full roscraft addon API.
- *
- * <h3>Commands</h3>
- * <ul>
- * <li>{@code /ros example/ping} — sends a ping event to ROS</li>
- * <li>{@code /ros example/hello <name>} — prints a greeting</li>
- * <li>{@code /ros example/sub <topic>} — subscribes to a ROS topic</li>
- * <li>{@code /ros example/players} — queries connected players</li>
- * <li>{@code /ros example/graph} — queries the ROS graph</li>
- * <li>{@code /ros example/call <service> <type> <request>} — calls a ROS service</li>
- * </ul>
- */
 public final class ExampleAddon implements RoscraftAddon {
 
   private AddonContext ctx;
+  private Subscription topicSub;
 
   @Override
   public String addonId() {
@@ -40,8 +30,6 @@ public final class ExampleAddon implements RoscraftAddon {
     this.ctx = ctx;
     RoscraftMod.LOGGER.info("ExampleAddon initialised.");
   }
-
-  // ── Commands ───────────────────────────────────────────────────────
 
   @Override
   public List<LiteralArgumentBuilder<ServerCommandSource>> commands() {
@@ -67,8 +55,6 @@ public final class ExampleAddon implements RoscraftAddon {
                             StringArgumentType.getString(c, "type"),
                             StringArgumentType.getString(c, "request"))))))));
   }
-
-  // ── Events ─────────────────────────────────────────────────────────
 
   @Override
   public void onBridgeEvent(BridgeEvent event) {
@@ -113,15 +99,16 @@ public final class ExampleAddon implements RoscraftAddon {
 
   @Override
   public void shutdown() {
+    if (topicSub != null) {
+      topicSub.close();
+    }
     RoscraftMod.LOGGER.info("ExampleAddon shutting down.");
   }
 
-  // ── Command implementations ────────────────────────────────────────
-
   private int executePing(ServerCommandSource source) {
     if (!ctx.isBridgeConnected()) return bridgeNotConnected(source);
-    var payload = "hello from example addon".getBytes(StandardCharsets.UTF_8);
-    long requestId = ctx.sendEvent("ping", "utf-8", payload, false);
+    long requestId =
+        ctx.sendEvent("ping", "hello from example addon".getBytes(StandardCharsets.UTF_8), false);
     source.sendMessage(Text.literal("[Roscraft] ")
         .formatted(Formatting.AQUA)
         .append(Text.literal("Ping sent, requestId=" + requestId).formatted(Formatting.GREEN)));
@@ -137,22 +124,19 @@ public final class ExampleAddon implements RoscraftAddon {
   }
 
   private int executeSubscribe(ServerCommandSource source, String topic) {
-    return ctx.bridgeIfConnected()
-        .map(bridge -> {
-          long rid = ctx.track(bridge.subscribeTopic(topic, ""));
-          source.sendMessage(Text.literal("[Roscraft] ")
-              .formatted(Formatting.AQUA)
-              .append(Text.literal("Subscribed to " + topic + " (requestId=" + rid + ")")
-                  .formatted(Formatting.GREEN)));
-          return 1;
-        })
-        .orElseGet(() -> bridgeNotConnected(source));
+    var sub = ctx.subscribeTopic(topic, "");
+    if (sub.isEmpty()) return bridgeNotConnected(source);
+    topicSub = sub.get();
+    source.sendMessage(Text.literal("[Roscraft] ")
+        .formatted(Formatting.AQUA)
+        .append(Text.literal("Subscribed to " + topic).formatted(Formatting.GREEN)));
+    return 1;
   }
 
   private int executePlayers(ServerCommandSource source) {
     return ctx.bridgeIfConnected()
         .map(bridge -> {
-          long rid = ctx.track(bridge.queryPlayers());
+          long rid = bridge.queryPlayers();
           source.sendMessage(Text.literal("[Roscraft] ")
               .formatted(Formatting.AQUA)
               .append(
@@ -165,7 +149,7 @@ public final class ExampleAddon implements RoscraftAddon {
   private int executeGraph(ServerCommandSource source) {
     return ctx.bridgeIfConnected()
         .map(bridge -> {
-          long rid = ctx.track(bridge.queryGraph());
+          long rid = bridge.graph().snapshot();
           source.sendMessage(Text.literal("[Roscraft] ")
               .formatted(Formatting.AQUA)
               .append(
@@ -179,8 +163,13 @@ public final class ExampleAddon implements RoscraftAddon {
       ServerCommandSource source, String service, String type, String request) {
     return ctx.bridgeIfConnected()
         .map(bridge -> {
-          long rid = ctx.track(bridge.serviceCall(
-              service, type, request.getBytes(StandardCharsets.UTF_8), 5.0, 1, 0.0));
+          long rid = bridge
+              .services()
+              .call(
+                  service,
+                  type,
+                  request.getBytes(StandardCharsets.UTF_8),
+                  BridgeOperations.ServiceOps.ServiceCallOptions.defaults());
           source.sendMessage(Text.literal("[Roscraft] ")
               .formatted(Formatting.AQUA)
               .append(Text.literal("Service call sent to " + service + ", requestId=" + rid)

@@ -7,27 +7,50 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Consumer;
+import java.util.function.Supplier;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.server.command.ServerCommandSource;
+import net.roscraft.bridge.BridgeOperations;
+import net.roscraft.bridge.RoscraftBridge;
 import net.roscraft.bridge.event.BridgeEvent;
-import net.roscraft.bridge.event.EventBus;
 import net.roscraft.mod.RoscraftMod;
 
-public final class AddonManager implements EventBus {
+/**
+ * Coordinates addon lifecycle, event dispatching, and command collection.
+ *
+ * <p>Delegates event routing to {@link EventDispatcher}, typed subscriptions
+ * to {@link BridgeEventBusImpl}, local messaging to {@link LocalBusImpl},
+ * and inter-addon signals to {@link AddonSignalBusImpl}.
+ */
+public final class AddonManager {
 
   private final RoscraftMod mod;
   private final Map<String, RoscraftAddon> addons = new HashMap<>();
   private final Map<String, AddonContext> contexts = new HashMap<>();
-  private final RequestRouter requestRouter = new RequestRouter();
-  private final Map<Class<?>, List<Consumer<?>>> typedSubscribers = new HashMap<>();
-  private final Map<Class<?>, List<Consumer<?>>> localSubscribers = new HashMap<>();
-  private final Map<String, List<Consumer<BridgeEvent.AddonEvent>>> addonEventSubscribers =
-      new HashMap<>();
+  private final EventDispatcher dispatcher;
+  private final LocalBusImpl localBus;
+  private final AddonSignalBusImpl signalBus;
 
   public AddonManager(RoscraftMod mod) {
     this.mod = Objects.requireNonNull(mod, "mod must not be null");
+    this.addons.put("", null); // dummy — EventDispatcher references addons map
+    this.dispatcher = new EventDispatcher(addons);
+    this.localBus = new LocalBusImpl();
+    this.signalBus = new AddonSignalBusImpl();
+  }
+
+  // ── Public bus accessors ────────────────────────────────────────────
+
+  public BridgeEventBusImpl bridgeBus() {
+    return dispatcher.bridgeBus();
+  }
+
+  public LocalBusImpl localBus() {
+    return localBus;
+  }
+
+  public AddonSignalBusImpl signalBus() {
+    return signalBus;
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────
@@ -35,7 +58,9 @@ public final class AddonManager implements EventBus {
   public void loadAddons() {
     addons.clear();
     contexts.clear();
-    requestRouter.clear();
+    dispatcher.clear();
+    localBus.clear();
+    signalBus.clear();
     // PingAddon is hardcoded for guaranteed-first registration so it
     // handles ROS-side ping requests before any user addons are loaded.
     registerAddon(new PingAddon());
@@ -54,12 +79,37 @@ public final class AddonManager implements EventBus {
       return;
     }
     if (addons.containsKey(id)) {
-      RoscraftMod.LOGGER.warn(
-          "Addon '{}' already registered, skipping: {}", id, addon.getClass().getName());
+      RoscraftMod.LOGGER.error(
+          "Addon ID '{}' is already registered by {}. Skipping {}. "
+              + "Each addon must return a unique addonId().",
+          id,
+          addons.get(id).getClass().getName(),
+          addon.getClass().getName());
       return;
     }
     addons.put(id, addon);
-    var ctx = new AddonContext(id, () -> mod.bridgeManager().getBridge(), requestRouter, this);
+
+    var requestRouter = dispatcher.requestRouter();
+    Supplier<BridgeOperations> trackedBridgeSupplier = () -> {
+      RoscraftBridge bridge = mod.bridgeManager().getBridge();
+      return bridge != null ? new TrackedBridge(bridge, id, requestRouter) : null;
+    };
+
+    AddonContext.SendEventFunction sendEventFn =
+        (addonId, eventType, encoding, payload, response) -> {
+          RoscraftBridge bridge = mod.bridgeManager().getBridge();
+          if (bridge == null) return AddonContext.DISCONNECTED;
+          return bridge.sendAddonEvent(addonId, eventType, encoding, payload, response);
+        };
+
+    var ctx = new AddonContext(
+        id,
+        trackedBridgeSupplier,
+        requestRouter,
+        dispatcher.bridgeBus(),
+        localBus,
+        signalBus,
+        sendEventFn);
     contexts.put(id, ctx);
     addon.init(ctx);
     RoscraftMod.LOGGER.info("Registered addon: {}", id);
@@ -75,132 +125,20 @@ public final class AddonManager implements EventBus {
     }
     addons.clear();
     contexts.clear();
-    requestRouter.clear();
-    typedSubscribers.clear();
-    localSubscribers.clear();
-    addonEventSubscribers.clear();
+    dispatcher.clear();
+    localBus.clear();
+    signalBus.clear();
   }
 
   public int size() {
     return addons.size();
   }
 
-  // ── EventBus implementation ─────────────────────────────────────────
-
-  @Override
-  @SuppressWarnings("unchecked")
-  public <T extends BridgeEvent> Subscription subscribe(Class<T> type, Consumer<T> handler) {
-    Objects.requireNonNull(type, "type must not be null");
-    Objects.requireNonNull(handler, "handler must not be null");
-    typedSubscribers.computeIfAbsent(type, k -> new CopyOnWriteArrayList<>()).add(handler);
-    return () -> {
-      var subs = typedSubscribers.get(type);
-      if (subs != null) subs.remove(handler);
-    };
-  }
-
-  @Override
-  public Subscription subscribeAddonEvent(
-      String eventType, Consumer<BridgeEvent.AddonEvent> handler) {
-    Objects.requireNonNull(eventType, "eventType must not be null");
-    Objects.requireNonNull(handler, "handler must not be null");
-    addonEventSubscribers
-        .computeIfAbsent(eventType, k -> new CopyOnWriteArrayList<>())
-        .add(handler);
-    return () -> {
-      var subs = addonEventSubscribers.get(eventType);
-      if (subs != null) subs.remove(handler);
-    };
-  }
-
-  @Override
-  public void publish(BridgeEvent.AddonEvent event) {
-    Objects.requireNonNull(event, "event must not be null");
-    var subs = addonEventSubscribers.get(event.eventType());
-    if (subs != null) {
-      for (var handler : subs) {
-        try {
-          handler.accept(event);
-        } catch (Exception ex) {
-          RoscraftMod.LOGGER.warn(
-              "Error in addon event subscriber for '{}': {}", event.eventType(), ex.getMessage());
-        }
-      }
-    }
-  }
-
-  @Override
-  @SuppressWarnings("unchecked")
-  public <T> Subscription subscribeLocal(Class<T> type, Consumer<T> handler) {
-    Objects.requireNonNull(type, "type must not be null");
-    Objects.requireNonNull(handler, "handler must not be null");
-    localSubscribers.computeIfAbsent(type, k -> new CopyOnWriteArrayList<>()).add(handler);
-    return () -> {
-      var subs = localSubscribers.get(type);
-      if (subs != null) subs.remove(handler);
-    };
-  }
-
-  @Override
-  @SuppressWarnings("unchecked")
-  public <T> void publishLocal(T event) {
-    Objects.requireNonNull(event, "event must not be null");
-    var subs = localSubscribers.get(event.getClass());
-    if (subs != null) {
-      for (var handler : subs) {
-        try {
-          ((Consumer<T>) handler).accept(event);
-        } catch (Exception ex) {
-          RoscraftMod.LOGGER.warn(
-              "Error in local event subscriber for {}: {}",
-              event.getClass().getSimpleName(),
-              ex.getMessage());
-        }
-      }
-    }
-  }
-
   // ── Event dispatching ───────────────────────────────────────────────
 
   /** Called by ModBridgeCallback for every incoming bridge event. */
   public void onEvent(BridgeEvent event) {
-    dispatchToTypedSubscribers(event);
-    dispatchToAddonOwner(event);
-  }
-
-  @SuppressWarnings("unchecked")
-  private <T extends BridgeEvent> void dispatchToTypedSubscribers(T event) {
-    var subs = typedSubscribers.get(event.getClass());
-    if (subs != null) {
-      for (var handler : subs) {
-        try {
-          ((Consumer<T>) handler).accept(event);
-        } catch (Exception ex) {
-          RoscraftMod.LOGGER.warn(
-              "Error in typed event subscriber for {}: {}",
-              event.getClass().getSimpleName(),
-              ex.getMessage());
-        }
-      }
-    }
-  }
-
-  private void dispatchToAddonOwner(BridgeEvent event) {
-    RoscraftAddon addon;
-    if (event instanceof BridgeEvent.AddonEvent ae) {
-      addon = addons.get(ae.addonId());
-    } else {
-      addon = addons.get(requestRouter.consume(event.requestId()));
-    }
-
-    if (addon != null) {
-      try {
-        addon.onBridgeEvent(event);
-      } catch (Exception ex) {
-        RoscraftMod.LOGGER.warn(
-            "Error dispatching event to addon '{}': {}", addon.addonId(), ex.getMessage());
-      }
-    }
+    dispatcher.onEvent(event);
   }
 
   // ── Commands ───────────────────────────────────────────────────────
@@ -217,5 +155,257 @@ public final class AddonManager implements EventBus {
       }
     }
     return Collections.unmodifiableList(all);
+  }
+
+  // ── Tracked bridge wrapper ──────────────────────────────────────────
+
+  /**
+   * Wraps a {@link BridgeOperations} to auto-track every request.
+   * One-shot operations use {@code track()}; persistent operations
+   * (subscribe, sendGoal) use {@code trackPersistent()}.
+   */
+  private static final class TrackedBridge
+      implements BridgeOperations,
+          BridgeOperations.TopicOps,
+          BridgeOperations.ParamOps,
+          BridgeOperations.ServiceOps,
+          BridgeOperations.ActionOps,
+          BridgeOperations.GraphOps {
+
+    private final BridgeOperations delegate;
+    private final String addonId;
+    private final AddonContext.RequestTracker router;
+
+    TrackedBridge(BridgeOperations delegate, String addonId, AddonContext.RequestTracker router) {
+      this.delegate = delegate;
+      this.addonId = addonId;
+      this.router = router;
+    }
+
+    // ── BridgeOperations accessors ────────────────────────────────────
+
+    @Override
+    public TopicOps topics() {
+      return this;
+    }
+
+    @Override
+    public ParamOps params() {
+      return this;
+    }
+
+    @Override
+    public ServiceOps services() {
+      return this;
+    }
+
+    @Override
+    public ActionOps actions() {
+      return this;
+    }
+
+    @Override
+    public GraphOps graph() {
+      return this;
+    }
+
+    @Override
+    public long queryPlayers() {
+      long id = delegate.queryPlayers();
+      router.track(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long sendRawPacket(byte[] payload) {
+      long id = delegate.sendRawPacket(payload);
+      router.track(addonId, id);
+      return id;
+    }
+
+    // ── Graph ─────────────────────────────────────────────────────────
+
+    @Override
+    public long snapshot() {
+      long id = delegate.graph().snapshot();
+      router.track(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long nodeInfo(String n, boolean h) {
+      long id = delegate.graph().nodeInfo(n, h);
+      router.track(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long topicInfo(String t) {
+      long id = delegate.graph().topicInfo(t);
+      router.track(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long serviceInfo(String s) {
+      long id = delegate.graph().serviceInfo(s);
+      router.track(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long interfaceList(boolean m, boolean s, boolean a) {
+      long id = delegate.graph().interfaceList(m, s, a);
+      router.track(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long interfaceShow(String t) {
+      long id = delegate.graph().interfaceShow(t);
+      router.track(addonId, id);
+      return id;
+    }
+
+    // ── Topic ─────────────────────────────────────────────────────────
+
+    @Override
+    public long subscribe(String t, String ty) {
+      long id = delegate.topics().subscribe(t, ty);
+      router.trackPersistent(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long subscribe(String t, String ty, TopicOps.SubscribeOptions o) {
+      long id = delegate.topics().subscribe(t, ty, o);
+      router.trackPersistent(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long unsubscribe(String t) {
+      long id = delegate.topics().unsubscribe(t);
+      router.track(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long publish(String t, String ty, byte[] p) {
+      long id = delegate.topics().publish(t, ty, p);
+      router.track(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long publish(String t, String ty, byte[] p, TopicOps.PublishOptions o) {
+      long id = delegate.topics().publish(t, ty, p, o);
+      router.track(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long hz(String t, String ty, int w) {
+      long id = delegate.topics().hz(t, ty, w);
+      router.track(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long hz(String t, String ty, int w, TopicOps.HzOptions o) {
+      long id = delegate.topics().hz(t, ty, w, o);
+      router.track(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long bw(String t, String ty, int w) {
+      long id = delegate.topics().bw(t, ty, w);
+      router.track(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long bw(String t, String ty, int w, TopicOps.BwOptions o) {
+      long id = delegate.topics().bw(t, ty, w, o);
+      router.track(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long delay(String t, String ty, int w) {
+      long id = delegate.topics().delay(t, ty, w);
+      router.track(addonId, id);
+      return id;
+    }
+
+    // ── Param ─────────────────────────────────────────────────────────
+
+    @Override
+    public long list(String n, ParamOps.ParamListOptions o) {
+      long id = delegate.params().list(n, o);
+      router.track(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long get(String n, String p, ParamOps.ParamGetOptions o) {
+      long id = delegate.params().get(n, p, o);
+      router.track(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long set(String n, String p, String v, double t) {
+      long id = delegate.params().set(n, p, v, t);
+      router.track(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long describe(String n, String p, double t) {
+      long id = delegate.params().describe(n, p, t);
+      router.track(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long dump(String n, String[] pr, double t) {
+      long id = delegate.params().dump(n, pr, t);
+      router.track(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long load(String n, String y, ParamOps.ParamLoadOptions o) {
+      long id = delegate.params().load(n, y, o);
+      router.track(addonId, id);
+      return id;
+    }
+
+    // ── Service ───────────────────────────────────────────────────────
+
+    @Override
+    public long call(String n, String t, byte[] p, ServiceOps.ServiceCallOptions o) {
+      long id = delegate.services().call(n, t, p, o);
+      router.track(addonId, id);
+      return id;
+    }
+
+    // ── Action ────────────────────────────────────────────────────────
+
+    @Override
+    public long info(String n, boolean h) {
+      long id = delegate.actions().info(n, h);
+      router.track(addonId, id);
+      return id;
+    }
+
+    @Override
+    public long sendGoal(String n, String t, byte[] p, ActionOps.ActionGoalOptions o) {
+      long id = delegate.actions().sendGoal(n, t, p, o);
+      router.trackPersistent(addonId, id);
+      return id;
+    }
   }
 }

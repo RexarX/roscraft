@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.Objects;
+import net.roscraft.bridge.BridgeOperations;
 import net.roscraft.bridge.RoscraftBridge;
 import net.roscraft.mod.command.CommandContext;
 import net.roscraft.mod.command.CommandResult;
@@ -318,13 +319,16 @@ public final class ParamCommands {
 
   public static CommandResult list(CommandContext ctx, ParamListOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.paramList(
-        options.nodeName(),
-        options.prefixes(),
-        Math.toIntExact(options.depth()),
-        options.includeTypes(),
-        options.filterRegex(),
-        DEFAULT_TIMEOUT_SECONDS);
+    long requestId = bridge
+        .params()
+        .list(
+            options.nodeName(),
+            new BridgeOperations.ParamOps.ParamListOptions(
+                options.prefixes(),
+                Math.toIntExact(options.depth()),
+                options.includeTypes(),
+                options.filterRegex(),
+                DEFAULT_TIMEOUT_SECONDS));
     return CommandResult.success(
         "Param list request #" + requestId + " for node '" + options.nodeName() + "' sent.",
         requestId);
@@ -332,8 +336,13 @@ public final class ParamCommands {
 
   public static CommandResult get(CommandContext ctx, ParamGetOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.paramGet(
-        options.nodeName(), options.paramName(), options.hideType(), DEFAULT_TIMEOUT_SECONDS);
+    long requestId = bridge
+        .params()
+        .get(
+            options.nodeName(),
+            options.paramName(),
+            new BridgeOperations.ParamOps.ParamGetOptions(
+                options.hideType(), DEFAULT_TIMEOUT_SECONDS));
     return CommandResult.success(
         "Param get request #" + requestId
             + " for "
@@ -346,8 +355,10 @@ public final class ParamCommands {
 
   public static CommandResult set(CommandContext ctx, ParamSetOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.paramSet(
-        options.nodeName(), options.paramName(), options.valueText(), options.timeoutSeconds());
+    long requestId = bridge
+        .params()
+        .set(
+            options.nodeName(), options.paramName(), options.valueText(), options.timeoutSeconds());
     return CommandResult.success(
         "Param set request #" + requestId
             + " for "
@@ -361,7 +372,7 @@ public final class ParamCommands {
   public static CommandResult describe(CommandContext ctx, ParamDescribeOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
     long requestId =
-        bridge.paramDescribe(options.nodeName(), options.paramName(), DEFAULT_TIMEOUT_SECONDS);
+        bridge.params().describe(options.nodeName(), options.paramName(), DEFAULT_TIMEOUT_SECONDS);
     return CommandResult.success(
         "Param describe request #" + requestId
             + " for "
@@ -375,7 +386,7 @@ public final class ParamCommands {
   public static CommandResult dump(CommandContext ctx, ParamDumpOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
     long requestId =
-        bridge.paramDump(options.nodeName(), options.prefixes(), DEFAULT_TIMEOUT_SECONDS);
+        bridge.params().dump(options.nodeName(), options.prefixes(), DEFAULT_TIMEOUT_SECONDS);
     return CommandResult.success(
         "Param dump request #" + requestId + " for node '" + options.nodeName() + "' sent.",
         requestId);
@@ -407,8 +418,13 @@ public final class ParamCommands {
           "Param load failed: parameter file '" + options.parameterFile() + "' is empty.");
     }
 
-    long requestId = bridge.paramLoad(
-        options.nodeName(), yamlText, options.timeoutSeconds(), options.useWildcard());
+    long requestId = bridge
+        .params()
+        .load(
+            options.nodeName(),
+            yamlText,
+            new BridgeOperations.ParamOps.ParamLoadOptions(
+                options.timeoutSeconds(), options.useWildcard()));
     return CommandResult.success(
         "Param load request #"
             + requestId

@@ -2,6 +2,7 @@ package net.roscraft.mod.command.service;
 
 import java.util.Arrays;
 import java.util.Objects;
+import net.roscraft.bridge.BridgeOperations;
 import net.roscraft.bridge.RoscraftBridge;
 import net.roscraft.mod.command.CommandContext;
 import net.roscraft.mod.command.CommandResult;
@@ -136,7 +137,7 @@ public final class ServiceCommands {
   /** Request service list (backed by graph query). */
   public static CommandResult list(CommandContext ctx, ServiceListOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.queryGraph();
+    long requestId = bridge.graph().snapshot();
     String suffix = options.showTypes() ? " (with types)" : "";
     return CommandResult.success(
         "Service list request #" + requestId + suffix + " sent.", requestId);
@@ -145,7 +146,7 @@ public final class ServiceCommands {
   /** Resolve service type for a service name (backed by graph query). */
   public static CommandResult type(CommandContext ctx, String serviceName) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.queryGraph();
+    long requestId = bridge.graph().snapshot();
     return CommandResult.success(
         "Service type request #" + requestId + " for " + serviceName + " sent.", requestId);
   }
@@ -153,7 +154,7 @@ public final class ServiceCommands {
   /** Find services by service type (backed by graph query). */
   public static CommandResult find(CommandContext ctx, String serviceType) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.queryGraph();
+    long requestId = bridge.graph().snapshot();
     return CommandResult.success(
         "Service find request #" + requestId + " for " + serviceType + " sent.", requestId);
   }
@@ -162,7 +163,7 @@ public final class ServiceCommands {
   public static CommandResult info(
       CommandContext ctx, String serviceName, ServiceInfoOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.serviceInfo(serviceName);
+    long requestId = bridge.graph().serviceInfo(serviceName);
     String suffix = options.verbose() ? " (verbose)" : "";
     return CommandResult.success(
         "Service info request #" + requestId + suffix + " sent.", requestId);
@@ -183,13 +184,14 @@ public final class ServiceCommands {
     }
 
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.serviceCall(
-        serviceName,
-        serviceType,
-        Arrays.copyOf(payload, payload.length),
-        options.timeoutSeconds(),
-        options.repeatCount(),
-        options.rateHz());
+    long requestId = bridge
+        .services()
+        .call(
+            serviceName,
+            serviceType,
+            Arrays.copyOf(payload, payload.length),
+            new BridgeOperations.ServiceOps.ServiceCallOptions(
+                options.timeoutSeconds(), options.repeatCount(), options.rateHz()));
 
     String repeats = options.repeatCount() > 0 ? String.valueOf(options.repeatCount()) : "1";
     String rate = options.rateHz() > 0.0 ? String.valueOf(options.rateHz()) : "default";

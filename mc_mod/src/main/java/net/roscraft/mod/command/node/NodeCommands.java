@@ -71,7 +71,7 @@ public final class NodeCommands {
   /** Request node list (backed by graph query). */
   public static CommandResult list(CommandContext ctx, NodeListOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.queryGraph();
+    long requestId = bridge.graph().snapshot();
 
     StringBuilder detail = new StringBuilder();
     if (options.includeHidden()) {
@@ -87,7 +87,7 @@ public final class NodeCommands {
   /** Request detailed information for a node. */
   public static CommandResult info(CommandContext ctx, String nodeName, NodeInfoOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.nodeInfo(nodeName, options.includeHidden());
+    long requestId = bridge.graph().nodeInfo(nodeName, options.includeHidden());
     return CommandResult.success("Node info request #" + requestId + " sent.", requestId);
   }
 }

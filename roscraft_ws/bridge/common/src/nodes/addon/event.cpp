@@ -50,7 +50,7 @@ void AddonEventNode::OnIncomingRosEvent(
   cmd.event_type = msg->event_type;
   cmd.encoding = msg->encoding;
   cmd.response = msg->response;
-  cmd.payload.assign_range(msg->payload);
+  cmd.payload.assign(msg->payload.begin(), msg->payload.end());
 
   outgoing_.get().Enqueue(outgoing_producer_, std::move(cmd));
 }
@@ -66,7 +66,7 @@ void AddonEventNode::OnPollTimer() {
     ros_msg.event_type = cmd.event_type;
     ros_msg.encoding = cmd.encoding;
     ros_msg.response = cmd.response;
-    ros_msg.payload.assign_range(cmd.payload);
+    ros_msg.payload.assign(cmd.payload.begin(), cmd.payload.end());
 
     event_pub_->publish(ros_msg);
   }

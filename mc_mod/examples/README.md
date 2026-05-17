@@ -2,80 +2,69 @@
 
 ## What addons can access
 
-### Full `RoscraftBridge` API via `ctx.bridge()`
+### Namespaced bridge API via `ctx.bridgeIfConnected()`
 
-All 20+ bridge methods. After calling, track with `ctx.trackRequest(requestId)`.
+All operations are **automatically tracked** — responses route to `onBridgeEvent(BridgeEvent)` without manual `track()` calls.
 
-| Method                                         | Response callback                                               |
-| ---------------------------------------------- | --------------------------------------------------------------- |
-| `queryGraph()`                                 | `onGraphSnapshot(GraphSnapshot)`                                |
-| `nodeInfo(name, hidden)`                       | `onNodeInfoResponse(NodeInfoResponse)`                          |
-| `topicInfo(name)`                              | `onTopicInfoResponse(TopicInfoResponse)`                        |
-| `serviceInfo(name)`                            | `onServiceInfoResponse(ServiceInfoResponse)`                    |
-| `subscribeTopic(name, type)`                   | `onTopicPayload(TopicPayload)`                                  |
-| `publishMessage(name, type, payload)`          | (fire and forget)                                               |
-| `serviceCall(name, type, payload, ...)`        | `onServiceCallResponse(ServiceCallResponse)`                    |
-| `queryPlayers()`                               | `onPlayerList(PlayerList)`                                      |
-| `sendAddonEvent(id, type, enc, payload, resp)` | `onAddonEvent(AddonEvent)`                                      |
-| `interfaceList(...)`                           | `onInterfaceListResponse(InterfaceListResponse)`                |
-| `interfaceShow(type)`                          | `onInterfaceShowResponse(InterfaceShowResponse)`                |
-| `paramList(node, ...)`                         | `onParamListResponse(ParamListResponse)`                        |
-| `paramGet(node, name, ...)`                    | `onParamGetResponse(ParamGetResponse)`                          |
-| `paramSet(node, name, val, ...)`               | `onParamSetResponse(ParamSetResponse)`                          |
-| `paramDescribe(node, name, ...)`               | `onParamDescribeResponse(ParamDescribeResponse)`                |
-| `paramDump(node, ...)`                         | `onParamDumpResponse(ParamDumpResponse)`                        |
-| `paramLoad(node, yaml, ...)`                   | `onParamLoadResponse(ParamLoadResponse)`                        |
-| `actionInfo(name, ...)`                        | `onActionInfoResponse(ActionInfoResponse)`                      |
-| `actionSendGoal(name, type, payload, ...)`     | `onActionFeedback/onActionResult(...)`                          |
-| `topicHz/Bw/Delay(...)`                        | `onTopicHzResponse/onTopicBwResponse/onTopicDelayResponse(...)` |
+| Namespace           | Method                                 | Returns | Response event                                 |
+| ------------------- | -------------------------------------- | ------- | ---------------------------------------------- |
+| `bridge.graph()`    | `.snapshot()`                          | `long`  | `GraphSnapshot`                                |
+|                     | `.nodeInfo(name, hidden)`              | `long`  | `NodeInfoResponse`                             |
+|                     | `.topicInfo(name)`                     | `long`  | `TopicInfoResponse`                            |
+|                     | `.serviceInfo(name)`                   | `long`  | `ServiceInfoResponse`                          |
+|                     | `.interfaceList(msg, srv, act)`        | `long`  | `InterfaceListResponse`                        |
+|                     | `.interfaceShow(type)`                 | `long`  | `InterfaceShowResponse`                        |
+| `bridge.topics()`   | `.subscribe(topic, type)`              | `long`  | `TopicPayload` (persistent)                    |
+|                     | `.unsubscribe(topic)`                  | `long`  | —                                              |
+|                     | `.publish(topic, type, payload)`       | `long`  | (fire and forget)                              |
+|                     | `.hz(topic, type, window)`             | `long`  | `TopicHzResponse`                              |
+|                     | `.bw(topic, type, window)`             | `long`  | `TopicBwResponse`                              |
+|                     | `.delay(topic, type, window)`          | `long`  | `TopicDelayResponse`                           |
+| `bridge.params()`   | `.list(node, opts)`                    | `long`  | `ParamListResponse`                            |
+|                     | `.get(node, name, opts)`               | `long`  | `ParamGetResponse`                             |
+|                     | `.set(node, name, val, timeout)`       | `long`  | `ParamSetResponse`                             |
+|                     | `.describe(node, name, timeout)`       | `long`  | `ParamDescribeResponse`                        |
+|                     | `.dump(node, prefixes, timeout)`       | `long`  | `ParamDumpResponse`                            |
+|                     | `.load(node, yaml, opts)`              | `long`  | `ParamLoadResponse`                            |
+| `bridge.services()` | `.call(name, type, payload, opts)`     | `long`  | `ServiceCallResponse`                          |
+| `bridge.actions()`  | `.info(name, hidden)`                  | `long`  | `ActionInfoResponse`                           |
+|                     | `.sendGoal(name, type, payload, opts)` | `long`  | `ActionFeedback` / `ActionResult` (persistent) |
+| `bridge`            | `.queryPlayers()`                      | `long`  | `PlayerList`                                   |
 
-All 24 response callbacks have default no-op implementations — override only what you need.
+Options records: `SubscribeOptions`, `PublishOptions`, `HzOptions`, `BwOptions`,
+`ParamListOptions`, `ParamGetOptions`, `ParamLoadOptions`, `ServiceCallOptions`,
+`ActionGoalOptions` — each has a `defaults()` factory and a `static Builder`.
 
-### Request tracking
-
-```java
-long rid = ctx.bridge().queryGraph();
-ctx.trackRequest(rid);      // onGraphSnapshot will be called
-
-long rid = ctx.bridge().serviceCall("/add", "example_interfaces/srv/AddTwoInts", req, 5, 1, 0);
-ctx.trackRequest(rid);      // onServiceCallResponse will be called
-```
-
-### Command registration
+### Persistent operations return `Subscription` handles
 
 ```java
-@Override
-public List<LiteralArgumentBuilder<ServerCommandSource>> commands() {
-    return List.of(CommandManager.literal("myaddon")
-        .executes(ctx -> { /* ... */ return 1; }));
-}
+ctx.subscribeTopic("/topic", "std_msgs/msg/String").ifPresent(sub -> {
+    // sub.close() unsubscribes and untracks
+});
 ```
 
-Commands appear under `/ros myaddon`.
+### Inter-addon events
 
-### Addon events (bidirectional)
-
-ROS → Minecraft: publish `roscraft_bridge_common/msg/AddonEvent` to `/roscraft/addon/event_in`.
-
-Minecraft → ROS: `ctx.eventSender().sendAddonEvent(eventType, payload, response)`.
+- ROS -> Minecraft: publish `roscraft_bridge_common/msg/AddonEvent` to `/roscraft/addon/event_in`.
+- Minecraft -> ROS: `ctx.sendEvent(eventType, payload, response)`. Returns `AddonContext.DISCONNECTED` (0) when disconnected.
 
 ### Error handling
 
-Errors from tracked requests are delivered to `onBridgeError(BridgeError)`.
+Errors from tracked requests are delivered as `BridgeEvent.BridgeError` to `onBridgeEvent`.
 
 ## Quickstart
 
-1. Create a class implementing `RoscraftAddon`
-2. Add to `fabric.mod.json`:
+1. Copy `examples/template/` to your project directory
+2. Rename the package from `your.mod` to your own
+3. Implement `RoscraftAddon` with a unique `addonId()`
+4. Add to `fabric.mod.json`:
 
 ```json
 {
     "entrypoints": {
         "roscraft:addon": ["your.mod.YourAddon"]
     },
-    "depends": {
-        "roscraft": ">=0.1.0"
-    }
+    "depends": { "roscraft": ">=0.1.0" }
 }
 ```
 

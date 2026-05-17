@@ -24,10 +24,71 @@ template/
 │   └── client/          # (unused — add client-side code here)
 ```
 
-## After setup
+## Addon API quickstart
 
-- Override callbacks you need: `onGraphSnapshot`, `onTopicPayload`, `onPlayerList`, `onServiceCallResponse`, etc.
-- Use `ctx.bridge()` for ROS operations, `ctx.trackRequest(rid)` for responses.
-- Use `ctx.eventSender().sendAddonEvent(...)` for bidirectional events.
+### Bridge operations (auto-tracked)
 
-See `../README.md` for the full API reference.
+All operations invoked through `ctx.bridgeIfConnected()` are automatically tracked.
+No need to call `ctx.track()` — responses route to `onBridgeEvent(BridgeEvent)`.
+
+```java
+// One-shot — response arrives once
+ctx.bridgeIfConnected().ifPresent(bridge -> {
+    bridge.graph().snapshot();               // ROS graph query
+    bridge.topics().subscribe("/foo", "");    // topic subscribe (persistent)
+    bridge.params().get("/node", "/param",
+        new BridgeOperations.ParamOps.ParamGetOptions(false, 5.0));
+    bridge.services().call("/service", "std_srvs/srv/Empty", requestBytes,
+        BridgeOperations.ServiceOps.ServiceCallOptions.defaults());
+    bridge.queryPlayers();
+});
+```
+
+For topic subscriptions and action goals, use convenience methods that return
+a `Subscription` handle:
+
+```java
+ctx.subscribeTopic("/topic", "std_msgs/msg/String").ifPresent(sub -> {
+    sub.close();  // unsubscribes + untracks
+});
+```
+
+### Inter-addon events
+
+```java
+ctx.sendEvent("my_event", payloadBytes, false);
+// Returns ctx.DISCONNECTED (0) if bridge is disconnected
+```
+
+### Event buses
+
+```java
+// Global bridge events (fires for all addons)
+ctx.bridgeBus().onAny(BridgeEvent.TopicPayload.class, this::handlePayload);
+
+// Typed local messages (shared classpath)
+ctx.localBus().on(MyMessage.class, this::handleLocal);
+ctx.localBus().emit(new MyMessage("hello"));
+
+// String-keyed signals (loosely coupled)
+ctx.signalBus().on("ping", this::handleSignal);
+```
+
+`Subscription.on()` / `Subscription.onAny()` returns a closing handle.
+All three buses are available from `AddonContext` after `init()`.
+
+### Commands
+
+Return Brigadier literal nodes from `commands()` — they appear under `/ros`:
+
+```java
+@Override
+public List<LiteralArgumentBuilder<ServerCommandSource>> commands() {
+    return List.of(
+        CommandManager.literal("mycmd")
+            .executes(ctx -> { ...; return 1; })
+    );
+}
+```
+
+See the full API reference at `../README.md`.

@@ -2,6 +2,7 @@ package net.roscraft.mod.command.topic;
 
 import java.util.Arrays;
 import java.util.Objects;
+import net.roscraft.bridge.BridgeOperations;
 import net.roscraft.bridge.RoscraftBridge;
 import net.roscraft.mod.command.CommandContext;
 import net.roscraft.mod.command.CommandResult;
@@ -296,7 +297,7 @@ public final class TopicCommands {
   /** Request topic list (backed by graph query). */
   public static CommandResult list(CommandContext ctx, TopicListOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.queryGraph();
+    long requestId = bridge.graph().snapshot();
     String suffix = options.showTypes() ? " (with types)" : "";
     return CommandResult.success("Topic list request #" + requestId + suffix + " sent.", requestId);
   }
@@ -304,7 +305,7 @@ public final class TopicCommands {
   /** Resolve message type for a topic name (backed by graph query). */
   public static CommandResult type(CommandContext ctx, String topicName) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.queryGraph();
+    long requestId = bridge.graph().snapshot();
     return CommandResult.success(
         "Topic type request #" + requestId + " for " + topicName + " sent.", requestId);
   }
@@ -312,7 +313,7 @@ public final class TopicCommands {
   /** Find topics by message type (backed by graph query). */
   public static CommandResult find(CommandContext ctx, String topicType) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.queryGraph();
+    long requestId = bridge.graph().snapshot();
     return CommandResult.success(
         "Topic find request #" + requestId + " for " + topicType + " sent.", requestId);
   }
@@ -334,8 +335,13 @@ public final class TopicCommands {
     String resolvedMessageType = messageType == null ? "" : messageType;
 
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.subscribeTopic(
-        topicName, resolvedMessageType, options.once(), options.timeoutSeconds(), options.raw());
+    long requestId = bridge
+        .topics()
+        .subscribe(
+            topicName,
+            resolvedMessageType,
+            new BridgeOperations.TopicOps.SubscribeOptions(
+                options.once(), options.timeoutSeconds(), options.raw()));
 
     StringBuilder suffixBuilder = new StringBuilder();
     if (options.once()) {
@@ -361,7 +367,7 @@ public final class TopicCommands {
   /** Stop all active echo subscriptions for a topic. */
   public static CommandResult echoStop(CommandContext ctx, String topicName) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.unsubscribeTopic(topicName);
+    long requestId = bridge.topics().unsubscribe(topicName);
     return CommandResult.success(
         "Unsubscribe request #" + requestId + " for " + topicName + " sent.", requestId);
   }
@@ -369,7 +375,7 @@ public final class TopicCommands {
   /** Request detailed information for a topic. */
   public static CommandResult info(CommandContext ctx, String topicName, TopicInfoOptions options) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.topicInfo(topicName);
+    long requestId = bridge.graph().topicInfo(topicName);
     String suffix = options.verbose() ? " (verbose)" : "";
     return CommandResult.success("Topic info request #" + requestId + suffix + " sent.", requestId);
   }
@@ -389,14 +395,14 @@ public final class TopicCommands {
     }
 
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.publishMessage(
-        topicName,
-        messageType,
-        Arrays.copyOf(payload, payload.length),
-        options.once(),
-        options.rateHz(),
-        options.times(),
-        options.qosProfile());
+    long requestId = bridge
+        .topics()
+        .publish(
+            topicName,
+            messageType,
+            Arrays.copyOf(payload, payload.length),
+            new BridgeOperations.TopicOps.PublishOptions(
+                options.once(), options.rateHz(), options.times(), options.qosProfile()));
 
     int requestedTimes = options.times();
     String repeatText =
@@ -435,8 +441,13 @@ public final class TopicCommands {
     String resolvedMessageType = messageType == null ? "" : messageType;
 
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId =
-        bridge.topicHz(topicName, resolvedMessageType, options.window(), options.wallTime());
+    long requestId = bridge
+        .topics()
+        .hz(
+            topicName,
+            resolvedMessageType,
+            options.window(),
+            new BridgeOperations.TopicOps.HzOptions(options.wallTime()));
     return CommandResult.success(
         "Topic hz request #" + requestId
             + " for "
@@ -467,8 +478,13 @@ public final class TopicCommands {
     String resolvedMessageType = messageType == null ? "" : messageType;
 
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId =
-        bridge.topicBw(topicName, resolvedMessageType, options.window(), options.wallTime());
+    long requestId = bridge
+        .topics()
+        .bw(
+            topicName,
+            resolvedMessageType,
+            options.window(),
+            new BridgeOperations.TopicOps.BwOptions(options.wallTime()));
     return CommandResult.success(
         "Topic bw request #" + requestId
             + " for "
@@ -499,7 +515,7 @@ public final class TopicCommands {
     String resolvedMessageType = messageType == null ? "" : messageType;
 
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.topicDelay(topicName, resolvedMessageType, options.window());
+    long requestId = bridge.topics().delay(topicName, resolvedMessageType, options.window());
     return CommandResult.success(
         "Topic delay request #" + requestId
             + " for "
@@ -520,7 +536,7 @@ public final class TopicCommands {
     }
 
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.topicHz(topicName, "", 0, false);
+    long requestId = bridge.topics().hz(topicName, "", 0);
     return CommandResult.success(
         "Topic hz stop request #" + requestId + " for " + topicName + " sent.", requestId);
   }
@@ -532,7 +548,7 @@ public final class TopicCommands {
     }
 
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.topicBw(topicName, "", 0, false);
+    long requestId = bridge.topics().bw(topicName, "", 0);
     return CommandResult.success(
         "Topic bw stop request #" + requestId + " for " + topicName + " sent.", requestId);
   }
@@ -544,7 +560,7 @@ public final class TopicCommands {
     }
 
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.topicDelay(topicName, "", 0);
+    long requestId = bridge.topics().delay(topicName, "", 0);
     return CommandResult.success(
         "Topic delay stop request #" + requestId + " for " + topicName + " sent.", requestId);
   }
@@ -552,21 +568,21 @@ public final class TopicCommands {
   /** Stop all topic rate measurements (`topic hz stop`). */
   public static CommandResult hzStopAll(CommandContext ctx) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.topicHz("", "", 0, false);
+    long requestId = bridge.topics().hz("", "", 0);
     return CommandResult.success("Topic hz stop-all request #" + requestId + " sent.", requestId);
   }
 
   /** Stop all topic bandwidth measurements (`topic bw stop`). */
   public static CommandResult bwStopAll(CommandContext ctx) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.topicBw("", "", 0, false);
+    long requestId = bridge.topics().bw("", "", 0);
     return CommandResult.success("Topic bw stop-all request #" + requestId + " sent.", requestId);
   }
 
   /** Stop all topic delay measurements (`topic delay stop`). */
   public static CommandResult delayStopAll(CommandContext ctx) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.topicDelay("", "", 0);
+    long requestId = bridge.topics().delay("", "", 0);
     return CommandResult.success(
         "Topic delay stop-all request #" + requestId + " sent.", requestId);
   }
@@ -574,7 +590,7 @@ public final class TopicCommands {
   /** Stop all echo subscriptions (`topic echo stop`). */
   public static CommandResult echoStopAll(CommandContext ctx) {
     RoscraftBridge bridge = ctx.requireBridge();
-    long requestId = bridge.unsubscribeTopic("");
+    long requestId = bridge.topics().unsubscribe("");
     return CommandResult.success("Topic echo stop-all request #" + requestId + " sent.", requestId);
   }
 

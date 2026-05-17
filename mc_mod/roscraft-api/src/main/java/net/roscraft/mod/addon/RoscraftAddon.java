@@ -11,24 +11,19 @@ import net.roscraft.bridge.event.BridgeEvent;
  *
  * <p>Addons are discovered via Fabric entrypoint {@code roscraft:addon}.
  * Each addon receives an {@link AddonContext} providing access to the
- * bridge API, event bus, and request tracking.
+ * bridge API, event buses, and automatic request tracking.
  *
  * <h3>Request/response flow</h3>
- * <ol>
- * <li>Call any method on {@code ctx.bridge()} (e.g. {@code queryGraph()},
- *     {@code subscribeTopic()}, {@code nodeInfo()}, {@code serviceCall()},
- *     {@code paramGet()}, …).</li>
- * <li>Call {@code ctx.trackRequest(requestId)} to associate the returned
- *     request ID with this addon.</li>
- * <li>When the response arrives, {@link #onBridgeEvent(BridgeEvent)} is
- *     invoked with the deserialized event.</li>
- * </ol>
+ * All bridge operations invoked through {@code ctx.bridgeIfConnected()}
+ * are automatically tracked — responses route to {@link #onBridgeEvent(BridgeEvent)}
+ * without any manual tracking step.
  *
- * <h3>Using the EventBus</h3>
- * As an alternative to overriding {@link #onBridgeEvent}, addons can
- * subscribe to specific event types via {@code ctx.eventBus()}:
+ * <h3>Using the EventBuses</h3>
+ * Addons can subscribe to specific event types via the context buses:
  * <pre>{@code
- * ctx.eventBus().subscribe(BridgeEvent.TopicPayload.class, this::handlePayload);
+ * ctx.bridgeBus().onAny(BridgeEvent.TopicPayload.class, this::handlePayload);
+ * ctx.localBus().on(MyMessage.class, this::handleLocal);
+ * ctx.signalBus().on("ping", this::handlePing);
  * }</pre>
  *
  * <h3>Command registration</h3>
@@ -76,7 +71,7 @@ public interface RoscraftAddon {
    *
    * <p>Addons that prefer type-specific subscriptions should leave this
    * method with the default no-op implementation and use
-   * {@code ctx.eventBus().subscribe(Class, Consumer)} in {@link #init}.
+   * {@code ctx.bridgeBus().onAny(Class, Consumer)} in {@link #init}.
    */
   default void onBridgeEvent(BridgeEvent event) {}
 }
