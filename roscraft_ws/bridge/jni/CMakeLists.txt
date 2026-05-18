@@ -11,13 +11,13 @@ project(roscraft_bridge_jni
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   if(MSVC OR CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
     find_program(LLVM_LIB_EXECUTABLE
-            NAMES llvm-lib llvm-lib.exe
-            HINTS
-                "$ENV{VCINSTALLDIR}/Tools/Llvm/x64/bin"
-                "$ENV{VCINSTALLDIR}/Tools/Llvm/bin"
-                "C:/Program Files/LLVM/bin"
-                "C:/Program Files (x86)/LLVM/bin"
-        )
+        NAMES llvm-lib llvm-lib.exe
+        HINTS
+            "$ENV{VCINSTALLDIR}/Tools/Llvm/x64/bin"
+            "$ENV{VCINSTALLDIR}/Tools/Llvm/bin"
+            "C:/Program Files/LLVM/bin"
+            "C:/Program Files (x86)/LLVM/bin"
+    )
     find_program(MSVC_LIB_EXECUTABLE NAMES lib lib.exe)
 
     if(LLVM_LIB_EXECUTABLE)
@@ -189,9 +189,19 @@ target_compile_definitions(roscraft_bridge_jni PRIVATE
     ROSCRAFT_BRIDGE_JNI_BUILD_SHARED
 )
 
+# Derive the ROS library directory from rclcpp's CMake config path
+# so the JNI .so can find ROS shared libraries at runtime without
+# requiring LD_LIBRARY_PATH to be set. rclcpp_DIR is set by
+# find_package(rclcpp REQUIRED) above; it points to
+#   <prefix>/share/rclcpp/cmake/
+# ROS libraries are at <prefix>/lib/.
+get_filename_component(_rclcpp_subshare_dir "${rclcpp_DIR}/../.." REALPATH)
+get_filename_component(_ros_lib_dir "${_rclcpp_subshare_dir}/../lib" REALPATH)
+message(STATUS "Adding ROS library path to JNI RPATH: ${_ros_lib_dir}")
+
 set_target_properties(roscraft_bridge_jni PROPERTIES
-    INSTALL_RPATH "$ORIGIN"
-    BUILD_RPATH "$ORIGIN"
+    INSTALL_RPATH "$ORIGIN:${_ros_lib_dir}"
+    BUILD_RPATH "$ORIGIN:${_ros_lib_dir}"
 )
 
 if(TARGET JNI::JNI)

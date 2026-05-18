@@ -356,6 +356,8 @@ if (discoveredNativeDir != null) {
         from(discoveredNativeDir.prefix) {
             include "**/lib/*.so"
             exclude "**/python*/**"
+            exclude "**/*_generator_py.so"
+            exclude "**/*_py.so"
         }
         into(generatedNativeDir)
         eachFile { it.path = it.name }
@@ -365,6 +367,7 @@ if (discoveredNativeDir != null) {
         }
         doLast {
             def listFile = new File(generatedNativeDir.get().asFile, "natives.list")
+            listFile.delete()
             generatedNativeDir.get().asFile.eachFile { f ->
                 if (f.name.endsWith(".so") || f.name.endsWith(".dll") || f.name.endsWith(".dylib")) {
                     listFile.append(f.name + "\n")

@@ -7,6 +7,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Loads the native library for the bridge JNI layer.
@@ -15,6 +17,7 @@ final class NativeLoader {
 
   private NativeLoader() {}
 
+  private static final Logger LOGGER = LoggerFactory.getLogger(NativeLoader.class);
   private static final String LIB_NAME = "roscraft_bridge_jni";
   private static volatile boolean loaded = false;
 
@@ -84,6 +87,7 @@ final class NativeLoader {
         try {
           System.load(tempDir.resolve(libName).toAbsolutePath().toString());
         } catch (UnsatisfiedLinkError e) {
+          LOGGER.warn("Failed to load native library '{}': {}", libName, e.getMessage());
           stillRemaining.add(libName);
         }
       }
