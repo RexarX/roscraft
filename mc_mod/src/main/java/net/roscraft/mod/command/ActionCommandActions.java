@@ -3,8 +3,8 @@ package net.roscraft.mod.command;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import net.minecraft.server.command.ServerCommandSource;
-import net.roscraft.mod.RoscraftMod.PendingRequestKind;
 import net.roscraft.mod.command.action.ActionCommands;
+import net.roscraft.mod.command.request.CommandRequestKind;
 
 final class ActionCommandActions {
 
@@ -32,7 +32,7 @@ final class ActionCommandActions {
         ActionCommands.ActionListOptions.builder().showTypes(showTypes).build();
     return RoscraftCommandActions.executeLogicCommand(
         source,
-        PendingRequestKind.ACTION_LIST,
+        CommandRequestKind.ACTION_LIST,
         options.encodeTrackingMetadata(),
         ctx -> ActionCommands.list(ctx, options));
   }
@@ -40,7 +40,7 @@ final class ActionCommandActions {
   static int executeActionType(ServerCommandSource source, String actionName) {
     return RoscraftCommandActions.executeLogicCommand(
         source,
-        PendingRequestKind.ACTION_TYPE,
+        CommandRequestKind.ACTION_TYPE,
         actionName,
         ctx -> ActionCommands.type(ctx, actionName));
   }
@@ -66,7 +66,7 @@ final class ActionCommandActions {
     String trackingMetadata = "action_name=" + actionName + ";" + options.encodeTrackingMetadata();
     return RoscraftCommandActions.executeLogicCommand(
         source,
-        PendingRequestKind.ACTION_INFO,
+        CommandRequestKind.ACTION_INFO,
         trackingMetadata,
         ctx -> ActionCommands.info(ctx, actionName, options));
   }
@@ -141,7 +141,7 @@ final class ActionCommandActions {
     byte[] payload = goalText.getBytes(StandardCharsets.UTF_8);
     return RoscraftCommandActions.executeLogicCommand(
         source,
-        PendingRequestKind.ACTION_SEND_GOAL,
+        CommandRequestKind.ACTION_SEND_GOAL,
         trackingMetadata,
         ctx -> ActionCommands.sendGoal(ctx, actionName, actionType, payload, options));
   }

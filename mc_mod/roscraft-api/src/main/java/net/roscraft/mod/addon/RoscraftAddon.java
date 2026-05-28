@@ -1,9 +1,5 @@
 package net.roscraft.mod.addon;
 
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import java.util.Collections;
-import java.util.List;
-import net.minecraft.server.command.ServerCommandSource;
 import net.roscraft.bridge.event.BridgeEvent;
 
 /**
@@ -13,22 +9,22 @@ import net.roscraft.bridge.event.BridgeEvent;
  * Each addon receives an {@link AddonContext} providing access to the
  * bridge API, event buses, and automatic request tracking.
  *
+ * <p>For less boilerplate, extend {@link AbstractRoscraftAddon} or use
+ * {@link RoscraftAddons#builder(String)}. To register Minecraft commands under
+ * {@code /ros}, implement {@code net.roscraft.mod.addon.minecraft.RoscraftAddonCommands}
+ * in your addon mod (requires a dependency on the roscraft mod artifact).
+ *
  * <h3>Request/response flow</h3>
  * All bridge operations invoked through {@code ctx.bridgeIfConnected()}
  * are automatically tracked — responses route to {@link #onBridgeEvent(BridgeEvent)}
  * without any manual tracking step.
  *
- * <h3>Using the EventBuses</h3>
- * Addons can subscribe to specific event types via the context buses:
+ * <h3>Using the event buses</h3>
  * <pre>{@code
  * ctx.bridgeBus().onAny(BridgeEvent.TopicPayload.class, this::handlePayload);
  * ctx.localBus().on(MyMessage.class, this::handleLocal);
  * ctx.signalBus().on("ping", this::handlePing);
  * }</pre>
- *
- * <h3>Command registration</h3>
- * Override {@link #commands()} to return Brigadier literal nodes.
- * They are attached under {@code /ros} alongside built-in commands.
  *
  * <h3>Lifecycle</h3>
  * <ol>
@@ -42,19 +38,9 @@ public interface RoscraftAddon {
   /** @return Non-null, non-blank unique identifier for this addon. */
   String addonId();
 
-  // ── Lifecycle ──────────────────────────────────────────────────────
-
   default void init(AddonContext ctx) {}
 
   default void shutdown() {}
-
-  // ── Commands ───────────────────────────────────────────────────────
-
-  default List<LiteralArgumentBuilder<ServerCommandSource>> commands() {
-    return Collections.emptyList();
-  }
-
-  // ── Events ─────────────────────────────────────────────────────────
 
   /**
    * Called when a bridge response event arrives for a tracked request.
@@ -69,9 +55,10 @@ public interface RoscraftAddon {
    * }
    * }</pre>
    *
-   * <p>Addons that prefer type-specific subscriptions should leave this
-   * method with the default no-op implementation and use
-   * {@code ctx.bridgeBus().onAny(Class, Consumer)} in {@link #init}.
+   * <p>Addons that prefer type-specific handlers should extend
+   * {@link AbstractRoscraftAddon} and use {@code on(Class, Consumer)} in
+   * {@link AbstractRoscraftAddon#configure()}, or subscribe via
+   * {@code ctx.bridgeBus().onAny(Class, Consumer)} for global events.
    */
   default void onBridgeEvent(BridgeEvent event) {}
 }

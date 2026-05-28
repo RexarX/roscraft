@@ -49,8 +49,7 @@ dependencies {
     // Mod Menu API (optional runtime dependency)
     modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 
-    // API module sources — included inline to avoid circular Loom dependency
-    sourceSets.main.java.srcDir('roscraft-api/src/main/java')
+    api project(':roscraft-api')
 
     // FlatBuffers Java runtime (internal — not leaked to API)
     implementation "com.google.flatbuffers:flatbuffers-java:${project.flatbuffers_version}"
@@ -423,7 +422,7 @@ spotless {
 }
 
 // Catch formatting violations in CI.
-build.dependsOn("spotlessCheck")
+build.dependsOn("spotlessCheck", ":roscraft-api:spotlessCheck")
 
 // =============================================================================
 // Resources
@@ -470,6 +469,7 @@ java {
 // =============================================================================
 
 jar {
+    dependsOn ':roscraft-api:jar'
     from("LICENSE") {
         rename { "${it}_${project.base.archivesName.get()}" }
     }
@@ -478,6 +478,7 @@ jar {
         configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
     } {
         include 'com/google/flatbuffers/**'
+        include 'net/roscraft/**'
         exclude 'META-INF/**'
     }
 }

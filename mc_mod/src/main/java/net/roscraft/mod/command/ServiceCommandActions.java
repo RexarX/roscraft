@@ -3,7 +3,7 @@ package net.roscraft.mod.command;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import net.minecraft.server.command.ServerCommandSource;
-import net.roscraft.mod.RoscraftMod.PendingRequestKind;
+import net.roscraft.mod.command.request.CommandRequestKind;
 import net.roscraft.mod.command.service.ServiceCommands;
 
 final class ServiceCommandActions {
@@ -40,7 +40,7 @@ final class ServiceCommandActions {
         .build();
     return RoscraftCommandActions.executeLogicCommand(
         source,
-        PendingRequestKind.SERVICE_LIST,
+        CommandRequestKind.SERVICE_LIST,
         options.encodeTrackingMetadata(),
         ctx -> ServiceCommands.list(ctx, options));
   }
@@ -48,7 +48,7 @@ final class ServiceCommandActions {
   static int executeServiceType(ServerCommandSource source, String serviceName) {
     return RoscraftCommandActions.executeLogicCommand(
         source,
-        PendingRequestKind.SERVICE_TYPE,
+        CommandRequestKind.SERVICE_TYPE,
         serviceName,
         ctx -> ServiceCommands.type(ctx, serviceName));
   }
@@ -56,7 +56,7 @@ final class ServiceCommandActions {
   static int executeServiceFind(ServerCommandSource source, String serviceType) {
     return RoscraftCommandActions.executeLogicCommand(
         source,
-        PendingRequestKind.SERVICE_FIND,
+        CommandRequestKind.SERVICE_FIND,
         serviceType,
         ctx -> ServiceCommands.find(ctx, serviceType));
   }
@@ -83,7 +83,7 @@ final class ServiceCommandActions {
         ServiceCommands.ServiceInfoOptions.builder().verbose(verbose).build();
     return RoscraftCommandActions.executeLogicCommand(
         source,
-        PendingRequestKind.SERVICE_INFO,
+        CommandRequestKind.SERVICE_INFO,
         options.encodeTrackingMetadata(),
         ctx -> ServiceCommands.info(ctx, serviceName, options));
   }
@@ -223,7 +223,7 @@ final class ServiceCommandActions {
     byte[] payload = requestText.getBytes(StandardCharsets.UTF_8);
     return RoscraftCommandActions.executeLogicCommand(
         source,
-        PendingRequestKind.SERVICE_CALL,
+        CommandRequestKind.SERVICE_CALL,
         trackingMetadata,
         ctx -> ServiceCommands.call(ctx, serviceName, serviceType, payload, options));
   }

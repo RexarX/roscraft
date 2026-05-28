@@ -1,7 +1,10 @@
 package net.roscraft.mod.addon;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import net.roscraft.bridge.BridgeOperations;
 import net.roscraft.bridge.event.AddonSignalBus;
@@ -74,6 +77,21 @@ public final class AddonContext {
     return Optional.ofNullable(bridgeSupplier.get());
   }
 
+  /** Run {@code action} when the bridge is connected; no-op when disconnected. */
+  public void ifBridgeConnected(Consumer<BridgeOperations> action) {
+    Objects.requireNonNull(action, "action must not be null");
+    BridgeOperations bridge = bridgeSupplier.get();
+    if (bridge != null) {
+      action.accept(bridge);
+    }
+  }
+
+  /** Map the connected bridge to a value, or {@code Optional.empty()} when disconnected. */
+  public <T> Optional<T> mapBridge(Function<BridgeOperations, T> mapper) {
+    Objects.requireNonNull(mapper, "mapper must not be null");
+    return bridgeIfConnected().map(mapper);
+  }
+
   /** Subscribe to globally-broadcast bridge events (all addons' responses, not just your own). */
   public BridgeEventBus bridgeBus() {
     return bridgeBus;
@@ -84,7 +102,7 @@ public final class AddonContext {
     return localBus;
   }
 
-  /** Emit/receive string-keyed inter-addon signals (loosely coupled). */
+  /** Emit/receive string-keyed inter-addon signals (loosely coupled, same JVM). */
   public AddonSignalBus signalBus() {
     return signalBus;
   }
@@ -108,7 +126,9 @@ public final class AddonContext {
   public Optional<Subscription> subscribeTopic(
       String topic, String type, BridgeOperations.TopicOps.SubscribeOptions opts) {
     BridgeOperations bridge = bridgeSupplier.get();
-    if (bridge == null) return Optional.empty();
+    if (bridge == null) {
+      return Optional.empty();
+    }
     long id = bridge.topics().subscribe(topic, type, opts);
     requestTracker.trackPersistent(addonId, id);
     return Optional.of(() -> {
@@ -123,10 +143,14 @@ public final class AddonContext {
    * @return a handle that untracks when closed
    */
   public Optional<Subscription> sendGoal(
-      String name, String type, byte[] goalPayload,
+      String name,
+      String type,
+      byte[] goalPayload,
       BridgeOperations.ActionOps.ActionGoalOptions opts) {
     BridgeOperations bridge = bridgeSupplier.get();
-    if (bridge == null) return Optional.empty();
+    if (bridge == null) {
+      return Optional.empty();
+    }
     long id = bridge.actions().sendGoal(name, type, goalPayload, opts);
     requestTracker.trackPersistent(addonId, id);
     return Optional.of(() -> requestTracker.untrack(addonId, id));
@@ -146,19 +170,22 @@ public final class AddonContext {
     return sendEventFn.send(addonId, eventType, "", payload, response);
   }
 
+  /** Send a UTF-8 text payload to ROS. */
+  public long sendEvent(String eventType, String textPayload, boolean response) {
+    byte[] bytes = textPayload != null ? textPayload.getBytes(StandardCharsets.UTF_8) : new byte[0];
+    return sendEvent(eventType, bytes, response);
+  }
+
+  /** @return {@code true} if the event was sent (bridge connected) */
+  public boolean trySendEvent(String eventType, byte[] payload, boolean response) {
+    return sendEvent(eventType, payload, response) != DISCONNECTED;
+  }
+
   // ── Types ─────────────────────────────────────────────────────────────
 
   /** Functional interface for sending addon events to ROS. Implemented by the bridge layer. */
   @FunctionalInterface
   public interface SendEventFunction {
     long send(String addonId, String eventType, String encoding, byte[] payload, boolean response);
-  }
-
-  public interface RequestTracker {
-    void track(String addonId, long requestId);
-
-    void trackPersistent(String addonId, long requestId);
-
-    void untrack(String addonId, long requestId);
   }
 }

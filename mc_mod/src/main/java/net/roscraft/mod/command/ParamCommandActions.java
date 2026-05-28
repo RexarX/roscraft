@@ -2,8 +2,8 @@ package net.roscraft.mod.command;
 
 import java.util.List;
 import net.minecraft.server.command.ServerCommandSource;
-import net.roscraft.mod.RoscraftMod.PendingRequestKind;
 import net.roscraft.mod.command.param.ParamCommands;
+import net.roscraft.mod.command.request.CommandRequestKind;
 
 final class ParamCommandActions {
 
@@ -88,7 +88,7 @@ final class ParamCommandActions {
         .build();
     return RoscraftCommandActions.executeLogicCommand(
         source,
-        PendingRequestKind.PARAM_LIST,
+        CommandRequestKind.PARAM_LIST,
         options.encodeTrackingMetadata(),
         ctx -> ParamCommands.list(ctx, options));
   }
@@ -117,7 +117,7 @@ final class ParamCommandActions {
         .build();
     return RoscraftCommandActions.executeLogicCommand(
         source,
-        PendingRequestKind.PARAM_GET,
+        CommandRequestKind.PARAM_GET,
         options.encodeTrackingMetadata(),
         ctx -> ParamCommands.get(ctx, options));
   }
@@ -183,7 +183,7 @@ final class ParamCommandActions {
         .build();
     return RoscraftCommandActions.executeLogicCommand(
         source,
-        PendingRequestKind.PARAM_SET,
+        CommandRequestKind.PARAM_SET,
         options.encodeTrackingMetadata(),
         ctx -> ParamCommands.set(ctx, options));
   }
@@ -195,7 +195,7 @@ final class ParamCommandActions {
         .build();
     return RoscraftCommandActions.executeLogicCommand(
         source,
-        PendingRequestKind.PARAM_DESCRIBE,
+        CommandRequestKind.PARAM_DESCRIBE,
         options.encodeTrackingMetadata(),
         ctx -> ParamCommands.describe(ctx, options));
   }
@@ -226,7 +226,7 @@ final class ParamCommandActions {
         .build();
     return RoscraftCommandActions.executeLogicCommand(
         source,
-        PendingRequestKind.PARAM_DUMP,
+        CommandRequestKind.PARAM_DUMP,
         options.encodeTrackingMetadata(),
         ctx -> ParamCommands.dump(ctx, options));
   }
@@ -295,7 +295,7 @@ final class ParamCommandActions {
         .build();
     return RoscraftCommandActions.executeLogicCommand(
         source,
-        PendingRequestKind.PARAM_LOAD,
+        CommandRequestKind.PARAM_LOAD,
         options.encodeTrackingMetadata(),
         ctx -> ParamCommands.load(ctx, options));
   }

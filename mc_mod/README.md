@@ -46,10 +46,14 @@ mc_mod/
 │       ├── bridge/             BridgeOperations (namespaced sub-interfaces)
 │       │                         TopicOps, ParamOps, ServiceOps,
 │       │                         ActionOps, GraphOps
-│       └── mod/addon/          RoscraftAddon, AddonContext
+│       └── mod/addon/          RoscraftAddon, AbstractRoscraftAddon, AddonContext
 ├── src/main/java/net/roscraft/
-│   ├── bridge/                 Transport (JNI/UDP), FlatBuffers serialization
+│   ├── bridge/                 Transport, BridgeRequestHub, command event router
 │   └── mod/                    Commands, addon manager, mod entrypoint
+│       ├── command/request/    /ros command pending-request tracking
+│       └── bridge/callback/    CommandBridgeEventRouter + domain handlers
+│                               (Graph/Topic/Service/Param/Action/Misc)
+│                               and BridgeEventChatSupport
 ├── examples/template/          Addon template — copy to start your own addon
 └── build.gradle                Main build config
 ```
@@ -58,7 +62,9 @@ mc_mod/
 
 - **BridgeOperations** are grouped into domain sub-interfaces (`topics()`, `params()`, `services()`, `actions()`, `graph()`) with options records replacing boolean-heavy overloads.
 - **Auto-tracking** — every bridge operation invoked through `ctx.bridgeIfConnected()` is automatically tracked; manual `track()` calls are deprecated.
-- **Three event buses** replace the monolithic `EventBus`: `BridgeEventBus` (global bridge events), `LocalBus` (typed local messages), `AddonSignalBus` (string-keyed inter-addon signals).
+- **Three event buses**: `BridgeEventBus`, `LocalBus`, `AddonSignalBus` (incoming `AddonEvent` packets fan out to the signal bus automatically).
+- **BridgeRequestHub** coordinates command vs addon request-ID ownership with conflict detection on double-registration.
+- **Gradle `:roscraft-api`** subproject — published separately; main mod depends on it via `api project(':roscraft-api')`.
 - **Subscription handles** (`AutoCloseable`) replace raw `long` request IDs for persistent operations; closing a handle unsubscribes and untracks.
 - **`AddonContext.DISCONNECTED`** sentinel (`0L`) documents the disconnected-bridge return value.
 

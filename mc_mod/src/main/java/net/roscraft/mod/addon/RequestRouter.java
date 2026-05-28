@@ -1,6 +1,8 @@
 package net.roscraft.mod.addon;
 
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import net.roscraft.mod.RoscraftMod;
 
 /**
  * Thread-safe router mapping request IDs to addon IDs.
@@ -14,13 +16,22 @@ import java.util.concurrent.ConcurrentHashMap;
  *     multiple events.</li>
  * </ul>
  */
-final class RequestRouter implements AddonContext.RequestTracker {
+public final class RequestRouter implements RequestTracker {
 
   private final ConcurrentHashMap<Long, String> oneShotOwners = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<Long, String> persistentOwners = new ConcurrentHashMap<>();
+  private final java.util.function.LongPredicate commandOwnerCheck;
+
+  public RequestRouter(java.util.function.LongPredicate commandOwnerCheck) {
+    this.commandOwnerCheck =
+        Objects.requireNonNull(commandOwnerCheck, "commandOwnerCheck must not be null");
+  }
 
   @Override
   public void track(String addonId, long requestId) {
+    if (rejectIfCommandOwned(requestId, addonId)) {
+      return;
+    }
     oneShotOwners.put(requestId, addonId);
   }
 
@@ -32,7 +43,21 @@ final class RequestRouter implements AddonContext.RequestTracker {
 
   @Override
   public void trackPersistent(String addonId, long requestId) {
+    if (rejectIfCommandOwned(requestId, addonId)) {
+      return;
+    }
     persistentOwners.put(requestId, addonId);
+  }
+
+  private boolean rejectIfCommandOwned(long requestId, String addonId) {
+    if (commandOwnerCheck.test(requestId)) {
+      RoscraftMod.LOGGER.warn(
+          "Request #{} is already tracked by a /ros command; refusing addon track for {}",
+          requestId,
+          addonId);
+      return true;
+    }
+    return false;
   }
 
   /** @return the addon ID, or null if no owner */
@@ -44,6 +69,10 @@ final class RequestRouter implements AddonContext.RequestTracker {
   void clear() {
     oneShotOwners.clear();
     persistentOwners.clear();
+  }
+
+  public boolean isTracked(long requestId) {
+    return oneShotOwners.containsKey(requestId) || persistentOwners.containsKey(requestId);
   }
 
   int size() {

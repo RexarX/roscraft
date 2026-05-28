@@ -2,6 +2,7 @@ package net.roscraft.mod.addon;
 
 import java.util.Map;
 import java.util.Objects;
+import net.roscraft.bridge.event.AddonSignalBus;
 import net.roscraft.bridge.event.BridgeEvent;
 import net.roscraft.mod.RoscraftMod;
 
@@ -16,11 +17,14 @@ final class EventDispatcher {
 
   private final RequestRouter requestRouter;
   private final BridgeEventBusImpl bridgeBus;
+  private final AddonSignalBus signalBus;
   private final Map<String, RoscraftAddon> addons;
 
-  EventDispatcher(Map<String, RoscraftAddon> addons) {
-    this.requestRouter = new RequestRouter();
+  EventDispatcher(
+      Map<String, RoscraftAddon> addons, RequestRouter requestRouter, AddonSignalBus signalBus) {
+    this.requestRouter = Objects.requireNonNull(requestRouter, "requestRouter must not be null");
     this.bridgeBus = new BridgeEventBusImpl();
+    this.signalBus = Objects.requireNonNull(signalBus, "signalBus must not be null");
     this.addons = Objects.requireNonNull(addons, "addons must not be null");
   }
 
@@ -40,21 +44,21 @@ final class EventDispatcher {
   /** Called by the bridge callback for every incoming bridge event. */
   void onEvent(BridgeEvent event) {
     bridgeBus.dispatch(event);
+    if (event instanceof BridgeEvent.AddonEvent ae) {
+      signalBus.emit(ae);
+    }
     dispatchToAddonOwner(event);
   }
 
-  @SuppressWarnings("unchecked")
   private void dispatchToAddonOwner(BridgeEvent event) {
-    // Always consume to prevent leaks, even for AddonEvent
     String routedAddonId = requestRouter.consume(event.requestId());
 
     RoscraftAddon addon;
     if (event instanceof BridgeEvent.AddonEvent ae) {
-      // Prefer router (response to our own send), fall back for unsolicited events
       String target = routedAddonId != null ? routedAddonId : ae.addonId();
       addon = addons.get(target);
     } else {
-      addon = addons.get(routedAddonId);
+      addon = routedAddonId != null ? addons.get(routedAddonId) : null;
     }
 
     if (addon != null) {

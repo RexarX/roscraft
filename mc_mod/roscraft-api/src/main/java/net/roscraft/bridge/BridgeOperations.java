@@ -97,8 +97,11 @@ public interface BridgeOperations {
     }
 
     record ParamListOptions(
-        String[] prefixes, int depth, boolean includeTypes,
-        String filterRegex, double timeoutSeconds) {
+        String[] prefixes,
+        int depth,
+        boolean includeTypes,
+        String filterRegex,
+        double timeoutSeconds) {
       public static ParamListOptions defaults() {
         return new ParamListOptions(new String[0], 0, false, "", 0.0);
       }

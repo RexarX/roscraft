@@ -11,13 +11,13 @@ import net.roscraft.bridge.event.BridgeEvent;
  * thread pool or Minecraft's server thread.
  */
 public interface BridgeCallback {
-    /**
-     * Called when any bridge event arrives.
-     *
-     * <p>Implementations should pattern-match on the sealed
-     * {@link BridgeEvent} hierarchy to handle specific event types.
-     *
-     * @param event the deserialized bridge event; never {@code null}
-     */
-    default void onEvent(BridgeEvent event) {}
+  /**
+   * Called when any bridge event arrives.
+   *
+   * <p>Implementations should pattern-match on the sealed
+   * {@link BridgeEvent} hierarchy to handle specific event types.
+   *
+   * @param event the deserialized bridge event; never {@code null}
+   */
+  default void onEvent(BridgeEvent event) {}
 }

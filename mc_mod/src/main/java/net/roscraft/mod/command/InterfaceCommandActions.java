@@ -2,8 +2,8 @@ package net.roscraft.mod.command;
 
 import java.util.List;
 import net.minecraft.server.command.ServerCommandSource;
-import net.roscraft.mod.RoscraftMod.PendingRequestKind;
 import net.roscraft.mod.command.interfaces.InterfaceCommands;
+import net.roscraft.mod.command.request.CommandRequestKind;
 
 final class InterfaceCommandActions {
 
@@ -30,7 +30,7 @@ final class InterfaceCommandActions {
         InterfaceCommands.InterfaceShowOptions.builder().noComments(noComments).build();
     return RoscraftCommandActions.executeLogicCommand(
         source,
-        PendingRequestKind.INTERFACE_SHOW,
+        CommandRequestKind.INTERFACE_SHOW,
         options.encodeTrackingMetadata(),
         ctx -> InterfaceCommands.show(ctx, interfaceType, options));
   }
@@ -77,7 +77,7 @@ final class InterfaceCommandActions {
             .build();
     return RoscraftCommandActions.executeLogicCommand(
         source,
-        PendingRequestKind.INTERFACE_LIST,
+        CommandRequestKind.INTERFACE_LIST,
         options.encodeTrackingMetadata(),
         ctx -> InterfaceCommands.list(ctx, options));
   }

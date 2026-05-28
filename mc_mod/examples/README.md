@@ -56,17 +56,27 @@ Errors from tracked requests are delivered as `BridgeEvent.BridgeError` to `onBr
 
 1. Copy `examples/template/` to your project directory
 2. Rename the package from `your.mod` to your own
-3. Implement `RoscraftAddon` with a unique `addonId()`
-4. Add to `fabric.mod.json`:
+3. Extend `AbstractRoscraftAddon` (or implement `RoscraftAddon`) with a unique `addonId()`
+4. For `/ros` commands, also implement `net.roscraft.mod.addon.minecraft.RoscraftAddonCommands`
+5. Add to `fabric.mod.json`:
 
 ```json
 {
-    "entrypoints": {
-        "roscraft:addon": ["your.mod.YourAddon"]
-    },
-    "depends": { "roscraft": ">=0.1.0" }
+  "entrypoints": {
+    "roscraft:addon": ["your.mod.YourAddon"]
+  },
+  "depends": { "roscraft": ">=0.1.0" }
 }
 ```
+
+## API helpers
+
+| Type                         | Purpose                                                                       |
+| ---------------------------- | ----------------------------------------------------------------------------- |
+| `AbstractRoscraftAddon`      | Base class with `configure()`, typed `on(Class, Consumer)`, `SubscriptionBag` |
+| `RoscraftAddons.builder(id)` | Functional addon without a subclass                                           |
+| `SubscriptionBag`            | Close many subscriptions on shutdown                                          |
+| `RoscraftAddonCommands`      | Optional `/ros` command registration (Minecraft types)                        |
 
 ## Reference
 

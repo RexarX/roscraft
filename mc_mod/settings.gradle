@@ -14,3 +14,6 @@ pluginManagement {
 }
 
 rootProject.name = 'roscraft'
+
+include 'roscraft-api'
+project(':roscraft-api').projectDir = file('roscraft-api')

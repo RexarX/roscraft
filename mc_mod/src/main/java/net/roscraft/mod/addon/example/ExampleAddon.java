@@ -12,12 +12,18 @@ import net.roscraft.bridge.BridgeOperations;
 import net.roscraft.bridge.event.BridgeEvent;
 import net.roscraft.bridge.event.Subscription;
 import net.roscraft.mod.RoscraftMod;
-import net.roscraft.mod.addon.AddonContext;
-import net.roscraft.mod.addon.RoscraftAddon;
+import net.roscraft.mod.addon.AbstractRoscraftAddon;
+import net.roscraft.mod.addon.minecraft.RoscraftAddonCommands;
 
-public final class ExampleAddon implements RoscraftAddon {
+/**
+ * Reference addon demonstrating bridge operations, commands, and event handling.
+ *
+ * <p>Not registered in {@code fabric.mod.json} by default. To enable during development,
+ * add {@code "net.roscraft.mod.addon.example.ExampleAddon"} to the {@code roscraft:addon}
+ * entrypoint array.
+ */
+public final class ExampleAddon extends AbstractRoscraftAddon implements RoscraftAddonCommands {
 
-  private AddonContext ctx;
   private Subscription topicSub;
 
   @Override
@@ -26,9 +32,51 @@ public final class ExampleAddon implements RoscraftAddon {
   }
 
   @Override
-  public void init(AddonContext ctx) {
-    this.ctx = ctx;
+  protected void configure() {
     RoscraftMod.LOGGER.info("ExampleAddon initialised.");
+
+    on(
+        BridgeEvent.TopicPayload.class,
+        p -> RoscraftMod.LOGGER.info(
+            "ExampleAddon topic: topic={} type={} bytes={}",
+            p.topicName(),
+            p.messageType(),
+            p.payloadLength()));
+
+    on(
+        BridgeEvent.GraphSnapshot.class,
+        s -> RoscraftMod.LOGGER.info(
+            "ExampleAddon graph: {} nodes, {} topics, {} services, {} actions",
+            s.nodes().size(),
+            s.topics().size(),
+            s.services().size(),
+            s.actions().size()));
+
+    on(
+        BridgeEvent.PlayerList.class,
+        pl -> RoscraftMod.LOGGER.info(
+            "ExampleAddon players: requestId={} count={}", pl.requestId(), pl.size()));
+
+    on(
+        BridgeEvent.ServiceCallResponse.class,
+        r -> RoscraftMod.LOGGER.info(
+            "ExampleAddon service call: service={} requestId={} success={}",
+            r.serviceName(),
+            r.requestId(),
+            r.success()));
+
+    on(
+        BridgeEvent.BridgeError.class,
+        e -> RoscraftMod.LOGGER.warn(
+            "ExampleAddon error: requestId={} code={} message={}",
+            e.requestId(),
+            e.errorCode(),
+            e.errorMessage()));
+
+    onSignal(
+        "say",
+        ae -> RoscraftMod.LOGGER.info(
+            "ExampleAddon received 'say': {}", new String(ae.payload(), StandardCharsets.UTF_8)));
   }
 
   @Override
@@ -57,48 +105,7 @@ public final class ExampleAddon implements RoscraftAddon {
   }
 
   @Override
-  public void onBridgeEvent(BridgeEvent event) {
-    if (event instanceof BridgeEvent.AddonEvent ae && "say".equals(ae.eventType())) {
-      RoscraftMod.LOGGER.info(
-          "ExampleAddon received 'say': {}", new String(ae.payload(), StandardCharsets.UTF_8));
-      return;
-    }
-
-    switch (event) {
-      case BridgeEvent.TopicPayload p -> RoscraftMod.LOGGER.info(
-          "ExampleAddon topic: topic={} type={} bytes={}",
-          p.topicName(),
-          p.messageType(),
-          p.payloadLength());
-
-      case BridgeEvent.GraphSnapshot s -> RoscraftMod.LOGGER.info(
-          "ExampleAddon graph: {} nodes, {} topics, {} services, {} actions",
-          s.nodes().size(),
-          s.topics().size(),
-          s.services().size(),
-          s.actions().size());
-
-      case BridgeEvent.PlayerList pl -> RoscraftMod.LOGGER.info(
-          "ExampleAddon players: requestId={} count={}", pl.requestId(), pl.size());
-
-      case BridgeEvent.ServiceCallResponse r -> RoscraftMod.LOGGER.info(
-          "ExampleAddon service call: service={} requestId={} success={}",
-          r.serviceName(),
-          r.requestId(),
-          r.success());
-
-      case BridgeEvent.BridgeError e -> RoscraftMod.LOGGER.warn(
-          "ExampleAddon error: requestId={} code={} message={}",
-          e.requestId(),
-          e.errorCode(),
-          e.errorMessage());
-
-      default -> {}
-    }
-  }
-
-  @Override
-  public void shutdown() {
+  protected void onShutdown() {
     if (topicSub != null) {
       topicSub.close();
     }
@@ -106,9 +113,10 @@ public final class ExampleAddon implements RoscraftAddon {
   }
 
   private int executePing(ServerCommandSource source) {
-    if (!ctx.isBridgeConnected()) return bridgeNotConnected(source);
-    long requestId =
-        ctx.sendEvent("ping", "hello from example addon".getBytes(StandardCharsets.UTF_8), false);
+    if (!ctx.isBridgeConnected()) {
+      return bridgeNotConnected(source);
+    }
+    long requestId = ctx.sendEvent("ping", "hello from example addon", false);
     source.sendMessage(Text.literal("[Roscraft] ")
         .formatted(Formatting.AQUA)
         .append(Text.literal("Ping sent, requestId=" + requestId).formatted(Formatting.GREEN)));
@@ -125,7 +133,9 @@ public final class ExampleAddon implements RoscraftAddon {
 
   private int executeSubscribe(ServerCommandSource source, String topic) {
     var sub = ctx.subscribeTopic(topic, "");
-    if (sub.isEmpty()) return bridgeNotConnected(source);
+    if (sub.isEmpty()) {
+      return bridgeNotConnected(source);
+    }
     topicSub = sub.get();
     source.sendMessage(Text.literal("[Roscraft] ")
         .formatted(Formatting.AQUA)
@@ -134,8 +144,7 @@ public final class ExampleAddon implements RoscraftAddon {
   }
 
   private int executePlayers(ServerCommandSource source) {
-    return ctx.bridgeIfConnected()
-        .map(bridge -> {
+    return ctx.mapBridge(bridge -> {
           long rid = bridge.queryPlayers();
           source.sendMessage(Text.literal("[Roscraft] ")
               .formatted(Formatting.AQUA)
@@ -147,8 +156,7 @@ public final class ExampleAddon implements RoscraftAddon {
   }
 
   private int executeGraph(ServerCommandSource source) {
-    return ctx.bridgeIfConnected()
-        .map(bridge -> {
+    return ctx.mapBridge(bridge -> {
           long rid = bridge.graph().snapshot();
           source.sendMessage(Text.literal("[Roscraft] ")
               .formatted(Formatting.AQUA)
@@ -161,8 +169,7 @@ public final class ExampleAddon implements RoscraftAddon {
 
   private int executeServiceCall(
       ServerCommandSource source, String service, String type, String request) {
-    return ctx.bridgeIfConnected()
-        .map(bridge -> {
+    return ctx.mapBridge(bridge -> {
           long rid = bridge
               .services()
               .call(

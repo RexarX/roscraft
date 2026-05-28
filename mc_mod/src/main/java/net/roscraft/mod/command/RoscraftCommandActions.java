@@ -9,9 +9,9 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.roscraft.bridge.RoscraftBridge;
 import net.roscraft.mod.RoscraftMod;
-import net.roscraft.mod.RoscraftMod.PendingRequestKind;
 import net.roscraft.mod.bridge.BridgeManager;
 import net.roscraft.mod.command.node.NodeCommands;
+import net.roscraft.mod.command.request.CommandRequestKind;
 
 final class RoscraftCommandActions {
 
@@ -267,9 +267,9 @@ final class RoscraftCommandActions {
     }
 
     long requestId = bridge.graph().snapshot();
-    RoscraftMod mod = getMod();
+    RoscraftMod mod = RoscraftMod.getInstance();
     if (mod != null) {
-      mod.trackRequest(requestId, PendingRequestKind.CONNECTION_CHECK, requesterUuid(source));
+      mod.trackRequest(requestId, CommandRequestKind.CONNECTION_CHECK, requesterUuid(source));
     }
 
     sendStyled(
@@ -307,7 +307,7 @@ final class RoscraftCommandActions {
         .build();
     return executeLogicCommand(
         source,
-        PendingRequestKind.NODE_LIST,
+        CommandRequestKind.NODE_LIST,
         options.encodeTrackingMetadata(),
         ctx -> NodeCommands.list(ctx, options));
   }
@@ -331,7 +331,7 @@ final class RoscraftCommandActions {
         NodeCommands.NodeInfoOptions.builder().includeHidden(includeHidden).build();
     return executeLogicCommand(
         source,
-        PendingRequestKind.NODE_INFO,
+        CommandRequestKind.NODE_INFO,
         options.encodeTrackingMetadata(),
         ctx -> NodeCommands.info(ctx, nodeName, options));
   }
@@ -359,9 +359,9 @@ final class RoscraftCommandActions {
     }
 
     long requestId = bridge.queryPlayers();
-    RoscraftMod mod = getMod();
+    RoscraftMod mod = RoscraftMod.getInstance();
     if (mod != null) {
-      mod.trackRequest(requestId, PendingRequestKind.PLAYERS, requesterUuid(source));
+      mod.trackRequest(requestId, CommandRequestKind.PLAYERS, requesterUuid(source));
     }
 
     sendStyled(
@@ -383,14 +383,14 @@ final class RoscraftCommandActions {
 
   static int executeLogicCommand(
       ServerCommandSource source,
-      PendingRequestKind pendingKind,
+      CommandRequestKind pendingKind,
       java.util.function.Function<CommandContext, CommandResult> commandLogic) {
     return executeLogicCommand(source, pendingKind, null, commandLogic);
   }
 
   static int executeLogicCommand(
       ServerCommandSource source,
-      PendingRequestKind pendingKind,
+      CommandRequestKind pendingKind,
       String trackingMetadata,
       java.util.function.Function<CommandContext, CommandResult> commandLogic) {
     BridgeManager manager = getBridgeManager();
@@ -414,7 +414,7 @@ final class RoscraftCommandActions {
     }
 
     if (pendingKind != null && result.requestId() != 0L) {
-      RoscraftMod mod = getMod();
+      RoscraftMod mod = RoscraftMod.getInstance();
       if (mod != null) {
         mod.trackRequest(result.requestId(), pendingKind, requesterUuid, trackingMetadata);
       }
@@ -528,20 +528,8 @@ final class RoscraftCommandActions {
     return null;
   }
 
-  static RoscraftMod getMod() {
-    var mods = net.fabricmc.loader.api.FabricLoader.getInstance()
-        .getEntrypoints("main", net.fabricmc.api.ModInitializer.class);
-    for (var mod : mods) {
-      if (mod instanceof RoscraftMod rm) {
-        return rm;
-      }
-    }
-    RoscraftMod.LOGGER.error("RoscraftMod entrypoint not found!");
-    return null;
-  }
-
   static BridgeManager getBridgeManager() {
-    RoscraftMod mod = getMod();
+    RoscraftMod mod = RoscraftMod.getInstance();
     if (mod == null) {
       return null;
     }

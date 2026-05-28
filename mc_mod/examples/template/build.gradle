@@ -35,6 +35,9 @@ dependencies {
     if (project.hasProperty('roscraft_jar_path')) {
         modCompileOnly files(project.roscraft_jar_path)
     }
+    if (project.hasProperty('roscraft_api_jar_path')) {
+        modCompileOnly files(project.roscraft_api_jar_path)
+    }
 }
 
 processResources {

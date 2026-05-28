@@ -79,9 +79,10 @@ All three buses are available from `AddonContext` after `init()`.
 
 ### Commands
 
-Return Brigadier literal nodes from `commands()` — they appear under `/ros`:
+Implement `RoscraftAddonCommands` and return Brigadier literal nodes from `commands()` — they appear under `/ros`:
 
 ```java
+public class MyAddon extends AbstractRoscraftAddon implements RoscraftAddonCommands {
 @Override
 public List<LiteralArgumentBuilder<ServerCommandSource>> commands() {
     return List.of(

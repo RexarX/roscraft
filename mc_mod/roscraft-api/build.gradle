@@ -4,6 +4,10 @@ plugins {
     id 'com.diffplug.spotless' version '7.0.+'
 }
 
+repositories {
+    mavenCentral()
+}
+
 java {
     withSourcesJar()
     sourceCompatibility = JavaVersion.VERSION_21
@@ -17,10 +21,8 @@ base {
     archivesName = 'roscraft-api'
 }
 
-// This module's sources are compiled as part of the main roscraft build via
-// source set inclusion (see ../build.gradle).  This build script exists to:
-//   1. Publish roscraft-api to Maven for external addon authors.
-//   2. Run Spotless formatting checks on the API sources.
+// Compiled into the main mod via `api project(':roscraft-api')` in ../build.gradle.
+// This subproject also publishes roscraft-api for external addon authors.
 //
 // To publish:  ./gradlew :roscraft-api:publishToMavenLocal
 

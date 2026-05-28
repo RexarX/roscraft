@@ -9,7 +9,7 @@ import java.util.Objects;
  *
  * <p>Each record below corresponds to one response packet type. Addons receive
  * these via {@code onBridgeEvent(BridgeEvent)} and can filter by type using
- * pattern matching or {@link EventBus} subscriptions.
+ * pattern matching or {@link BridgeEventBus} subscriptions.
  *
  * <p>Adding a new response packet type requires adding exactly one record to
  * this interface — nothing else.
@@ -390,9 +390,8 @@ public sealed interface BridgeEvent {
     public ActionResult {
       Objects.requireNonNull(actionName, "actionName must not be null");
       Objects.requireNonNull(actionType, "actionType must not be null");
-      resultPayload = resultPayload == null
-          ? new byte[0]
-          : Arrays.copyOf(resultPayload, resultPayload.length);
+      resultPayload =
+          resultPayload == null ? new byte[0] : Arrays.copyOf(resultPayload, resultPayload.length);
       resultText = resultText == null ? "" : resultText;
     }
 
