@@ -91,6 +91,7 @@ generated/
 .project
 .settings/
 .classpath
+.idea/
 
 # Agents
 .opencode/
