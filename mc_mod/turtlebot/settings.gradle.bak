@@ -1,0 +1,24 @@
+pluginManagement {
+    repositories {
+        maven { name = 'Fabric'; url = 'https://maven.fabricmc.net/' }
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+rootProject.name = 'roscraft-turtlebot'
+
+// Composite build: uncomment to compile against roscraft-api sources instead of
+// the prebuilt JAR.  Requires roscraft to be cloned alongside:
+//   projects/roscraft/mc_mod/  and  projects/my-addon/
+//
+// When roscraft-api is published to Maven, delete the includeBuild block and
+// replace the dependency in build.gradle with a standard Maven dependency.
+//
+// if (file('../../../mc_mod').exists()) {
+//     includeBuild('../../../mc_mod') {
+//         dependencySubstitution {
+//             substitute module('net.roscraft:roscraft-api') using project(':roscraft-api')
+//         }
+//     }
+// }
