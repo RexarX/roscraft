@@ -27,6 +27,8 @@ def _build_launch_entities(context, *_args, **_kwargs):
     )
     keyboard_namespace = LaunchConfiguration("keyboard_namespace").perform(context)
     keyboard_namespace = keyboard_namespace.strip().strip("/")
+    auto_spawn = _is_truthy(LaunchConfiguration("auto_spawn").perform(context))
+    spawn_on_start = auto_spawn
 
     actions: list[object] = []
     for turtle_name in turtle_names:
@@ -38,6 +40,7 @@ def _build_launch_entities(context, *_args, **_kwargs):
                         package="roscraft_turtlebot",
                         executable="roscraft_turtlebot_lifecycle",
                         output="screen",
+                        parameters=[{"spawn_on_start": spawn_on_start}],
                     ),
                     Node(
                         package="roscraft_turtlebot",
@@ -50,6 +53,7 @@ def _build_launch_entities(context, *_args, **_kwargs):
 
     if launch_keyboard:
         control_namespace = keyboard_namespace or turtle_names[0]
+        auto_despawn = LaunchConfiguration("auto_despawn").perform(context)
         actions.append(
             GroupAction(
                 [
@@ -59,6 +63,11 @@ def _build_launch_entities(context, *_args, **_kwargs):
                         executable="roscraft_turtlebot_keyboard",
                         output="screen",
                         emulate_tty=True,
+                        parameters=[
+                            # Spawn is handled by lifecycle spawn_on_start when launched.
+                            {"auto_spawn": False},
+                            {"auto_despawn": _is_truthy(auto_despawn)},
+                        ],
                     ),
                 ]
             )
@@ -86,6 +95,20 @@ def generate_launch_description() -> LaunchDescription:
                 description=(
                     "Namespace for the keyboard input node. Defaults to the first "
                     "turtle namespace."
+                ),
+            ),
+            DeclareLaunchArgument(
+                "auto_spawn",
+                default_value="true",
+                description=(
+                    "When launching the keyboard node, call lifecycle spawn on start."
+                ),
+            ),
+            DeclareLaunchArgument(
+                "auto_despawn",
+                default_value="true",
+                description=(
+                    "When the keyboard node exits, call lifecycle despawn if spawned."
                 ),
             ),
             OpaqueFunction(function=_build_launch_entities),

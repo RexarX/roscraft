@@ -32,7 +32,11 @@ final class TurtleWorldOps {
   }
 
   void applyTwist(TurtleSession session, RosCdrDecoder.Twist twist) {
-    if (!session.spawned || RosCdrDecoder.isStop(twist)) {
+    if (!session.spawned) {
+      return;
+    }
+    if (RosCdrDecoder.isStop(twist)) {
+      session.lastEventSummary = "cmd_vel stop";
       return;
     }
     runOnServer(() -> applyTwistOnServerThread(session, twist));

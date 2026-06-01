@@ -6,8 +6,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.command.CommandManager;
@@ -38,6 +41,8 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
   private static final byte[] TRIGGER_REQUEST = "{}".getBytes(StandardCharsets.UTF_8);
 
   private final Map<String, TurtleSession> sessions = new LinkedHashMap<>();
+  private final Set<String> knownSpawnServices = ConcurrentHashMap.newKeySet();
+  private final Map<Long, String> pendingLifecycleNamespaces = new ConcurrentHashMap<>();
   private volatile MinecraftServer server;
   private TurtleWorldOps worldOps;
 
@@ -56,6 +61,7 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
 
     on(BridgeEvent.GraphSnapshot.class, this::handleGraphSnapshot);
     on(BridgeEvent.TopicPayload.class, this::handleTopicPayload);
+    on(BridgeEvent.ServiceCallResponse.class, this::handleServiceCallResponse);
     on(BridgeEvent.BridgeError.class, this::handleBridgeError);
 
     ctx.bridgeIfConnected().ifPresent(bridge -> bridge.graph().snapshot());
@@ -98,6 +104,8 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
       session.close();
     }
     sessions.clear();
+    knownSpawnServices.clear();
+    pendingLifecycleNamespaces.clear();
     server = null;
   }
 
@@ -195,10 +203,17 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
       return 0;
     }
 
-    long requestId = callLifecycleService(spawnServiceTopic(namespace));
+    String spawnService = spawnServiceTopic(namespace);
+    if (!isSpawnServiceKnown(spawnService)) {
+      source.sendMessage(spawnServiceUnavailableText(namespace, spawnService));
+      return 0;
+    }
+
+    long requestId = callLifecycleService(spawnService);
     if (requestId == AddonContext.DISCONNECTED) {
       return bridgeNotConnected(source);
     }
+    pendingLifecycleNamespaces.put(requestId, namespace);
 
     source.sendMessage(RoscraftMod.prefix()
         .append(Text.literal("turtlebot ").formatted(Formatting.GOLD))
@@ -224,6 +239,7 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
     if (requestId == AddonContext.DISCONNECTED) {
       return bridgeNotConnected(source);
     }
+    pendingLifecycleNamespaces.put(requestId, namespace);
 
     source.sendMessage(RoscraftMod.prefix()
         .append(Text.literal("turtlebot ").formatted(Formatting.GOLD))
@@ -234,17 +250,21 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
   }
 
   private long callLifecycleService(String serviceName) {
-    return ctx.mapBridge(bridge -> bridge
-            .services()
-            .call(
-                serviceName,
-                TRIGGER_TYPE,
-                TRIGGER_REQUEST,
-                BridgeOperations.ServiceOps.ServiceCallOptions.defaults()))
+    var options = new BridgeOperations.ServiceOps.ServiceCallOptions(10.0, 0, 0.0);
+    return ctx.mapBridge(
+            bridge -> bridge.services().call(serviceName, TRIGGER_TYPE, TRIGGER_REQUEST, options))
         .orElse(AddonContext.DISCONNECTED);
   }
 
   private void handleGraphSnapshot(BridgeEvent.GraphSnapshot snapshot) {
+    knownSpawnServices.clear();
+    for (var service : snapshot.services()) {
+      String normalized = normalizeTopicName(service.name());
+      if (normalized.endsWith(SPAWN_SERVICE_SUFFIX)) {
+        knownSpawnServices.add("/" + normalized);
+      }
+    }
+
     List<String> discovered = new ArrayList<>();
     for (var topic : snapshot.topics()) {
       Optional<String> namespace = namespaceFromTopic(topic.name(), topic.type());
@@ -320,6 +340,8 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
         worldOps.spawn(session);
       } else if (wasSpawned && !isSpawned) {
         worldOps.despawn(session);
+      } else if (isSpawned && !session.hasEntity()) {
+        worldOps.spawn(session);
       }
 
       sendChat(renderEventLine(
@@ -331,6 +353,58 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
     }
   }
 
+  private void handleServiceCallResponse(BridgeEvent.ServiceCallResponse response) {
+    String namespace = pendingLifecycleNamespaces.remove(response.requestId());
+    if (namespace == null) {
+      return;
+    }
+
+    TurtleSession session = sessions.get(namespace);
+    if (session == null) {
+      return;
+    }
+
+    String normalizedService = normalizeTopicName(response.serviceName());
+    if (normalizedService.endsWith(SPAWN_SERVICE_SUFFIX)) {
+      if (!response.success()) {
+        sendChat(RoscraftMod.prefix()
+            .append(Text.literal("turtlebot ").formatted(Formatting.GOLD))
+            .append(Text.literal("Spawn service failed for ").formatted(Formatting.RED))
+            .append(Text.literal(displayNamespace(namespace)).formatted(Formatting.AQUA))
+            .append(Text.literal(": " + response.resultText()).formatted(Formatting.GRAY)));
+        return;
+      }
+
+      session.spawned = true;
+      if (!session.hasEntity()) {
+        worldOps.spawn(session);
+      }
+      sendChat(renderEventLine(
+          namespace,
+          "spawn service",
+          "ok -> " + session.describePose(worldOps.findEntity(session))));
+      return;
+    }
+
+    if (normalizedService.endsWith(DESPAWN_SERVICE_SUFFIX)) {
+      if (!response.success()) {
+        sendChat(RoscraftMod.prefix()
+            .append(Text.literal("turtlebot ").formatted(Formatting.GOLD))
+            .append(Text.literal("Despawn service failed for ").formatted(Formatting.RED))
+            .append(Text.literal(displayNamespace(namespace)).formatted(Formatting.AQUA))
+            .append(Text.literal(": " + response.resultText()).formatted(Formatting.GRAY)));
+        return;
+      }
+
+      session.spawned = false;
+      worldOps.despawn(session);
+      sendChat(renderEventLine(
+          namespace,
+          "despawn service",
+          "ok -> " + session.describePose(worldOps.findEntity(session))));
+    }
+  }
+
   private void handleBridgeError(BridgeEvent.BridgeError error) {
     RoscraftMod.LOGGER.warn(
         "Turtlebot bridge error: requestId={} code={} message={}",
@@ -338,11 +412,53 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
         error.errorCode(),
         error.errorMessage());
 
-    sendChat(RoscraftMod.prefix()
+    String namespace = pendingLifecycleNamespaces.remove(error.requestId());
+    MutableText message = RoscraftMod.prefix()
         .append(Text.literal("turtlebot ").formatted(Formatting.GOLD))
         .append(Text.literal("Bridge error: ").formatted(Formatting.RED))
         .append(Text.literal(error.errorCode() + " - " + error.errorMessage())
-            .formatted(Formatting.GRAY)));
+            .formatted(Formatting.GRAY));
+
+    if (namespace != null && isServiceUnavailableError(error)) {
+      message
+          .append(Text.literal(" Hint: ").formatted(Formatting.YELLOW))
+          .append(spawnNamespaceHint(namespace, spawnServiceTopic(namespace))
+              .formatted(Formatting.GRAY));
+    }
+
+    sendChat(message);
+  }
+
+  private boolean isSpawnServiceKnown(String spawnService) {
+    if (knownSpawnServices.isEmpty()) {
+      return true;
+    }
+    String normalized = normalizeTopicName(spawnService);
+    return knownSpawnServices.contains("/" + normalized);
+  }
+
+  private static boolean isServiceUnavailableError(BridgeEvent.BridgeError error) {
+    String message =
+        error.errorMessage() == null ? "" : error.errorMessage().toLowerCase(Locale.ROOT);
+    return message.contains("service unavailable") || message.contains("not available");
+  }
+
+  private static Text spawnServiceUnavailableText(String namespace, String spawnService) {
+    return RoscraftMod.prefix()
+        .append(Text.literal("turtlebot ").formatted(Formatting.GOLD))
+        .append(Text.literal("No spawn service at ").formatted(Formatting.RED))
+        .append(Text.literal(spawnService).formatted(Formatting.GRAY))
+        .append(Text.literal(". ").formatted(Formatting.GRAY))
+        .append(spawnNamespaceHint(namespace, spawnService).formatted(Formatting.YELLOW));
+  }
+
+  private static String spawnNamespaceHint(String namespace, String spawnService) {
+    StringBuilder hint = new StringBuilder();
+    hint.append("Use /ros turtlebot spawn root for root-namespace nodes, or ");
+    hint.append("ros2 launch roscraft_turtlebot turtlebot.launch.py for ");
+    hint.append(displayNamespace(namespace.isBlank() ? "turtle1" : namespace));
+    hint.append(". Expected service: ").append(spawnService);
+    return hint.toString();
   }
 
   private boolean trackNamespace(String namespace) {
@@ -442,6 +558,9 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
     }
     while (normalized.endsWith("/")) {
       normalized = normalized.substring(0, normalized.length() - 1);
+    }
+    if (normalized.equalsIgnoreCase("root") || normalized.equals("_")) {
+      return "";
     }
     return normalized;
   }
