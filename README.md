@@ -33,7 +33,7 @@
 **roscraft** is a bidirectional ROS 2 <=> Minecraft bridge.
 It lets Minecraft server operators interact with a live ROS 2 graph directly from inside the game — querying nodes, topics, services, actions, parameters, and interfaces — all through the in-game `/ros` chat command.
 
-<video src="videos/turtlebot_input_movement.mp4" controls muted playsinline></video>
+![Demo Video](videos/turtlebot_input_movement.gif)
 
 The system has two sides: a **Java Fabric mod** for Minecraft and a **C++23 ROS 2 workspace** for the bridge backend. They communicate via FlatBuffers over JNI (in-process) or UDP (network), auto-selecting the transport based on build capabilities and configuration.
 
