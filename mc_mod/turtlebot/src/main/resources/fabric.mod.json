@@ -3,7 +3,7 @@
     "id": "roscraft-turtlebot",
     "version": "${version}",
     "name": "Roscraft Turtlebot",
-    "description": "Roscraft addon that mirrors turtlebot ROS commands and keeps local turtle state.",
+    "description": "Roscraft addon that spawns Minecraft turtles and drives them from turtlebot ROS topics.",
     "authors": [],
     "license": "MIT",
     "environment": "*",

@@ -10,6 +10,10 @@ Copy this directory to start your own roscraft addon.
 4. Edit `gradle.properties` — update `roscraft_jar_path` to point to the roscraft mod JAR
 5. Run `./gradlew build`
 
+```bash
+./gradlew spotlessApply   # format Java sources (Google style via Spotless)
+```
+
 ```
 template/
 ├── build.gradle          # Fabric Loom build with roscraft dependency

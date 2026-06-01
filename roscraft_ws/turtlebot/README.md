@@ -2,10 +2,10 @@
 
 This package provides three ROS 2 nodes for a Roscraft turtlebot workflow:
 
-* `roscraft_turtlebot_lifecycle` exposes spawn and despawn services.
-* `roscraft_turtlebot_movement` translates movement commands into `Twist`
+- `roscraft_turtlebot_lifecycle` exposes spawn and despawn services.
+- `roscraft_turtlebot_movement` translates movement commands into `Twist`
   velocity messages.
-* `roscraft_turtlebot_keyboard` is an interactive CLI that turns key presses
+- `roscraft_turtlebot_keyboard` is an interactive CLI that turns key presses
   into movement commands.
 
 ## Launch
@@ -85,7 +85,3 @@ c down
 h help
 q quit
 ```
-
-The movement node publishes the resulting velocity command as a standard
-`geometry_msgs/msg/Twist` message, which makes it easy to connect the package
-to a downstream bridge or simulator later.

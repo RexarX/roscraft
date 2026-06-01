@@ -1,6 +1,7 @@
 plugins {
     id 'fabric-loom' version '1.12-SNAPSHOT'
     id 'maven-publish'
+    id 'com.diffplug.spotless' version '7.0.+'
 }
 
 java { withSourcesJar() }
@@ -46,3 +47,15 @@ processResources {
         expand "version": inputs.properties.version
     }
 }
+
+spotless {
+    java {
+        target "src/**/*.java"
+        targetExclude "build/**"
+        palantirJavaFormat('2.38.0').style("GOOGLE")
+        removeUnusedImports()
+        lineEndings "UNIX"
+    }
+}
+
+build.dependsOn("spotlessCheck")

@@ -6,29 +6,40 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.roscraft.bridge.BridgeOperations;
 import net.roscraft.bridge.event.BridgeEvent;
 import net.roscraft.bridge.event.Subscription;
 import net.roscraft.mod.RoscraftMod;
 import net.roscraft.mod.addon.AbstractRoscraftAddon;
+import net.roscraft.mod.addon.AddonContext;
 import net.roscraft.mod.addon.minecraft.RoscraftAddonCommands;
 
 public final class TurtlebotAddon extends AbstractRoscraftAddon implements RoscraftAddonCommands {
 
-  private static final String MOVEMENT_COMMAND_SUFFIX = "roscraft/turtlebot/movement/cmd";
+  private static final String CMD_VEL_SUFFIX = "roscraft/turtlebot/cmd_vel";
   private static final String MOVEMENT_STATE_SUFFIX = "roscraft/turtlebot/movement/state";
   private static final String LIFECYCLE_STATE_SUFFIX = "roscraft/turtlebot/lifecycle/state";
+  private static final String SPAWN_SERVICE_SUFFIX = "roscraft/turtlebot/lifecycle/spawn";
+  private static final String DESPAWN_SERVICE_SUFFIX = "roscraft/turtlebot/lifecycle/despawn";
+
+  private static final String TWIST_TYPE = "geometry_msgs/msg/Twist";
   private static final String STRING_TYPE = "std_msgs/msg/String";
   private static final String BOOL_TYPE = "std_msgs/msg/Bool";
+  private static final String TRIGGER_TYPE = "std_srvs/srv/Trigger";
+  private static final byte[] TRIGGER_REQUEST = "{}".getBytes(StandardCharsets.UTF_8);
 
   private final Map<String, TurtleSession> sessions = new LinkedHashMap<>();
+  private volatile MinecraftServer server;
+  private TurtleWorldOps worldOps;
 
   @Override
   public String addonId() {
@@ -38,6 +49,10 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
   @Override
   protected void configure() {
     RoscraftMod.LOGGER.info("Turtlebot addon initialised.");
+    worldOps = new TurtleWorldOps(() -> server);
+
+    ServerLifecycleEvents.SERVER_STARTED.register(activeServer -> server = activeServer);
+    ServerLifecycleEvents.SERVER_STOPPING.register(activeServer -> server = null);
 
     on(BridgeEvent.GraphSnapshot.class, this::handleGraphSnapshot);
     on(BridgeEvent.TopicPayload.class, this::handleTopicPayload);
@@ -48,27 +63,42 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
 
   @Override
   public List<LiteralArgumentBuilder<ServerCommandSource>> commands() {
-    return List.of(
-        CommandManager.literal("turtlebot")
-            .executes(c -> executeStatus(c.getSource()))
-            .then(CommandManager.literal("status").executes(c -> executeStatus(c.getSource())))
-            .then(CommandManager.literal("refresh").executes(c -> executeRefresh(c.getSource())))
-            .then(CommandManager.literal("watch")
-                .then(CommandManager.argument("namespace", StringArgumentType.string())
-                    .executes(c -> executeWatch(
-                        c.getSource(), StringArgumentType.getString(c, "namespace")))))
-            .then(CommandManager.literal("forget")
-                .then(CommandManager.argument("namespace", StringArgumentType.string())
-                    .executes(c -> executeForget(
-                        c.getSource(), StringArgumentType.getString(c, "namespace"))))));
+    return List.of(CommandManager.literal("turtlebot")
+        .executes(c -> executeStatus(c.getSource()))
+        .then(CommandManager.literal("status").executes(c -> executeStatus(c.getSource())))
+        .then(CommandManager.literal("refresh").executes(c -> executeRefresh(c.getSource())))
+        .then(CommandManager.literal("watch")
+            .then(CommandManager.argument("namespace", StringArgumentType.string())
+                .executes(c ->
+                    executeWatch(c.getSource(), StringArgumentType.getString(c, "namespace")))))
+        .then(CommandManager.literal("forget")
+            .then(CommandManager.argument("namespace", StringArgumentType.string())
+                .executes(c ->
+                    executeForget(c.getSource(), StringArgumentType.getString(c, "namespace")))))
+        .then(CommandManager.literal("spawn")
+            .then(CommandManager.argument("namespace", StringArgumentType.string())
+                .executes(c ->
+                    executeSpawn(c.getSource(), StringArgumentType.getString(c, "namespace"), null))
+                .then(CommandManager.literal("at")
+                    .then(CommandManager.argument("player", StringArgumentType.string())
+                        .executes(c -> executeSpawn(
+                            c.getSource(),
+                            StringArgumentType.getString(c, "namespace"),
+                            StringArgumentType.getString(c, "player")))))))
+        .then(CommandManager.literal("despawn")
+            .then(CommandManager.argument("namespace", StringArgumentType.string())
+                .executes(c ->
+                    executeDespawn(c.getSource(), StringArgumentType.getString(c, "namespace"))))));
   }
 
   @Override
   protected void onShutdown() {
     for (TurtleSession session : sessions.values()) {
+      worldOps.despawn(session);
       session.close();
     }
     sessions.clear();
+    server = null;
   }
 
   private int executeStatus(ServerCommandSource source) {
@@ -137,6 +167,7 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
       return 0;
     }
 
+    worldOps.despawn(session);
     session.close();
     source.sendMessage(RoscraftMod.prefix()
         .append(Text.literal("turtlebot ").formatted(Formatting.GOLD))
@@ -145,14 +176,79 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
     return 1;
   }
 
+  private int executeSpawn(ServerCommandSource source, String rawNamespace, String playerName) {
+    if (!ctx.isBridgeConnected()) {
+      return bridgeNotConnected(source);
+    }
+
+    String namespace = normalizeNamespace(rawNamespace);
+    TurtleSession session = sessions.computeIfAbsent(namespace, TurtleSession::new);
+    if (playerName == null || playerName.isBlank()) {
+      session.setPendingSpawnAtWorld();
+    } else {
+      session.setPendingSpawnAtPlayer(playerName);
+    }
+
+    if (!trackNamespace(namespace)) {
+      source.sendMessage(errorText(
+          "Unable to subscribe to turtle topics for " + displayNamespace(namespace) + "."));
+      return 0;
+    }
+
+    long requestId = callLifecycleService(spawnServiceTopic(namespace));
+    if (requestId == AddonContext.DISCONNECTED) {
+      return bridgeNotConnected(source);
+    }
+
+    source.sendMessage(RoscraftMod.prefix()
+        .append(Text.literal("turtlebot ").formatted(Formatting.GOLD))
+        .append(Text.literal("Spawn requested for ").formatted(Formatting.GREEN))
+        .append(Text.literal(displayNamespace(namespace)).formatted(Formatting.AQUA))
+        .append(Text.literal(" (requestId=" + requestId + ")").formatted(Formatting.GRAY)));
+    return 1;
+  }
+
+  private int executeDespawn(ServerCommandSource source, String rawNamespace) {
+    if (!ctx.isBridgeConnected()) {
+      return bridgeNotConnected(source);
+    }
+
+    String namespace = normalizeNamespace(rawNamespace);
+    if (!sessions.containsKey(namespace) && !trackNamespace(namespace)) {
+      source.sendMessage(errorText(
+          "Unable to subscribe to turtle topics for " + displayNamespace(namespace) + "."));
+      return 0;
+    }
+
+    long requestId = callLifecycleService(despawnServiceTopic(namespace));
+    if (requestId == AddonContext.DISCONNECTED) {
+      return bridgeNotConnected(source);
+    }
+
+    source.sendMessage(RoscraftMod.prefix()
+        .append(Text.literal("turtlebot ").formatted(Formatting.GOLD))
+        .append(Text.literal("Despawn requested for ").formatted(Formatting.YELLOW))
+        .append(Text.literal(displayNamespace(namespace)).formatted(Formatting.AQUA))
+        .append(Text.literal(" (requestId=" + requestId + ")").formatted(Formatting.GRAY)));
+    return 1;
+  }
+
+  private long callLifecycleService(String serviceName) {
+    return ctx.mapBridge(bridge -> bridge
+            .services()
+            .call(
+                serviceName,
+                TRIGGER_TYPE,
+                TRIGGER_REQUEST,
+                BridgeOperations.ServiceOps.ServiceCallOptions.defaults()))
+        .orElse(AddonContext.DISCONNECTED);
+  }
+
   private void handleGraphSnapshot(BridgeEvent.GraphSnapshot snapshot) {
     List<String> discovered = new ArrayList<>();
     for (var topic : snapshot.topics()) {
       Optional<String> namespace = namespaceFromTopic(topic.name(), topic.type());
-      if (namespace.isEmpty()) {
-        continue;
-      }
-      if (sessions.containsKey(namespace.get())) {
+      if (namespace.isEmpty() || sessions.containsKey(namespace.get())) {
         continue;
       }
       if (trackNamespace(namespace.get())) {
@@ -180,41 +276,58 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
       return;
     }
 
-    String payloadText = decodePayloadText(payload.payload());
-    if (topicName.endsWith(MOVEMENT_COMMAND_SUFFIX)) {
-      MovementCommand command = parseMovementCommand(payloadText);
-      if (command == null) {
-        session.lastMovementCommand = payloadText;
-        sendChat(renderEventLine(
-            namespace.get(), "movement command", "ignored invalid payload: " + payloadText));
+    if (topicName.endsWith(CMD_VEL_SUFFIX)) {
+      Optional<RosCdrDecoder.Twist> twist = RosCdrDecoder.decodeTwist(payload.payload());
+      if (twist.isEmpty()) {
+        sendChat(renderEventLine(namespace.get(), "cmd_vel", "ignored invalid payload"));
         return;
       }
 
-      session.lastMovementCommand = command.rawText();
       if (session.spawned) {
-        session.apply(command);
+        worldOps.applyTwist(session, twist.get());
       }
       sendChat(renderEventLine(
-          namespace.get(), "movement command", command.rawText() + " -> " + session.describePose()));
+          namespace.get(),
+          "cmd_vel",
+          formatTwist(twist.get()) + " -> " + session.describePose(worldOps.findEntity(session))));
       return;
     }
 
     if (topicName.endsWith(MOVEMENT_STATE_SUFFIX)) {
-      session.lastMovementState = payloadText;
-      session.lastEventSummary = "state=" + payloadText;
+      RosCdrDecoder.decodeString(payload.payload())
+          .ifPresent(value -> session.lastMovementState = value);
+      session.lastEventSummary = "state=" + session.lastMovementState;
       sendChat(renderEventLine(
-          namespace.get(), "movement state", payloadText + " -> " + session.describePose()));
+          namespace.get(),
+          "movement state",
+          session.lastMovementState + " -> " + session.describePose(worldOps.findEntity(session))));
       return;
     }
 
     if (topicName.endsWith(LIFECYCLE_STATE_SUFFIX)) {
-      session.spawned = parseBooleanPayload(payloadText);
-      session.lastLifecycleState = payloadText;
-      session.lastEventSummary = "lifecycle=" + payloadText;
+      Optional<Boolean> lifecycle = RosCdrDecoder.decodeBool(payload.payload());
+      if (lifecycle.isEmpty()) {
+        sendChat(renderEventLine(namespace.get(), "lifecycle state", "ignored invalid payload"));
+        return;
+      }
+
+      boolean wasSpawned = session.spawned;
+      boolean isSpawned = lifecycle.get();
+      session.spawned = isSpawned;
+      session.lastEventSummary = "lifecycle=" + isSpawned;
+
+      if (!wasSpawned && isSpawned) {
+        worldOps.spawn(session);
+      } else if (wasSpawned && !isSpawned) {
+        worldOps.despawn(session);
+      }
+
       sendChat(renderEventLine(
           namespace.get(),
           "lifecycle state",
-          (session.spawned ? "spawned" : "despawned") + " -> " + session.describePose()));
+          (isSpawned ? "spawned" : "despawned")
+              + " -> "
+              + session.describePose(worldOps.findEntity(session))));
     }
   }
 
@@ -233,8 +346,12 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
   }
 
   private boolean trackNamespace(String namespace) {
+    if (sessions.containsKey(namespace)) {
+      return true;
+    }
+
     TurtleSession session = new TurtleSession(namespace);
-    if (!subscribe(session, movementCommandTopic(namespace), STRING_TYPE)) {
+    if (!subscribe(session, cmdVelTopic(namespace), TWIST_TYPE)) {
       session.close();
       return false;
     }
@@ -272,15 +389,15 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
           && !descriptor.messageType.equals(messageType)) {
         continue;
       }
-      String namespace = normalizedTopic.substring(
-          0, normalizedTopic.length() - descriptor.suffix.length());
+      String namespace =
+          normalizedTopic.substring(0, normalizedTopic.length() - descriptor.suffix.length());
       return Optional.of(normalizeNamespace(namespace));
     }
     return Optional.empty();
   }
 
-  private static String movementCommandTopic(String namespace) {
-    return topicName(namespace, MOVEMENT_COMMAND_SUFFIX);
+  private static String cmdVelTopic(String namespace) {
+    return topicName(namespace, CMD_VEL_SUFFIX);
   }
 
   private static String movementStateTopic(String namespace) {
@@ -289,6 +406,14 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
 
   private static String lifecycleStateTopic(String namespace) {
     return topicName(namespace, LIFECYCLE_STATE_SUFFIX);
+  }
+
+  private static String spawnServiceTopic(String namespace) {
+    return topicName(namespace, SPAWN_SERVICE_SUFFIX);
+  }
+
+  private static String despawnServiceTopic(String namespace) {
+    return topicName(namespace, DESPAWN_SERVICE_SUFFIX);
   }
 
   private static String topicName(String namespace, String suffix) {
@@ -321,58 +446,10 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
     return normalized;
   }
 
-  private static String decodePayloadText(byte[] payload) {
-    String text = new String(payload, StandardCharsets.UTF_8).trim();
-    int dataIndex = text.indexOf("data:");
-    if (dataIndex >= 0) {
-      text = text.substring(dataIndex + 5).trim();
-    }
-    if ((text.startsWith("'") && text.endsWith("'"))
-        || (text.startsWith("\"") && text.endsWith("\""))) {
-      text = text.substring(1, text.length() - 1);
-    }
-    return text.trim();
-  }
-
-  private static boolean parseBooleanPayload(String payloadText) {
-    String normalized = decodePayloadText(payloadText.getBytes(StandardCharsets.UTF_8))
-        .toLowerCase(Locale.ROOT);
-    return normalized.equals("true")
-        || normalized.equals("1")
-        || normalized.equals("yes")
-        || normalized.equals("on")
-        || normalized.equals("spawned");
-  }
-
-  private static MovementCommand parseMovementCommand(String payloadText) {
-    String normalized = decodePayloadText(payloadText.getBytes(StandardCharsets.UTF_8))
-        .toLowerCase(Locale.ROOT);
-    if (normalized.isBlank()) {
-      return null;
-    }
-
-    String[] parts = normalized.split("\\s+", 2);
-    String action = parts[0];
-    if (!action.equals("backward")
-        && !action.equals("down")
-        && !action.equals("forward")
-        && !action.equals("left")
-        && !action.equals("right")
-        && !action.equals("stop")
-        && !action.equals("up")) {
-      return null;
-    }
-
-    double scale = 1.0;
-    if (parts.length == 2) {
-      try {
-        scale = Double.parseDouble(parts[1]);
-      } catch (NumberFormatException ex) {
-        return null;
-      }
-    }
-
-    return new MovementCommand(action, scale, normalized);
+  private static String formatTwist(RosCdrDecoder.Twist twist) {
+    return String.format(
+        "linear_x=%.3f linear_z=%.3f angular_z=%.3f",
+        twist.linearX(), twist.linearZ(), twist.angularZ());
   }
 
   private static void sendChat(Text message) {
@@ -395,12 +472,13 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
         .append(Text.literal(message).formatted(Formatting.RED));
   }
 
-  private static MutableText renderStatusLine(String namespace, TurtleSession session) {
+  private MutableText renderStatusLine(String namespace, TurtleSession session) {
     return RoscraftMod.prefix()
         .append(Text.literal("turtlebot ").formatted(Formatting.GOLD))
         .append(Text.literal(displayNamespace(namespace)).formatted(Formatting.AQUA))
         .append(Text.literal(" ").formatted(Formatting.GRAY))
-        .append(Text.literal(session.describePose()).formatted(Formatting.GREEN))
+        .append(Text.literal(session.describePose(worldOps.findEntity(session)))
+            .formatted(Formatting.GREEN))
         .append(Text.literal(" | last=").formatted(Formatting.DARK_GRAY))
         .append(Text.literal(session.lastEventSummary()).formatted(Formatting.GRAY));
   }
@@ -419,7 +497,7 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
   }
 
   private enum TopicDescriptor {
-    MOVEMENT_COMMAND(MOVEMENT_COMMAND_SUFFIX, STRING_TYPE),
+    CMD_VEL(CMD_VEL_SUFFIX, TWIST_TYPE),
     MOVEMENT_STATE(MOVEMENT_STATE_SUFFIX, STRING_TYPE),
     LIFECYCLE_STATE(LIFECYCLE_STATE_SUFFIX, BOOL_TYPE);
 
@@ -429,88 +507,6 @@ public final class TurtlebotAddon extends AbstractRoscraftAddon implements Roscr
     TopicDescriptor(String suffix, String messageType) {
       this.suffix = suffix;
       this.messageType = messageType;
-    }
-  }
-
-  private record MovementCommand(String action, double scale, String rawText) {}
-
-  private static final class TurtleSession {
-    private final String namespace;
-    private final List<Subscription> subscriptions = new ArrayList<>();
-    private double x;
-    private double y;
-    private double z;
-    private double yaw;
-    private double pitch;
-    private double roll;
-    private boolean spawned;
-    private String lastMovementCommand = "";
-    private String lastMovementState = "";
-    private String lastLifecycleState = "";
-    private String lastEventSummary = "";
-
-    private TurtleSession(String namespace) {
-      this.namespace = namespace;
-    }
-
-    private void apply(MovementCommand command) {
-      double scale = command.scale();
-      switch (command.action()) {
-        case "forward" -> moveForward(scale);
-        case "backward" -> moveForward(-scale);
-        case "left" -> yaw = normalizeAngle(yaw + 90.0 * scale);
-        case "right" -> yaw = normalizeAngle(yaw - 90.0 * scale);
-        case "up" -> y += scale;
-        case "down" -> y -= scale;
-        case "stop" -> {
-          return;
-        }
-        default -> {
-          return;
-        }
-      }
-
-      lastMovementCommand = command.rawText();
-      lastEventSummary = "command=" + command.rawText();
-    }
-
-    private void moveForward(double distance) {
-      double radians = Math.toRadians(yaw);
-      x += -Math.sin(radians) * distance;
-      z += Math.cos(radians) * distance;
-    }
-
-    private String describePose() {
-      return String.format(
-          Locale.ROOT,
-          "pos=(%.2f, %.2f, %.2f) rot=(yaw=%.1f pitch=%.1f roll=%.1f) spawned=%s",
-          x,
-          y,
-          z,
-          yaw,
-          pitch,
-          roll,
-          spawned);
-    }
-
-    private String lastEventSummary() {
-      return lastEventSummary.isBlank() ? "idle" : lastEventSummary;
-    }
-
-    private void close() {
-      for (int index = subscriptions.size() - 1; index >= 0; index--) {
-        try {
-          subscriptions.get(index).close();
-        } catch (Exception ignored) {
-          // Best-effort cleanup.
-        }
-      }
-      subscriptions.clear();
-    }
-
-    private static double normalizeAngle(double angle) {
-      double normalized = angle % 360.0;
-      return normalized < 0.0 ? normalized + 360.0 : normalized;
     }
   }
 }
