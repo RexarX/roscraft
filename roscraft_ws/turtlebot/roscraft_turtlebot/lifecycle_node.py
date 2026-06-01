@@ -66,9 +66,7 @@ class LifecycleNode(Node):
         if _is_truthy(self.declare_parameter("spawn_on_start", False).value):
             self._set_spawned(True, Trigger.Response())
 
-        republish_hz = float(
-            self.declare_parameter("state_republish_hz", 1.0).value
-        )
+        republish_hz = float(self.declare_parameter("state_republish_hz", 1.0).value)
         if republish_hz > 0.0:
             self.create_timer(1.0 / republish_hz, self._republish_state_if_spawned)
 

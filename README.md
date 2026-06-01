@@ -17,8 +17,8 @@
 - [Prerequisites](#prerequisites)
 - [Dependencies](#dependencies)
 - [Building](#building)
-    - [C++ Backend](#cpp-backend)
-    - [Minecraft Mod](#minecraft-mod)
+  - [C++ Backend](#cpp-backend)
+  - [Minecraft Mod](#minecraft-mod)
 - [CMake Options](#cmake-options)
 - [Makefile](#makefile)
 - [Testing](#testing)
@@ -32,6 +32,8 @@
 
 **roscraft** is a bidirectional ROS 2 <=> Minecraft bridge.
 It lets Minecraft server operators interact with a live ROS 2 graph directly from inside the game — querying nodes, topics, services, actions, parameters, and interfaces — all through the in-game `/ros` chat command.
+
+<video src="videos/turtlebot_input_movement.mp4" controls muted playsinline></video>
 
 The system has two sides: a **Java Fabric mod** for Minecraft and a **C++23 ROS 2 workspace** for the bridge backend. They communicate via FlatBuffers over JNI (in-process) or UDP (network), auto-selecting the transport based on build capabilities and configuration.
 
@@ -269,9 +271,9 @@ ros2 run roscraft_bridge_network roscraft_bridge_network # optional --host 127.0
 
 ```json
 {
-    "bridgeType": "NETWORK",
-    "networkHost": "127.0.0.1",
-    "networkPort": 7401
+  "bridgeType": "NETWORK",
+  "networkHost": "127.0.0.1",
+  "networkPort": 7401
 }
 ```
 

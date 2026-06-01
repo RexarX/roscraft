@@ -87,9 +87,7 @@ class KeyboardInputNode(Node):
             "despawn_service",
             DEFAULT_DESPAWN_SERVICE,
         ).value
-        self._auto_spawn = _is_truthy(
-            self.declare_parameter("auto_spawn", True).value
-        )
+        self._auto_spawn = _is_truthy(self.declare_parameter("auto_spawn", True).value)
         self._auto_despawn = _is_truthy(
             self.declare_parameter("auto_despawn", True).value
         )
@@ -98,7 +96,9 @@ class KeyboardInputNode(Node):
         if not node_namespace:
             output_topic = _resolve_namespaced(str(output_topic), turtle_namespace)
             spawn_service = _resolve_namespaced(str(spawn_service), turtle_namespace)
-            despawn_service = _resolve_namespaced(str(despawn_service), turtle_namespace)
+            despawn_service = _resolve_namespaced(
+                str(despawn_service), turtle_namespace
+            )
             display_ns = turtle_namespace or "root"
             self.get_logger().info(
                 f"Node is in the root namespace; using turtle_namespace={display_ns!r}"
